@@ -51,12 +51,11 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "People",
     icon: "people",
     items: [
-      { label: "Employees", href: "/people/employees", permissions: ["employees.view"], planned: true },
+      { label: "Employees", href: "/people/employees", permissions: ["employees.view"] },
       {
         label: "Iqama & Passports",
         href: "/people/iqama",
         permissions: ["employees.view"],
-        planned: true,
         keywords: ["residency", "expiry", "renewal"],
       },
       { label: "Onboarding", href: "/people/onboarding", permissions: ["hr.onboarding.view"], planned: true },

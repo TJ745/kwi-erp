@@ -518,6 +518,115 @@ async function main() {
     console.log(`\n  admin user       ${adminEmail} (SUPER_ADMIN, both companies)`);
   }
 
+  // --- Sample employees (development only) ---------------------------------
+  // Iqama dates are deliberately spread across expired / expiring / valid so
+  // the dashboard buckets and reminder thresholds have something to show.
+  const sampleEmployees = [
+    ["Ahmed", "Khan", "PK", "HR", "HR Officer", -12, "ACTIVE"],
+    ["Mohammed", "Al Harbi", "SA", "ADMIN", "Administration Manager", 5, "ACTIVE"],
+    ["Rajesh", "Kumar", "IN", "OPS", "Technician", 18, "ACTIVE"],
+    ["Yusuf", "Rahman", "BD", "OPS", "Labourer", 27, "ACTIVE"],
+    ["Fatima", "Noor", "PK", "FIN", "Accountant", 55, "ACTIVE"],
+    ["Imran", "Sheikh", "PK", "IT", "IT Technician", 88, "ACTIVE"],
+    ["Abdullah", "Al Otaibi", "SA", "PROJ", "Project Manager", 200, "ACTIVE"],
+    ["Suresh", "Nair", "IN", "LOG", "Storekeeper", 320, "ACTIVE"],
+    ["Bilal", "Ahmed", "PK", "SAFE", "Safety Officer", 45, "ON_LEAVE"],
+    ["Kamal", "Hussain", "BD", "OPS", "Foreman", 150, "ACTIVE"],
+    ["Omar", "Siddiqui", "PK", "OPS", "Driver", -3, "ACTIVE"],
+    ["Zainab", "Ali", "SA", "HR", "HR Manager", 400, "ACTIVE"],
+  ] as const;
+
+  const existingSample = await prisma.employee.count({
+    where: { employeeNo: { startsWith: "EMP-" } },
+  });
+
+  if (existingSample > 0) {
+    console.log(`  employees        ${existingSample} already present — skipped`);
+  } else {
+    const companyIds = [...companies.values()];
+    let created = 0;
+
+    for (const [first, last, nationality, deptCode, positionTitle, iqamaOffsetDays, status] of
+      sampleEmployees) {
+      const companyId = companyIds[created % companyIds.length] ?? companyIds[0];
+      if (!companyId) break;
+
+      const department = await prisma.department.findUnique({
+        where: { companyId_code: { companyId, code: deptCode } },
+        select: { id: true },
+      });
+      const position = await prisma.position.findFirst({
+        where: { title: positionTitle, companyId: null },
+        select: { id: true },
+      });
+
+      const seq = await prisma.$queryRaw<{ value: number }[]>`
+        INSERT INTO "Counter" ("key","value","updatedAt") VALUES ('employee', 1, now())
+        ON CONFLICT ("key") DO UPDATE
+          SET "value" = "Counter"."value" + 1, "updatedAt" = now()
+        RETURNING "value"`;
+      const employeeNo = `EMP-${String(seq[0]?.value ?? created + 1).padStart(5, "0")}`;
+
+      const joining = new Date();
+      joining.setFullYear(joining.getFullYear() - (1 + (created % 5)));
+
+      const employee = await prisma.employee.create({
+        data: {
+          employeeNo,
+          companyId,
+          departmentId: department?.id ?? null,
+          positionId: position?.id ?? null,
+          firstName: first,
+          lastName: last,
+          fullName: `${first} ${last}`,
+          gender: ["Fatima", "Zainab"].includes(first) ? "FEMALE" : "MALE",
+          nationality,
+          joiningDate: joining,
+          status,
+          mobile: `+9665${String(10000000 + created * 137).slice(0, 8)}`,
+          workEmail: `${first.toLowerCase()}.${last.toLowerCase().replace(/\s+/g, "")}@example.local`,
+        },
+      });
+
+      const iqamaExpiry = new Date();
+      iqamaExpiry.setDate(iqamaExpiry.getDate() + iqamaOffsetDays);
+      const iqamaIssue = new Date(iqamaExpiry);
+      iqamaIssue.setFullYear(iqamaIssue.getFullYear() - 1);
+
+      const iqama = await prisma.iqamaRecord.create({
+        data: {
+          employeeId: employee.id,
+          iqamaNumber: String(2000000000 + created * 7919),
+          profession: positionTitle,
+          issueDate: iqamaIssue,
+          expiryDate: iqamaExpiry,
+        },
+      });
+
+      await prisma.expiryIndex.upsert({
+        where: { source_sourceId: { source: "IQAMA", sourceId: iqama.id } },
+        update: {
+          label: `Iqama — ${employee.fullName}`,
+          expiryDate: iqamaExpiry,
+          employeeId: employee.id,
+          companyId,
+          isActive: true,
+        },
+        create: {
+          source: "IQAMA",
+          sourceId: iqama.id,
+          label: `Iqama — ${employee.fullName}`,
+          expiryDate: iqamaExpiry,
+          employeeId: employee.id,
+          companyId,
+        },
+      });
+
+      created += 1;
+    }
+    console.log(`  employees        ${created} (with Iqama records and expiry projection)`);
+  }
+
   console.log("\nSeed complete.");
   console.log(
     "NOTE: no vault credentials are seeded. Real company secrets must never be " +

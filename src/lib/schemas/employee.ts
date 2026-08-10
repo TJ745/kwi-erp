@@ -1,0 +1,145 @@
+import { z } from "zod";
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => (v === "" ? undefined : v));
+
+const optionalDate = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : new Date(v)))
+  .refine((v) => v === undefined || !Number.isNaN(v.getTime()), "Enter a valid date");
+
+const requiredDate = z
+  .string()
+  .min(1, "Date is required")
+  .transform((v) => new Date(v))
+  .refine((v) => !Number.isNaN(v.getTime()), "Enter a valid date");
+
+export const EMPLOYEE_STATUSES = [
+  "ACTIVE",
+  "ON_LEAVE",
+  "RESIGNED",
+  "TERMINATED",
+  "EXITED",
+  "INACTIVE",
+] as const;
+
+export const employeeSchema = z
+  .object({
+    companyId: z.string().min(1, "Company is required"),
+    departmentId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
+    positionId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
+    managerId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
+
+    firstName: z.string().trim().min(1, "First name is required").max(80),
+    lastName: z.string().trim().min(1, "Last name is required").max(80),
+    fullNameAr: optionalText(200),
+
+    gender: z.enum(["MALE", "FEMALE"]),
+    dateOfBirth: optionalDate,
+    nationality: z
+      .string()
+      .trim()
+      .length(2, "Use a 2-letter country code")
+      .transform((v) => v.toUpperCase()),
+    maritalStatus: z
+      .enum(["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"])
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+
+    status: z.enum(EMPLOYEE_STATUSES).default("ACTIVE"),
+    employmentType: z
+      .enum(["FULL_TIME", "PART_TIME", "CONTRACT", "TEMPORARY", "INTERN"])
+      .default("FULL_TIME"),
+    joiningDate: requiredDate,
+    lastWorkingDate: optionalDate,
+
+    mobile: optionalText(30),
+    workEmail: z
+      .string()
+      .trim()
+      .email("Enter a valid email")
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    personalEmail: z
+      .string()
+      .trim()
+      .email("Enter a valid email")
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    notes: optionalText(2000),
+  })
+  .strict()
+  .refine(
+    (data) =>
+      !data.lastWorkingDate || data.lastWorkingDate.getTime() >= data.joiningDate.getTime(),
+    { message: "Last working date cannot precede the joining date", path: ["lastWorkingDate"] },
+  );
+
+export type EmployeeInput = z.infer<typeof employeeSchema>;
+
+export const updateEmployeeSchema = z
+  .object({ id: z.string().min(1) })
+  .and(employeeSchema);
+
+/** Status transitions are their own action: an employee is never deleted
+ *  through the UI, only transitioned (brief §50). */
+export const employeeStatusSchema = z
+  .object({
+    id: z.string().min(1),
+    status: z.enum(EMPLOYEE_STATUSES),
+    lastWorkingDate: optionalDate,
+    reason: optionalText(500),
+  })
+  .strict();
+
+export const iqamaSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    iqamaNumber: z
+      .string()
+      .trim()
+      .min(5, "Iqama number is required")
+      .max(20)
+      .regex(/^[0-9]+$/, "Digits only"),
+    profession: z.string().trim().min(1, "Profession is required").max(150),
+    professionAr: optionalText(150),
+    issueDate: requiredDate,
+    expiryDate: requiredDate,
+    sponsorName: optionalText(150),
+    notes: optionalText(1000),
+  })
+  .strict()
+  .refine((d) => d.expiryDate.getTime() >= d.issueDate.getTime(), {
+    message: "Expiry cannot precede the issue date",
+    path: ["expiryDate"],
+  });
+
+export type IqamaInput = z.infer<typeof iqamaSchema>;
+
+export const passportSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    passportNumber: z.string().trim().min(4, "Passport number is required").max(20),
+    issueCountry: z
+      .string()
+      .trim()
+      .length(2, "Use a 2-letter country code")
+      .transform((v) => v.toUpperCase()),
+    issuePlace: optionalText(100),
+    issueDate: requiredDate,
+    expiryDate: requiredDate,
+    notes: optionalText(1000),
+  })
+  .strict()
+  .refine((d) => d.expiryDate.getTime() >= d.issueDate.getTime(), {
+    message: "Expiry cannot precede the issue date",
+    path: ["expiryDate"],
+  });
+
+export type PassportInput = z.infer<typeof passportSchema>;
