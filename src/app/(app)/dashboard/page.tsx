@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/server/auth/guards";
+import { requirePagePermission } from "@/server/auth/page-guards";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Dashboard" };
  * authorisation chain resolves end to end.
  */
 export default async function DashboardPage() {
-  const ctx = await requirePermission("dashboard.view");
+  const ctx = await requirePagePermission("dashboard.view");
 
   const companyLabel =
     ctx.companyScope === "ALL" ? "All companies" : `${ctx.companyScope.length} company scope`;

@@ -1,0 +1,130 @@
+import type { Metadata } from "next";
+import { formatDistanceToNow } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { DataTable, type Column } from "@/components/shared/data-table";
+import { PageHeader, PageShell } from "@/components/shared/page-header";
+import { SearchInput } from "@/components/shared/search-input";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/states";
+import { parseListQuery, type SearchParams } from "@/lib/list-query";
+import { requirePagePermission } from "@/server/auth/page-guards";
+import { listUsers, type UserListRow } from "@/server/services/users";
+import { UserRowActions } from "./user-row-actions";
+import { listCompaniesForAssignment, listRolesForAssignment } from "@/server/services/users";
+
+export const metadata: Metadata = { title: "Users" };
+
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const ctx = await requirePagePermission("users.view");
+  const params = await searchParams;
+  const query = parseListQuery(params);
+
+  const [data, roles, companies] = await Promise.all([
+    listUsers(ctx, query),
+    listRolesForAssignment(ctx),
+    listCompaniesForAssignment(ctx),
+  ]);
+
+  const canManage = ctx.permissions.has("users.manage");
+
+  const columns: readonly Column<UserListRow>[] = [
+    {
+      key: "name",
+      header: "Name",
+      sortable: true,
+      primary: true,
+      cell: (row) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium">{row.name}</p>
+          <p className="text-muted-foreground truncate text-xs">{row.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: "role",
+      header: "Role",
+      primary: true,
+      cell: (row) => <Badge variant="outline">{row.roleKey.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      primary: true,
+      cell: (row) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={row.status} />
+          {row.mustChangePassword ? (
+            <Badge variant="warning" title="Must set a new password at next sign-in">
+              Password reset
+            </Badge>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "companies",
+      header: "Companies",
+      cell: (row) => (
+        <span className="text-muted-foreground text-sm tabular-nums">
+          {row.companyCount === 0 ? "None" : row.companyCount}
+        </span>
+      ),
+    },
+    {
+      key: "lastLoginAt",
+      header: "Last sign-in",
+      sortable: true,
+      cell: (row) =>
+        row.lastLoginAt ? (
+          <span className="text-sm" title={row.lastLoginAt.toISOString()}>
+            {formatDistanceToNow(row.lastLoginAt, { addSuffix: true })}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-sm">Never</span>
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (row) =>
+        canManage ? (
+          <UserRowActions
+            user={{ id: row.id, name: row.name, status: row.status, roleKey: row.roleKey }}
+            roles={roles}
+            companies={companies}
+            isSelf={row.id === ctx.userId}
+          />
+        ) : null,
+    },
+  ];
+
+  return (
+    <PageShell>
+      <PageHeader
+        title="Users"
+        description="Accounts, roles, and company access. Users are created by an administrator; there is no self-registration."
+      />
+
+      <SearchInput placeholder="Search by name or email…" />
+
+      <DataTable
+        data={data}
+        columns={columns}
+        searchParams={params}
+        basePath="/settings/users"
+        caption="System users"
+        emptyState={
+          <EmptyState
+            title="No users yet"
+            description="Run the seed or create the first administrator."
+          />
+        }
+      />
+    </PageShell>
+  );
+}
