@@ -347,6 +347,56 @@ export const ROLE_RANKS: Record<RoleKey, number> = {
   VIEWER: 50,
 };
 
+// --- Permission resolution ---------------------------------------------------
+
+/**
+ * Every permission in the catalogue — what SUPER_ADMIN resolves to.
+ *
+ * A plain Set, deliberately: `PermissionKey` is derived from `PERMISSIONS`, so
+ * this genuinely contains every valid key and needs no Proxy trickery. (An
+ * earlier Proxy that forced `has()` to return true broke `.size`, because
+ * `Set.prototype.size` requires a real Set as its receiver.)
+ */
+export const ALL_PERMISSIONS: ReadonlySet<PermissionKey> = new Set<PermissionKey>(
+  PERMISSION_KEYS,
+);
+
+export type PermissionOverride = {
+  key: string;
+  effect: "ALLOW" | "DENY";
+  expiresAt: Date | null;
+};
+
+/**
+ * effective = (role ∪ unexpired ALLOW overrides) − (unexpired DENY overrides)
+ *
+ * DENY always wins; SUPER_ADMIN short-circuits to everything. Kept free of any
+ * database or request dependency so it is directly unit-testable — this is the
+ * function every authorisation decision in the system rests on.
+ */
+export function resolvePermissions(input: {
+  rolePermissions: readonly string[];
+  overrides: readonly PermissionOverride[];
+  isSuperAdmin: boolean;
+  now?: Date;
+}): ReadonlySet<PermissionKey> {
+  if (input.isSuperAdmin) return ALL_PERMISSIONS;
+
+  const now = input.now ?? new Date();
+  const active = input.overrides.filter((o) => !o.expiresAt || o.expiresAt > now);
+
+  const effective = new Set<string>(input.rolePermissions);
+  for (const o of active) {
+    if (o.effect === "ALLOW") effective.add(o.key);
+  }
+  // Applied last so DENY beats both the role grant and any ALLOW override.
+  for (const o of active) {
+    if (o.effect === "DENY") effective.delete(o.key);
+  }
+
+  return effective as ReadonlySet<PermissionKey>;
+}
+
 export const ROLE_DESCRIPTIONS: Record<RoleKey, string> = {
   SUPER_ADMIN: "Full system access including vault, roles, and audit export.",
   ADMIN: "Full operational access. No vault, user, or role administration.",

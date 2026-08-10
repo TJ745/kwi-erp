@@ -3,6 +3,7 @@ import {
   isSensitive,
   PERMISSION_KEYS,
   PERMISSIONS,
+  resolvePermissions,
   ROLE_KEYS,
   ROLE_PERMISSIONS,
   ROLE_RANKS,
@@ -99,5 +100,114 @@ describe("role matrix", () => {
     for (const role of ROLE_KEYS) {
       expect(ROLE_PERMISSIONS[role].length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("resolvePermissions", () => {
+  const NOW = new Date("2026-08-10T12:00:00Z");
+  const base = { rolePermissions: ["employees.view", "tasks.view"], isSuperAdmin: false, now: NOW };
+
+  it("starts from the role's permissions", () => {
+    const result = resolvePermissions({ ...base, overrides: [] });
+    expect(result.has("employees.view")).toBe(true);
+    expect(result.has("employees.delete")).toBe(false);
+  });
+
+  it("adds ALLOW overrides", () => {
+    const result = resolvePermissions({
+      ...base,
+      overrides: [{ key: "employees.update", effect: "ALLOW", expiresAt: null }],
+    });
+    expect(result.has("employees.update")).toBe(true);
+  });
+
+  // DENY must beat the role grant, otherwise revoking access silently fails.
+  it("lets DENY override a role grant", () => {
+    const result = resolvePermissions({
+      ...base,
+      overrides: [{ key: "employees.view", effect: "DENY", expiresAt: null }],
+    });
+    expect(result.has("employees.view")).toBe(false);
+  });
+
+  it("lets DENY beat ALLOW regardless of ordering", () => {
+    const allowFirst = resolvePermissions({
+      ...base,
+      overrides: [
+        { key: "vault.reveal", effect: "ALLOW", expiresAt: null },
+        { key: "vault.reveal", effect: "DENY", expiresAt: null },
+      ],
+    });
+    const denyFirst = resolvePermissions({
+      ...base,
+      overrides: [
+        { key: "vault.reveal", effect: "DENY", expiresAt: null },
+        { key: "vault.reveal", effect: "ALLOW", expiresAt: null },
+      ],
+    });
+    expect(allowFirst.has("vault.reveal")).toBe(false);
+    expect(denyFirst.has("vault.reveal")).toBe(false);
+  });
+
+  it("ignores expired overrides", () => {
+    const expired = new Date("2026-08-09T12:00:00Z");
+    const allow = resolvePermissions({
+      ...base,
+      overrides: [{ key: "employees.delete", effect: "ALLOW", expiresAt: expired }],
+    });
+    expect(allow.has("employees.delete")).toBe(false);
+
+    // An expired DENY must stop suppressing the role's grant.
+    const deny = resolvePermissions({
+      ...base,
+      overrides: [{ key: "employees.view", effect: "DENY", expiresAt: expired }],
+    });
+    expect(deny.has("employees.view")).toBe(true);
+  });
+
+  it("honours overrides that have not yet expired", () => {
+    const future = new Date("2026-08-11T12:00:00Z");
+    const result = resolvePermissions({
+      ...base,
+      overrides: [{ key: "employees.delete", effect: "ALLOW", expiresAt: future }],
+    });
+    expect(result.has("employees.delete")).toBe(true);
+  });
+
+  it("gives SUPER_ADMIN every permission, including ones not in its role", () => {
+    const result = resolvePermissions({
+      rolePermissions: [],
+      overrides: [],
+      isSuperAdmin: true,
+      now: NOW,
+    });
+    for (const key of PERMISSION_KEYS) {
+      expect(result.has(key)).toBe(true);
+    }
+  });
+
+  // Regression: the SUPER_ADMIN set must behave like a real Set. A previous
+  // Proxy implementation threw on `.size` ("called on incompatible receiver"),
+  // which surfaced as a 500 on the dashboard.
+  it("returns a fully functional Set for SUPER_ADMIN", () => {
+    const result = resolvePermissions({
+      rolePermissions: [],
+      overrides: [],
+      isSuperAdmin: true,
+      now: NOW,
+    });
+    expect(() => result.size).not.toThrow();
+    expect(result.size).toBe(PERMISSION_KEYS.length);
+    expect([...result]).toHaveLength(PERMISSION_KEYS.length);
+  });
+
+  it("does not let a DENY override strip SUPER_ADMIN", () => {
+    const result = resolvePermissions({
+      rolePermissions: [],
+      overrides: [{ key: "vault.reveal", effect: "DENY", expiresAt: null }],
+      isSuperAdmin: true,
+      now: NOW,
+    });
+    expect(result.has("vault.reveal")).toBe(true);
   });
 });

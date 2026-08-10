@@ -60,6 +60,34 @@ These are the OWASP-recommended Argon2id parameters (the 19 MiB / t=2 profile). 
 | Login response timing | Identical message and comparable timing for unknown email vs wrong password |
 | Disabled accounts | `User.status != ACTIVE` fails auth and invalidates existing sessions |
 
+#### These controls live in Better Auth hooks, not in the login action
+
+`/api/auth/sign-in/email` is a **public endpoint**. An earlier implementation put
+rate limiting, lockout, and audit logging inside the `loginAction` Server Action;
+posting directly to that route bypassed all three. Verified by doing exactly
+that: sessions were issued with no audit entry, no counter increment, and no
+rate-limit bucket.
+
+They now live in `src/server/auth/login-hooks.ts`, wired to Better Auth's
+`hooks.before` / `hooks.after`, so they apply to **every** path into sign-in.
+`loginAction` is a thin caller that only maps errors for the form.
+
+**Rule for any future auth surface:** a security control belongs on the hook, not
+the caller. If it can be reached without going through your code, it is not
+enforced.
+
+#### Two rate limiters, one authority
+
+Better Auth ships its own limiter, in-memory by default — per-instance, so
+unreliable on serverless — and its default sign-in rule is stricter than ours,
+which silently masked our limit and made the effective threshold depend on which
+instance served the request.
+
+Resolved by making our **database-backed** limiter the binding constraint
+(5 / 15 min) and widening Better Auth's sign-in rule to 30 / 15 min so it never
+fires first, while remaining a coarse backstop on other auth endpoints.
+Verified: attempts 1–5 return 401, the 6th returns 429.
+
 ### Sessions
 
 - Server-side sessions in Postgres (not stateless JWT) so revocation is immediate and real
