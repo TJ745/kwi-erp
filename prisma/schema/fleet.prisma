@@ -1,0 +1,157 @@
+// =============================================================================
+// Vehicles: registration, insurance, maintenance, driver assignment, handover.
+// =============================================================================
+
+enum VehicleStatus {
+  ACTIVE
+  IN_MAINTENANCE
+  OUT_OF_SERVICE
+  SOLD
+  DISPOSED
+}
+
+enum MaintenanceType {
+  ROUTINE_SERVICE
+  OIL_CHANGE
+  TYRES
+  BRAKES
+  BODYWORK
+  ELECTRICAL
+  AC
+  INSPECTION
+  REPAIR
+  OTHER
+}
+
+enum FuelLevel {
+  EMPTY
+  QUARTER
+  HALF
+  THREE_QUARTER
+  FULL
+}
+
+model Vehicle {
+  id            String  @id @default(cuid(2))
+  vehicleCode   String  @unique
+  plateNumber   String  @unique
+  plateNumberAr String?
+  make          String
+  model         String
+  year          Int
+  color         String?
+  vin           String? @unique
+  companyId     String
+
+  status          VehicleStatus @default(ACTIVE)
+  currentDriverId String?
+  currentMileage  Int?
+
+  registrationNo     String?
+  registrationExpiry DateTime?
+
+  insurancePolicyNo String?
+  insuranceProvider String?
+  insuranceExpiry   DateTime?
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company       Company   @relation(fields: [companyId], references: [id])
+  currentDriver Employee? @relation("VehicleCurrentDriver", fields: [currentDriverId], references: [id])
+
+  assignments VehicleAssignment[]
+  maintenance VehicleMaintenance[]
+  handovers   VehicleHandover[]
+
+  @@index([companyId, status])
+  @@index([registrationExpiry])
+  @@index([insuranceExpiry])
+  @@index([currentDriverId])
+  @@index([deletedAt])
+}
+
+/// Driver history. A partial unique index enforces one active driver:
+///   CREATE UNIQUE INDEX vehicle_single_active_driver
+///     ON "VehicleAssignment" ("vehicleId") WHERE "unassignedAt" IS NULL;
+model VehicleAssignment {
+  id           String    @id @default(cuid(2))
+  vehicleId    String
+  employeeId   String
+  assignedAt   DateTime
+  unassignedAt DateTime?
+  assignedById String
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([vehicleId, unassignedAt])
+  @@index([employeeId, unassignedAt])
+}
+
+model VehicleMaintenance {
+  id          String          @id @default(cuid(2))
+  vehicleId   String
+  date        DateTime
+  mileage     Int?
+  type        MaintenanceType
+  description String
+  workshop    String?
+  cost        Decimal?        @db.Decimal(14, 2)
+  currency    String          @default("SAR")
+  receiptFileId String?
+
+  nextDueDate    DateTime?
+  nextDueMileage Int?
+  status         ApprovalStatus @default(APPROVED)
+  notes          String?
+
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicle Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  receipt FileObject? @relation(fields: [receiptFileId], references: [id])
+
+  @@index([vehicleId, date])
+  @@index([nextDueDate])
+  @@index([receiptFileId])
+}
+
+model VehicleHandover {
+  id              String  @id @default(cuid(2))
+  vehicleId       String
+  fromEmployeeId  String?
+  toEmployeeId    String?
+  handoverDate    DateTime
+  mileage         Int?
+  fuelLevel       FuelLevel
+  condition       AssetCondition
+  accessories     Json?
+  damages         Json?
+  remarks         String?
+  issuedById      String
+  acknowledgedAt  DateTime?
+  documentId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicle      Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  fromEmployee Employee?   @relation("HandoverFromEmployee", fields: [fromEmployeeId], references: [id])
+  toEmployee   Employee?   @relation("HandoverToEmployee", fields: [toEmployeeId], references: [id])
+  document     FileObject? @relation(fields: [documentId], references: [id])
+
+  @@index([vehicleId, handoverDate])
+  @@index([fromEmployeeId])
+  @@index([toEmployeeId])
+  @@index([documentId])
+}

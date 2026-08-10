@@ -1,0 +1,190 @@
+// =============================================================================
+// Identity & access. Session/Account/Verification match Better Auth's expected
+// shape; User is extended with the fields listed in docs/DATABASE.md §3.
+// =============================================================================
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+model User {
+  id            String  @id @default(cuid(2))
+  email         String  @unique
+  name          String
+  emailVerified Boolean @default(false)
+  image         String?
+
+  // --- extensions beyond Better Auth defaults ---
+  status             UserStatus @default(ACTIVE)
+  roleId             String
+  employeeId         String?    @unique
+  mustChangePassword Boolean    @default(false)
+  lastLoginAt        DateTime?
+  failedLoginCount   Int        @default(0)
+  lockedUntil        DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  role     Role      @relation(fields: [roleId], references: [id])
+  employee Employee? @relation("EmployeeUserAccount", fields: [employeeId], references: [id])
+
+  sessions      Session[]
+  accounts      Account[]
+  companyAccess UserCompanyAccess[]
+  overrides     UserPermission[]    @relation("UserPermissionSubject")
+  grantedPerms  UserPermission[]    @relation("UserPermissionGranter")
+  vaultSessions VaultSession[]
+
+  @@index([status])
+  @@index([roleId])
+  @@index([deletedAt])
+}
+
+model Session {
+  id        String   @id @default(cuid(2))
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Account {
+  id                    String    @id @default(cuid(2))
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  /// Argon2id PHC string. Never logged, never returned by any API.
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid(2))
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@index([expiresAt])
+}
+
+// -----------------------------------------------------------------------------
+// RBAC — roles and permissions are tables, not enums, so they stay editable.
+// -----------------------------------------------------------------------------
+
+model Role {
+  id          String  @id @default(cuid(2))
+  key         String  @unique
+  name        String
+  description String?
+  /// System roles cannot be deleted or renamed through the UI.
+  isSystem    Boolean @default(false)
+  /// Lower rank = more senior. Blocks editing a role senior to your own.
+  rank        Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       User[]
+  vaultGrants CredentialGrant[]
+
+  @@index([rank])
+}
+
+model Permission {
+  id          String  @id @default(cuid(2))
+  key         String  @unique
+  module      String
+  label       String
+  description String?
+  /// Sensitive permissions (vault.*, users.manage, audit.view) are never
+  /// granted implicitly and are highlighted in the role editor.
+  isSensitive Boolean @default(false)
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+/// Per-user override evaluated after the role. DENY always wins.
+model UserPermission {
+  userId       String
+  permissionId String
+  effect       GrantEffect
+  grantedById  String
+  /// Supports temporary elevation; expired rows are ignored at resolution.
+  expiresAt    DateTime?
+  reason       String?
+  createdAt    DateTime    @default(now())
+
+  user       User       @relation("UserPermissionSubject", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy  User       @relation("UserPermissionGranter", fields: [grantedById], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@index([permissionId])
+  @@index([grantedById])
+  @@index([expiresAt])
+}
+
+/// Drives ctx.companyScope. Absence of a row means no access to that company.
+model UserCompanyAccess {
+  userId    String
+  companyId String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@index([companyId])
+}
+
+/// DB-backed rate limiter — avoids a Redis dependency on serverless.
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

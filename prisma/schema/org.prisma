@@ -1,0 +1,122 @@
+// =============================================================================
+// Organisation: companies, departments, positions, and business-code counters.
+// =============================================================================
+
+model Company {
+  id             String  @id @default(cuid(2))
+  code           String  @unique
+  name           String
+  nameAr         String?
+  shortName      String
+  registrationNo String?
+  crNumber       String?
+  vatNumber      String?
+  addressLine    String?
+  city           String?
+  country        String  @default("SA")
+  phone          String?
+  email          String?
+  website        String?
+  logoFileId     String?
+
+  status RecordStatus @default(ACTIVE)
+  notes  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  logo FileObject? @relation("CompanyLogo", fields: [logoFileId], references: [id])
+
+  departments      Department[]
+  positions        Position[]
+  employees        Employee[]
+  userAccess       UserCompanyAccess[]
+  documents        Document[]
+  certificates     CompanyCertificate[]
+  contracts        Contract[]
+  jobOffers        JobOffer[]
+  jobDescriptions  JobDescription[]
+  correspondence   Correspondence[]
+  checklists       ChecklistInstance[]
+  tasks            Task[]
+  tickets          ITTicket[]
+  assets           ITAsset[]
+  servers          Server[]
+  networkDevices   NetworkDevice[]
+  cctvDevices      CctvDevice[]
+  softwareLicenses SoftwareLicense[]
+  credentials      Credential[]
+  vehicles         Vehicle[]
+  pettyCashAccts   PettyCashAccount[]
+  pettyCashTxns    PettyCashTransaction[]
+  accommodations   Accommodation[]
+  suppliers        Supplier[]
+  subContracts     SubcontractorContract[]
+  electricityBills ElectricityBill[]
+  insurancePolicy  MedicalInsurancePolicy[]
+  letterTemplates  LetterTemplate[]
+  generatedLetters GeneratedLetter[]
+  checklistTmpl    ChecklistTemplate[]
+  expiryIndex      ExpiryIndex[]
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Department {
+  id             String  @id @default(cuid(2))
+  companyId      String
+  code           String
+  name           String
+  nameAr         String?
+  parentId       String?
+  headEmployeeId String?
+
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent       Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children     Department[] @relation("DepartmentTree")
+  headEmployee Employee?    @relation("DepartmentHead", fields: [headEmployeeId], references: [id])
+
+  employees      Employee[]              @relation("EmployeeDepartment")
+  tickets        ITTicket[]
+  checklistItems ChecklistTemplateItem[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([parentId])
+  @@index([headEmployeeId])
+}
+
+model Position {
+  id        String  @id @default(cuid(2))
+  /// Null means the position is shared across all companies.
+  companyId String?
+  title     String
+  titleAr   String?
+  grade     String?
+
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  employees       Employee[]
+  jobDescriptions JobDescription[]
+  jobOffers       JobOffer[]
+
+  @@index([companyId, status])
+}
+
+/// Sequential human-facing business codes (EMP-00042, TKT-2026-0117).
+/// Incremented with a row lock inside the creating transaction.
+model Counter {
+  key       String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

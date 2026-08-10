@@ -1,0 +1,425 @@
+// =============================================================================
+// Administration: petty cash, accommodation, suppliers, subcontractors,
+// electricity bills, company certificates, medical insurance.
+// =============================================================================
+
+enum CashFlowType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+}
+
+enum PaymentType {
+  CASH
+  CREDIT
+}
+
+enum AccommodationType {
+  APARTMENT
+  VILLA
+  CAMP
+  HOTEL
+  OTHER
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  OUT_OF_SERVICE
+}
+
+enum BillStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum PolicyStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING_RENEWAL
+}
+
+// --- Petty cash --------------------------------------------------------------
+
+model PettyCashAccount {
+  id             String  @id @default(cuid(2))
+  companyId      String
+  name           String
+  openingBalance Decimal @default(0) @db.Decimal(14, 2)
+  currency       String  @default("SAR")
+  custodianId    String?
+  isActive       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id])
+  transactions PettyCashTransaction[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model PettyCashCategory {
+  id   String       @id @default(cuid(2))
+  key  String       @unique
+  name String
+  type CashFlowType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions PettyCashTransaction[]
+}
+
+model PettyCashTransaction {
+  id            String       @id @default(cuid(2))
+  accountId     String
+  companyId     String
+  date          DateTime
+  type          CashFlowType
+  categoryId    String
+  description   String
+  amount        Decimal      @db.Decimal(14, 2)
+  currency      String       @default("SAR")
+  paymentMethod PaymentMethod @default(CASH)
+  requesterId   String?
+  receiptFileId String?
+
+  status       ApprovalStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
+  notes        String?
+  createdById  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   PettyCashAccount  @relation(fields: [accountId], references: [id])
+  company   Company           @relation(fields: [companyId], references: [id])
+  category  PettyCashCategory @relation(fields: [categoryId], references: [id])
+  requester Employee?         @relation(fields: [requesterId], references: [id])
+  receipt   FileObject?       @relation(fields: [receiptFileId], references: [id])
+
+  @@index([accountId, date])
+  @@index([companyId, date, type])
+  @@index([status])
+  @@index([categoryId])
+  @@index([requesterId])
+  @@index([receiptFileId])
+}
+
+// --- Accommodation -----------------------------------------------------------
+
+model Accommodation {
+  id          String            @id @default(cuid(2))
+  companyId   String
+  name        String
+  addressLine String?
+  city        String?
+  type        AccommodationType @default(APARTMENT)
+  status      RecordStatus      @default(ACTIVE)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company             @relation(fields: [companyId], references: [id])
+  rooms   AccommodationRoom[]
+  bills   ElectricityBill[]
+
+  @@index([companyId, status])
+}
+
+model AccommodationRoom {
+  id              String @id @default(cuid(2))
+  accommodationId String
+  roomNumber      String
+  floor           String?
+  capacity        Int    @default(1)
+  status          RecordStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accommodation Accommodation      @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  beds          AccommodationBed[]
+
+  @@unique([accommodationId, roomNumber])
+  @@index([accommodationId, status])
+}
+
+model AccommodationBed {
+  id       String    @id @default(cuid(2))
+  roomId   String
+  bedLabel String
+  status   BedStatus @default(AVAILABLE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room        AccommodationRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  assignments BedAssignment[]
+
+  @@unique([roomId, bedLabel])
+  @@index([status])
+}
+
+/// A partial unique index enforces one occupant per bed:
+///   CREATE UNIQUE INDEX bed_single_active_occupant
+///     ON "BedAssignment" ("bedId") WHERE "checkOutDate" IS NULL;
+model BedAssignment {
+  id           String    @id @default(cuid(2))
+  bedId        String
+  employeeId   String
+  checkInDate  DateTime
+  checkOutDate DateTime?
+  assignedById String
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bed      AccommodationBed @relation(fields: [bedId], references: [id])
+  employee Employee         @relation(fields: [employeeId], references: [id])
+
+  @@index([bedId, checkOutDate])
+  @@index([employeeId, checkOutDate])
+}
+
+// --- Vendors -----------------------------------------------------------------
+
+model SupplierCategory {
+  id   String @id @default(cuid(2))
+  key  String @unique
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  suppliers Supplier[]
+}
+
+model Supplier {
+  id            String  @id @default(cuid(2))
+  code          String  @unique
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  companyId     String?
+  categoryId    String?
+  paymentType   PaymentType @default(CASH)
+  creditDays    Int?
+  status        RecordStatus @default(ACTIVE)
+  notes         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company  Company?          @relation(fields: [companyId], references: [id])
+  category SupplierCategory? @relation(fields: [categoryId], references: [id])
+
+  @@index([companyId, status])
+  @@index([categoryId])
+  @@index([deletedAt])
+}
+
+model Subcontractor {
+  id            String  @id @default(cuid(2))
+  code          String  @unique
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  crNumber      String?
+  status        RecordStatus @default(ACTIVE)
+  notes         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  contracts SubcontractorContract[]
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model SubcontractorContract {
+  id              String  @id @default(cuid(2))
+  subcontractorId String
+  companyId       String
+  contractNo      String
+  scope           String?
+  startDate       DateTime
+  endDate         DateTime
+  value           Decimal? @db.Decimal(14, 2)
+  currency        String   @default("SAR")
+  status          ContractStatus @default(ACTIVE)
+  documentId      String?
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id])
+  document      FileObject?   @relation(fields: [documentId], references: [id])
+
+  @@unique([subcontractorId, contractNo])
+  @@index([endDate])
+  @@index([companyId, status])
+  @@index([documentId])
+}
+
+// --- Bills & certificates ----------------------------------------------------
+
+model ElectricityBill {
+  id                 String  @id @default(cuid(2))
+  companyId          String
+  accommodationId    String?
+  location           String
+  meterNumber        String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  amount             Decimal    @db.Decimal(14, 2)
+  currency           String     @default("SAR")
+  dueDate            DateTime
+  paidDate           DateTime?
+  status             BillStatus @default(PENDING)
+  fileId             String?
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  accommodation Accommodation? @relation(fields: [accommodationId], references: [id])
+  file          FileObject?    @relation(fields: [fileId], references: [id])
+
+  @@unique([meterNumber, billingPeriodStart])
+  @@index([status, dueDate])
+  @@index([companyId, dueDate])
+  @@index([accommodationId])
+  @@index([fileId])
+}
+
+model CertificateType {
+  id       String  @id @default(cuid(2))
+  key      String  @unique
+  name     String
+  isSystem Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  certificates CompanyCertificate[]
+}
+
+model CompanyCertificate {
+  id                String  @id @default(cuid(2))
+  companyId         String
+  certificateTypeId String
+  certificateNo     String
+  issueDate         DateTime
+  expiryDate        DateTime
+  issuingAuthority  String?
+  documentId        String?
+  status            RecordStatus @default(ACTIVE)
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company         @relation(fields: [companyId], references: [id])
+  certificateType CertificateType @relation(fields: [certificateTypeId], references: [id])
+  document        FileObject?     @relation(fields: [documentId], references: [id])
+
+  @@unique([companyId, certificateTypeId, certificateNo])
+  @@index([companyId, expiryDate])
+  @@index([certificateTypeId])
+  @@index([documentId])
+}
+
+// --- Medical insurance -------------------------------------------------------
+
+model InsuranceProvider {
+  id                 String  @id @default(cuid(2))
+  name               String  @unique
+  contactPerson      String?
+  phone              String?
+  email              String?
+  portalCredentialId String?
+  isActive           Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  policies MedicalInsurancePolicy[]
+}
+
+model MedicalInsurancePolicy {
+  id           String  @id @default(cuid(2))
+  companyId    String
+  providerId   String
+  policyNumber String
+  className    String?
+  startDate    DateTime
+  expiryDate   DateTime
+
+  status PolicyStatus @default(ACTIVE)
+  /// Distinct from status: a policy can be in-date yet not functioning.
+  isWorking Boolean @default(true)
+
+  coverageLimit Decimal? @db.Decimal(14, 2)
+  currency      String   @default("SAR")
+  documentId    String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company           @relation(fields: [companyId], references: [id])
+  provider InsuranceProvider @relation(fields: [providerId], references: [id])
+  document FileObject?       @relation(fields: [documentId], references: [id])
+
+  members EmployeeInsurance[]
+
+  @@unique([providerId, policyNumber])
+  @@index([companyId, expiryDate])
+  @@index([status, expiryDate])
+  @@index([documentId])
+}
+
+/// Present from day one so employee-level insurance needs no migration later
+/// (brief §31). UI is deferred.
+model EmployeeInsurance {
+  id           String    @id @default(cuid(2))
+  employeeId   String
+  policyId     String
+  memberNumber String?
+  className    String?
+  startDate    DateTime
+  endDate      DateTime?
+  status       PolicyStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policy   MedicalInsurancePolicy @relation(fields: [policyId], references: [id])
+
+  @@unique([employeeId, policyId])
+  @@index([policyId, status])
+}

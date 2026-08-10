@@ -1,0 +1,340 @@
+// =============================================================================
+// HR: contracts, leave, timesheet, evaluation, increments, warnings, offers,
+// correspondence.
+// =============================================================================
+
+enum ContractType {
+  PERMANENT
+  FIXED_TERM
+  PROBATION
+  TEMPORARY
+  CONSULTANCY
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum WarningLevel {
+  VERBAL
+  FIRST_WRITTEN
+  SECOND_WRITTEN
+  FINAL
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  WITHDRAWN
+  CONVERTED
+}
+
+enum CorrespondenceType {
+  IQAMA_RENEWAL
+  VISA
+  GOVERNMENT
+  INSURANCE
+  BANK
+  INTERNAL
+  SUPPLIER
+  OTHER
+}
+
+enum CorrespondenceStatus {
+  DRAFT
+  SENT
+  WAITING
+  FOLLOW_UP_REQUIRED
+  COMPLETED
+}
+
+model Contract {
+  id               String    @id @default(cuid(2))
+  employeeId       String
+  companyId        String
+  contractType     ContractType
+  startDate        DateTime
+  endDate          DateTime?
+  probationEndDate DateTime?
+
+  /// Sensitive — gated by employees.salary.view.
+  basicSalary Decimal? @db.Decimal(14, 2)
+  /// { housing, transport, other } — shape validated by Zod at the service.
+  allowances  Json?
+  currency    String   @default("SAR")
+
+  status     ContractStatus @default(ACTIVE)
+  documentId String?
+  notes      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  employee Employee    @relation(fields: [employeeId], references: [id])
+  company  Company     @relation(fields: [companyId], references: [id])
+  document FileObject? @relation(fields: [documentId], references: [id])
+
+  @@index([employeeId, status])
+  @@index([endDate])
+  @@index([companyId, status])
+  @@index([documentId])
+}
+
+model LeaveType {
+  id                 String  @id @default(cuid(2))
+  key                String  @unique
+  name               String
+  isPaid             Boolean @default(true)
+  maxDaysPerYear     Int?
+  requiresAttachment Boolean @default(false)
+  isSystem           Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requests LeaveRequest[]
+}
+
+model LeaveRequest {
+  id          String   @id @default(cuid(2))
+  employeeId  String
+  leaveTypeId String
+  startDate   DateTime
+  endDate     DateTime
+  days        Decimal  @db.Decimal(5, 1)
+  reason      String?
+
+  status          LeaveStatus @default(PENDING)
+  approverId      String?
+  decidedAt       DateTime?
+  decisionComment String?
+  handoverToId    String?
+  createdById     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee   Employee  @relation("LeaveEmployee", fields: [employeeId], references: [id])
+  leaveType  LeaveType @relation(fields: [leaveTypeId], references: [id])
+  approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
+  handoverTo Employee? @relation("LeaveHandover", fields: [handoverToId], references: [id])
+
+  @@index([employeeId, status])
+  @@index([status, startDate])
+  @@index([leaveTypeId])
+  @@index([approverId])
+  @@index([handoverToId])
+}
+
+model TimesheetEntry {
+  id           String   @id @default(cuid(2))
+  employeeId   String
+  date         DateTime @db.Date
+  normalHours  Decimal  @default(0) @db.Decimal(4, 2)
+  overtimeHours Decimal @default(0) @db.Decimal(4, 2)
+  /// Late arrival / early departure, feeds the Delayed Hours report.
+  delayedHours Decimal  @default(0) @db.Decimal(4, 2)
+  absent       Boolean  @default(false)
+  notes        String?
+
+  status       ApprovalStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([date, status])
+  @@index([status])
+}
+
+model Evaluation {
+  id           String   @id @default(cuid(2))
+  employeeId   String
+  evaluatorId  String
+  periodStart  DateTime
+  periodEnd    DateTime
+  overallScore Decimal? @db.Decimal(4, 2)
+  summary      String?
+  status       ApprovalStatus @default(PENDING)
+  documentId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee  Employee          @relation("EvaluationSubject", fields: [employeeId], references: [id])
+  evaluator Employee          @relation("EvaluationEvaluator", fields: [evaluatorId], references: [id])
+  document  FileObject?       @relation(fields: [documentId], references: [id])
+  scores    EvaluationScore[]
+
+  @@index([employeeId, periodEnd])
+  @@index([evaluatorId])
+  @@index([status])
+  @@index([documentId])
+}
+
+model EvaluationScore {
+  id           String  @id @default(cuid(2))
+  evaluationId String
+  criterion    String
+  weight       Decimal @db.Decimal(5, 2)
+  score        Decimal @db.Decimal(5, 2)
+  comment      String?
+
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+}
+
+model Increment {
+  id            String   @id @default(cuid(2))
+  employeeId    String
+  currentSalary Decimal  @db.Decimal(14, 2)
+  newSalary     Decimal  @db.Decimal(14, 2)
+  amount        Decimal  @db.Decimal(14, 2)
+  percentage    Decimal  @db.Decimal(6, 3)
+  currency      String   @default("SAR")
+  effectiveDate DateTime
+
+  status        ApprovalStatus @default(PENDING)
+  requestedById String
+  approvedById  String?
+  decidedAt     DateTime?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, effectiveDate])
+  @@index([status, effectiveDate])
+}
+
+model WarningLetter {
+  id             String       @id @default(cuid(2))
+  employeeId     String
+  level          WarningLevel
+  reason         String
+  description    String
+  issuedDate     DateTime
+  issuedById     String
+  documentId     String?
+  acknowledgedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee    @relation(fields: [employeeId], references: [id])
+  document FileObject? @relation(fields: [documentId], references: [id])
+
+  @@index([employeeId, issuedDate])
+  @@index([level])
+  @@index([documentId])
+}
+
+model JobDescription {
+  id               String  @id @default(cuid(2))
+  companyId        String?
+  positionId       String?
+  title            String
+  summary          String?
+  responsibilities String?
+  requirements     String?
+  isActive         Boolean @default(true)
+  version          Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company?  @relation(fields: [companyId], references: [id])
+  position Position? @relation(fields: [positionId], references: [id])
+
+  jobOffers JobOffer[]
+
+  @@index([companyId, isActive])
+  @@index([positionId])
+}
+
+model JobOffer {
+  id             String  @id @default(cuid(2))
+  companyId      String
+  candidateName  String
+  candidateEmail String?
+  candidatePhone String?
+  positionId     String?
+  jobDescriptionId String?
+
+  proposedSalary      Decimal? @db.Decimal(14, 2)
+  currency            String   @default("SAR")
+  benefits            Json?
+  proposedJoiningDate DateTime?
+
+  status              OfferStatus @default(DRAFT)
+  sentAt              DateTime?
+  decidedAt           DateTime?
+  convertedEmployeeId String?
+  notes               String?
+
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company           Company         @relation(fields: [companyId], references: [id])
+  position          Position?       @relation(fields: [positionId], references: [id])
+  jobDescription    JobDescription? @relation(fields: [jobDescriptionId], references: [id])
+  convertedEmployee Employee?       @relation("OfferConvertedEmployee", fields: [convertedEmployeeId], references: [id])
+
+  @@index([companyId, status])
+  @@index([positionId])
+  @@index([jobDescriptionId])
+  @@index([convertedEmployeeId])
+}
+
+/// Proof-of-action record: "we emailed Head Office about this Iqama on X".
+model Correspondence {
+  id         String  @id @default(cuid(2))
+  companyId  String
+  employeeId String?
+
+  type      CorrespondenceType
+  subject   String
+  recipient String
+  sentDate  DateTime?
+
+  status       CorrespondenceStatus @default(DRAFT)
+  followUpDate DateTime?
+  notes        String?
+  createdById  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  iqamaRenewals IqamaRenewal[]
+
+  @@index([status, followUpDate])
+  @@index([employeeId])
+  @@index([companyId, type])
+}

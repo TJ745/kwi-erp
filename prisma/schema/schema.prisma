@@ -1,0 +1,99 @@
+// =============================================================================
+// OMS — datasource, generator, and cross-cutting enums.
+// See docs/DATABASE.md for the full design rationale.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+// Prisma 7 no longer accepts connection URLs here. The migration URL lives in
+// prisma.config.ts; the runtime connection is supplied by the Neon driver
+// adapter in src/server/db/client.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Shared enums used across more than one module.
+// -----------------------------------------------------------------------------
+
+/// Generic lifecycle flag for reference-style records.
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+/// Target of a polymorphic reference (Document, Attachment, Task, AuditLog).
+/// Adding a member here is the only supported way to make a new entity
+/// attachable — see docs/DATABASE.md §6.
+enum EntityType {
+  EMPLOYEE
+  COMPANY
+  DEPARTMENT
+  VEHICLE
+  IT_ASSET
+  IT_TICKET
+  SERVER
+  NETWORK_DEVICE
+  CCTV_DEVICE
+  IP_PHONE
+  SOFTWARE_LICENSE
+  CREDENTIAL
+  SUPPLIER
+  SUBCONTRACTOR
+  CONTRACT
+  LEAVE_REQUEST
+  EVALUATION
+  WARNING_LETTER
+  INCREMENT
+  JOB_OFFER
+  CORRESPONDENCE
+  CHECKLIST_INSTANCE
+  CHECKLIST_ITEM
+  TASK
+  ACCOMMODATION
+  BED_ASSIGNMENT
+  PETTY_CASH_TRANSACTION
+  ELECTRICITY_BILL
+  COMPANY_CERTIFICATE
+  MEDICAL_INSURANCE_POLICY
+  GENERATED_LETTER
+  USER
+  ROLE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// Generic approval lifecycle shared by timesheets, increments, petty cash.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum GrantEffect {
+  ALLOW
+  DENY
+}
+
+/// Post-upload validation state. Files are invisible to the app until CLEAN.
+enum ScanStatus {
+  PENDING
+  CLEAN
+  REJECTED
+}

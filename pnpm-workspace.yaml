@@ -1,0 +1,18 @@
+# Build scripts are blocked by default in pnpm 11. Each entry below is an
+# explicit decision to let that package run its install script.
+allowBuilds:
+  # Downloads the Prisma query engine binaries — required for any DB access.
+  '@prisma/engines': true
+  prisma: true
+  # Platform-native binary used by vitest/tsx transpilation.
+  esbuild: true
+  # Native resolver binding used by the ESLint import resolver.
+  unrs-resolver: true
+  # Optional native msgpack accelerator (Next.js cache). Safe to build.
+  msgpackr-extract: true
+
+# Versions newer than the default minimum-release-age gate that we have
+# deliberately pinned in package.json.
+minimumReleaseAgeExclude:
+  - lucide-react@1.31.0
+  - tsx@4.23.12

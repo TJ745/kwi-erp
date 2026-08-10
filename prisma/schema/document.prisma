@@ -1,0 +1,118 @@
+// =============================================================================
+// Files and documents. One polymorphic Document table replaces the per-module
+// document tables — see docs/DATABASE.md §6 for the integrity trade-off.
+// =============================================================================
+
+/// Physical file. Storage metadata only; bytes live in UploadThing.
+/// Rows are only visible to the application once scanStatus = CLEAN.
+model FileObject {
+  id           String  @id @default(cuid(2))
+  /// UploadThing file key.
+  fileKey      String  @unique
+  originalName String
+  /// Declared at upload; re-verified against magic bytes post-upload.
+  mimeType     String
+  /// Result of the magic-byte sniff in onUploadComplete.
+  detectedType String?
+  sizeBytes    Int
+  checksumSha256 String?
+  /// Asserted against the UploadThing ACL. Must always be true.
+  isPrivate    Boolean    @default(true)
+  scanStatus   ScanStatus @default(PENDING)
+  uploadedById String
+
+  createdAt DateTime @default(now())
+
+  documents        Document[]
+  attachments      Attachment[]
+  companyLogos     Company[]           @relation("CompanyLogo")
+  employeePhotos   Employee[]          @relation("EmployeePhoto")
+  contracts        Contract[]
+  warningLetters   WarningLetter[]
+  evaluations      Evaluation[]
+  certificates     CompanyCertificate[]
+  subContracts     SubcontractorContract[]
+  bills            ElectricityBill[]
+  pettyCashTxns    PettyCashTransaction[]
+  maintenance      VehicleMaintenance[]
+  vehicleHandovers VehicleHandover[]
+  assetHandovers   ITAssetAssignment[]
+  policies         MedicalInsurancePolicy[]
+  generatedLetters GeneratedLetter[]
+  checklistItems   ChecklistItem[]
+
+  @@index([checksumSha256])
+  @@index([scanStatus])
+  @@index([uploadedById])
+}
+
+/// Admin-editable document taxonomy — a table, not an enum.
+model DocumentType {
+  id                 String       @id @default(cuid(2))
+  key                String       @unique
+  name               String
+  appliesTo          EntityType[]
+  requiresExpiry     Boolean      @default(false)
+  defaultWarningDays Int[]        @default([90, 60, 30, 15, 7, 1])
+  isSystem           Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents Document[]
+}
+
+/// A governed record with a lifecycle (issue/expiry/renewal), attached to any
+/// entity via (entityType, entityId).
+model Document {
+  id             String  @id @default(cuid(2))
+  companyId      String
+  documentTypeId String
+  entityType     EntityType
+  entityId       String
+
+  title      String
+  documentNo String?
+  fileId     String
+  issueDate  DateTime?
+  expiryDate DateTime?
+  issuedBy   String?
+  notes      String?
+
+  /// Renewal chain: a new version points back at the document it replaces.
+  version      Int     @default(1)
+  supersedesId String? @unique
+
+  uploadedById String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+  file         FileObject   @relation(fields: [fileId], references: [id])
+  supersedes   Document?    @relation("DocumentRenewal", fields: [supersedesId], references: [id])
+  supersededBy Document?    @relation("DocumentRenewal")
+
+  @@index([entityType, entityId])
+  @@index([expiryDate])
+  @@index([companyId, documentTypeId])
+  @@index([fileId])
+  @@index([deletedAt])
+}
+
+/// Casual attachment (ticket, task, comment). No expiry lifecycle.
+model Attachment {
+  id           String     @id @default(cuid(2))
+  fileId       String
+  entityType   EntityType
+  entityId     String
+  uploadedById String
+  createdAt    DateTime   @default(now())
+
+  file FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([fileId])
+}

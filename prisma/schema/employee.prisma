@@ -1,0 +1,226 @@
+// =============================================================================
+// Employee master record. Sensitive data (bank, salary-bearing contracts) is
+// split into its own tables so it can sit behind its own permission.
+// =============================================================================
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  RESIGNED
+  TERMINATED
+  EXITED
+  INACTIVE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  TEMPORARY
+  INTERN
+}
+
+enum RenewalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+  REJECTED
+}
+
+model Employee {
+  id           String  @id @default(cuid(2))
+  employeeNo   String  @unique
+  companyId    String
+  departmentId String?
+  positionId   String?
+  managerId    String?
+
+  firstName String
+  lastName  String
+  /// Denormalised for search; maintained by the service layer.
+  fullName  String
+  fullNameAr String?
+
+  gender        Gender
+  dateOfBirth   DateTime?
+  /// ISO-3166 alpha-2.
+  nationality   String
+  maritalStatus MaritalStatus?
+
+  status          EmployeeStatus @default(ACTIVE)
+  employmentType  EmploymentType @default(FULL_TIME)
+  joiningDate     DateTime
+  lastWorkingDate DateTime?
+
+  mobile        String?
+  workEmail     String? @unique
+  personalEmail String?
+  photoFileId   String?
+  notes         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company    Company     @relation(fields: [companyId], references: [id])
+  department Department? @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  position   Position?   @relation(fields: [positionId], references: [id])
+  manager    Employee?   @relation("EmployeeManager", fields: [managerId], references: [id])
+  photo      FileObject? @relation("EmployeePhoto", fields: [photoFileId], references: [id])
+
+  reports          Employee[]   @relation("EmployeeManager")
+  headedDepartments Department[] @relation("DepartmentHead")
+  userAccount      User?        @relation("EmployeeUserAccount")
+
+  bankDetail        EmployeeBankDetail?
+  iqama             IqamaRecord?
+  passport          PassportRecord?
+  emergencyContacts EmergencyContact[]
+
+  contracts        Contract[]
+  leaveRequests    LeaveRequest[]     @relation("LeaveEmployee")
+  approvedLeaves   LeaveRequest[]     @relation("LeaveApprover")
+  handoverLeaves   LeaveRequest[]     @relation("LeaveHandover")
+  timesheets       TimesheetEntry[]
+  evaluations      Evaluation[]       @relation("EvaluationSubject")
+  evaluationsGiven Evaluation[]       @relation("EvaluationEvaluator")
+  increments       Increment[]
+  warnings         WarningLetter[]
+  correspondence   Correspondence[]
+  checklists       ChecklistInstance[]
+  jobOfferOrigin   JobOffer[]         @relation("OfferConvertedEmployee")
+
+  assetAssignments   ITAssetAssignment[]
+  ipPhones           IpPhone[]
+  adRecords          AdRecord[]
+  bedAssignments     BedAssignment[]
+  vehicleAssignments VehicleAssignment[]
+  drivenVehicles     Vehicle[]           @relation("VehicleCurrentDriver")
+  vehicleHandoverFrom VehicleHandover[]  @relation("HandoverFromEmployee")
+  vehicleHandoverTo   VehicleHandover[]  @relation("HandoverToEmployee")
+  pettyCashRequests  PettyCashTransaction[]
+  insuranceMembership EmployeeInsurance[]
+  generatedLetters   GeneratedLetter[]
+  expiryIndex        ExpiryIndex[]
+
+  @@index([companyId, status])
+  @@index([departmentId])
+  @@index([managerId])
+  @@index([positionId])
+  @@index([fullName])
+  @@index([status, joiningDate])
+  @@index([deletedAt])
+}
+
+/// Sensitive. Gated by employees.bank.view — never returned by list endpoints.
+model EmployeeBankDetail {
+  id         String  @id @default(cuid(2))
+  employeeId String  @unique
+  bankName   String
+  iban       String
+  accountNo  String?
+  swift      String?
+  documentId String?
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model EmergencyContact {
+  id         String  @id @default(cuid(2))
+  employeeId String
+  name       String
+  relation   String
+  phone      String
+  altPhone   String?
+  address    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+/// Current Iqama only — one row per employee keeps expiry queries trivial.
+/// Historical renewals live in IqamaRenewal.
+model IqamaRecord {
+  id            String  @id @default(cuid(2))
+  employeeId    String  @unique
+  iqamaNumber   String  @unique
+  profession    String
+  professionAr  String?
+  issueDate     DateTime
+  expiryDate    DateTime
+  sponsorName   String?
+  renewalStatus RenewalStatus @default(NOT_STARTED)
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  renewals IqamaRenewal[]
+
+  @@index([expiryDate])
+  @@index([renewalStatus])
+}
+
+model IqamaRenewal {
+  id               String  @id @default(cuid(2))
+  iqamaRecordId    String
+  previousExpiry   DateTime
+  newExpiry        DateTime?
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  status           RenewalStatus @default(NOT_STARTED)
+  /// Links to the email/letter that proves the request was sent.
+  correspondenceId String?
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  iqamaRecord    IqamaRecord     @relation(fields: [iqamaRecordId], references: [id], onDelete: Cascade)
+  correspondence Correspondence? @relation(fields: [correspondenceId], references: [id])
+
+  @@index([iqamaRecordId])
+  @@index([status])
+  @@index([correspondenceId])
+}
+
+model PassportRecord {
+  id             String   @id @default(cuid(2))
+  employeeId     String   @unique
+  passportNumber String
+  issueCountry   String
+  issuePlace     String?
+  issueDate      DateTime
+  expiryDate     DateTime
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([passportNumber, issueCountry])
+  @@index([expiryDate])
+}

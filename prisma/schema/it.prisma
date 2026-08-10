@@ -1,0 +1,343 @@
+// =============================================================================
+// IT: helpdesk, assets (with handover lifecycle), and infrastructure.
+// =============================================================================
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+enum AssetType {
+  LAPTOP
+  DESKTOP
+  MONITOR
+  PRINTER
+  MOBILE
+  TABLET
+  IP_PHONE
+  NETWORK
+  SERVER
+  PERIPHERAL
+  OTHER
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  UNDER_REPAIR
+  LOST
+  RETIRED
+  DISPOSED
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum CctvType {
+  DOME
+  BULLET
+  PTZ
+  NVR
+  DVR
+}
+
+model TicketCategory {
+  id              String  @id @default(cuid(2))
+  key             String  @unique
+  name            String
+  defaultSlaHours Int?
+  isActive        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets ITTicket[]
+}
+
+model ITTicket {
+  id           String  @id @default(cuid(2))
+  ticketNo     String  @unique
+  companyId    String
+  requesterId  String
+  departmentId String?
+  categoryId   String
+
+  priority    Priority @default(MEDIUM)
+  subject     String
+  description String
+
+  assignedToId   String?
+  status         TicketStatus @default(OPEN)
+  dueDate        DateTime?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  resolution     String?
+  relatedAssetId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company    Company        @relation(fields: [companyId], references: [id])
+  department Department?    @relation(fields: [departmentId], references: [id])
+  category   TicketCategory @relation(fields: [categoryId], references: [id])
+  asset      ITAsset?       @relation(fields: [relatedAssetId], references: [id])
+
+  comments TicketComment[]
+
+  @@index([status, priority])
+  @@index([assignedToId, status])
+  @@index([companyId, createdAt])
+  @@index([requesterId])
+  @@index([categoryId])
+  @@index([departmentId])
+  @@index([relatedAssetId])
+}
+
+model TicketComment {
+  id       String  @id @default(cuid(2))
+  ticketId String
+  authorId String
+  body     String
+  /// Internal notes are hidden from the requester.
+  isInternal Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  ticket ITTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+model ITAsset {
+  id           String  @id @default(cuid(2))
+  assetCode    String  @unique
+  assetTag     String? @unique
+  type         AssetType
+  brand        String
+  model        String
+  serialNumber String? @unique
+  companyId    String
+
+  purchaseDate   DateTime?
+  purchaseCost   Decimal?  @db.Decimal(14, 2)
+  currency       String    @default("SAR")
+  warrantyExpiry DateTime?
+
+  status         AssetStatus    @default(AVAILABLE)
+  condition      AssetCondition @default(GOOD)
+  location       String?
+  specifications Json?
+  notes          String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  assignments ITAssetAssignment[]
+  tickets     ITTicket[]
+
+  @@index([status, type])
+  @@index([companyId, status])
+  @@index([warrantyExpiry])
+  @@index([deletedAt])
+}
+
+/// Handover-out and handover-in are two ends of one row.
+///
+/// A partial unique index (added in a follow-up SQL migration) enforces
+/// "one active assignment per asset":
+///   CREATE UNIQUE INDEX it_asset_single_active_assignment
+///     ON "ITAssetAssignment" ("assetId") WHERE "returnedAt" IS NULL;
+model ITAssetAssignment {
+  id           String   @id @default(cuid(2))
+  assetId      String
+  employeeId   String
+  assignedAt   DateTime
+  assignedById String
+
+  conditionOut   AssetCondition
+  accessoriesOut Json?
+  remarksOut     String?
+  acknowledgedAt DateTime?
+
+  returnedAt         DateTime?
+  receivedById       String?
+  conditionIn        AssetCondition?
+  missingAccessories Json?
+  remarksIn          String?
+  handoverDocumentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  asset            ITAsset     @relation(fields: [assetId], references: [id])
+  employee         Employee    @relation(fields: [employeeId], references: [id])
+  handoverDocument FileObject? @relation(fields: [handoverDocumentId], references: [id])
+
+  @@index([assetId, returnedAt])
+  @@index([employeeId, returnedAt])
+  @@index([handoverDocumentId])
+}
+
+// -----------------------------------------------------------------------------
+// Infrastructure. Kept separate from ITAsset because the attributes barely
+// overlap with assignable endpoint hardware.
+// -----------------------------------------------------------------------------
+
+model Server {
+  id        String  @id @default(cuid(2))
+  name      String  @unique
+  companyId String
+  ipAddress String?
+  os        String?
+  role      String?
+  location  String?
+  cpuSpec   String?
+  ramGb     Int?
+  storageGb Int?
+  status    RecordStatus @default(ACTIVE)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, status])
+}
+
+model NetworkDevice {
+  id         String  @id @default(cuid(2))
+  name       String
+  companyId  String
+  type       String
+  model      String?
+  ipAddress  String?
+  macAddress String?
+  location   String?
+  vlan       String?
+  portCount  Int?
+  status     RecordStatus @default(ACTIVE)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company     @relation(fields: [companyId], references: [id])
+  ipAddresses IpAddress[]
+
+  @@index([companyId, status])
+  @@index([macAddress])
+}
+
+model IpAddress {
+  id         String  @id @default(cuid(2))
+  address    String  @unique
+  subnet     String?
+  assignedTo String?
+  deviceId   String?
+  isStatic   Boolean @default(true)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  device NetworkDevice? @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId])
+}
+
+model IpPhone {
+  id          String  @id @default(cuid(2))
+  extension   String  @unique
+  employeeId  String?
+  deviceModel String?
+  macAddress  String?
+  location    String?
+  status      RecordStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+model CctvDevice {
+  id                String   @id @default(cuid(2))
+  name              String
+  companyId         String
+  type              CctvType
+  location          String
+  ipAddress         String?
+  recorderId        String?
+  status            RecordStatus @default(ACTIVE)
+  lastMaintenanceAt DateTime?
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company      @relation(fields: [companyId], references: [id])
+  recorder CctvDevice?  @relation("CctvRecorder", fields: [recorderId], references: [id])
+  cameras  CctvDevice[] @relation("CctvRecorder")
+
+  @@index([companyId, status])
+  @@index([recorderId])
+}
+
+/// Licence keys are never stored here — they reference a Credential row.
+model SoftwareLicense {
+  id                     String    @id @default(cuid(2))
+  name                   String
+  vendor                 String?
+  companyId              String
+  licenseKeyCredentialId String?
+  seats                  Int       @default(1)
+  seatsUsed              Int       @default(0)
+  purchaseDate           DateTime?
+  expiryDate             DateTime?
+  notes                  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company       Company     @relation(fields: [companyId], references: [id])
+  licenseKey    Credential? @relation(fields: [licenseKeyCredentialId], references: [id])
+
+  @@index([companyId])
+  @@index([expiryDate])
+  @@index([licenseKeyCredentialId])
+}
+
+/// Administrative AD metadata. Deliberately stores no credentials.
+model AdRecord {
+  id             String   @id @default(cuid(2))
+  samAccountName String   @unique
+  employeeId     String?
+  ou             String?
+  groups         Json?
+  enabled        Boolean  @default(true)
+  lastSyncedAt   DateTime?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([enabled])
+}

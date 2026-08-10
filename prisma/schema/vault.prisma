@@ -1,0 +1,189 @@
+// =============================================================================
+// Password & credential vault.
+//
+// Secrets are stored ONLY as AES-256-GCM ciphertext under a per-credential DEK,
+// which is itself wrapped by a KEK held in the environment and never in this
+// database. AAD is bound to the credential id so a ciphertext cannot be moved
+// between rows. Full design: docs/SECURITY.md §5.
+//
+// Nothing in this file may ever hold a plaintext secret.
+// =============================================================================
+
+enum VaultAccessLevel {
+  READ
+  REVEAL
+  MANAGE
+}
+
+enum VaultAction {
+  LIST
+  VIEW
+  REVEAL
+  COPY
+  CREATE
+  UPDATE
+  DELETE
+  ROTATE
+  EXPORT
+  UNLOCK
+}
+
+model CredentialCategory {
+  id       String  @id @default(cuid(2))
+  key      String  @unique
+  name     String
+  parentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   CredentialCategory?  @relation("CredentialCategoryTree", fields: [parentId], references: [id])
+  children CredentialCategory[] @relation("CredentialCategoryTree")
+
+  credentials Credential[]
+  grants      CredentialGrant[]
+
+  @@index([parentId])
+}
+
+model Credential {
+  id         String  @id @default(cuid(2))
+  name       String
+  categoryId String
+  companyId  String?
+  url        String?
+  username   String?
+  email      String?
+
+  // --- envelope-encrypted payload; see docs/SECURITY.md §5.1 ---
+  /// AES-256-GCM ciphertext of the password.
+  ciphertext   Bytes
+  /// 12-byte random IV, unique per encryption.
+  iv           Bytes
+  /// 16-byte GCM authentication tag.
+  authTag      Bytes
+  /// Per-credential DEK, encrypted under the environment KEK.
+  wrappedDek   Bytes
+  /// Which KEK version wrapped the DEK. Drives resumable key rotation.
+  keyVersion   Int     @default(1)
+
+  /// Notes may contain secrets, so they are encrypted the same way.
+  notesCipher  Bytes?
+  notesIv      Bytes?
+  notesAuthTag Bytes?
+
+  status        RecordStatus @default(ACTIVE)
+  lastRotatedAt DateTime?
+  rotationDueAt DateTime?
+
+  createdById String
+  updatedById String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  category CredentialCategory @relation(fields: [categoryId], references: [id])
+  company  Company?           @relation(fields: [companyId], references: [id])
+
+  versions         CredentialVersion[]
+  grants           CredentialGrant[]
+  accessLog        CredentialAccess[]
+  favorites        CredentialFavorite[]
+  softwareLicenses SoftwareLicense[]
+
+  @@index([categoryId, status])
+  @@index([companyId])
+  @@index([rotationDueAt])
+  @@index([deletedAt])
+}
+
+/// Previous ciphertexts, encrypted exactly like the current one.
+/// History is not a plaintext backdoor.
+model CredentialVersion {
+  id           String   @id @default(cuid(2))
+  credentialId String
+  ciphertext   Bytes
+  iv           Bytes
+  authTag      Bytes
+  wrappedDek   Bytes
+  keyVersion   Int
+  changedById  String
+  changedAt    DateTime @default(now())
+  reason       String?
+
+  credential Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, changedAt])
+}
+
+/// ACL layered on top of the global vault.* permissions.
+/// Effective access = global permission AND grant.
+model CredentialGrant {
+  id           String  @id @default(cuid(2))
+  credentialId String?
+  categoryId   String?
+  userId       String?
+  roleId       String?
+  level        VaultAccessLevel
+  grantedById  String
+  expiresAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  credential Credential?         @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  category   CredentialCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  role       Role?               @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId])
+  @@index([categoryId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([expiresAt])
+}
+
+/// Append-only. Records that access happened, never what was accessed.
+model CredentialAccess {
+  id           String      @id @default(cuid(2))
+  credentialId String
+  userId       String
+  action       VaultAction
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime    @default(now())
+
+  credential Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model CredentialFavorite {
+  userId       String
+  credentialId String
+  createdAt    DateTime @default(now())
+
+  credential Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialId])
+  @@index([credentialId])
+}
+
+/// Short-lived vault unlock. The token itself is never stored — only its
+/// SHA-256 — so a database dump yields no usable unlock tokens.
+model VaultSession {
+  id         String    @id @default(cuid(2))
+  userId     String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ipAddress  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
