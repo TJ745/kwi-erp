@@ -38,7 +38,20 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except Next internals, the auth endpoints, and static assets.
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    /**
+     * Pages only — every /api route is excluded.
+     *
+     * Middleware redirects unauthenticated traffic to /login, which is right
+     * for pages and wrong for APIs:
+     *   - /api/uploadthing receives a server-to-server completion callback
+     *     from UploadThing that carries no session cookie. Redirecting it
+     *     silently breaks upload completion.
+     *   - /api/files should answer 401 JSON, not an HTML login page.
+     *
+     * Every API route authenticates itself: the auth handler by design, the
+     * file proxy via getActorContext, and the upload router via
+     * requirePermission in its middleware.
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

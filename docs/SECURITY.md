@@ -290,6 +290,21 @@ A "recently revealed" panel and an alert on anomalous reveal volume give the IT 
 
 Storage is **UploadThing `7.7.4`** (ADR-008). Because uploads go browser → UploadThing directly, the validation order differs from a classic proxied upload, and the design accounts for that explicitly rather than assuming pre-upload inspection is possible.
 
+### 6.0 Current status: uploads BLOCKED (verified 2026-08-10)
+
+The configured UploadThing app is on the free tier, which does not support
+private files. Measured, not assumed — `pnpm tsx scripts/verify-storage.ts`:
+
+- `acl: "private"` → **HTTP 400**, *"Private files are not allowed for free apps."*
+- default ACL → accepted, and the **unsigned URL returns HTTP 200** (world-readable)
+
+Every route declares `acl: "private"`, so uploads **fail rather than publish**.
+The control worked; the feature does not. Resolution options are in
+`ARCHITECTURE.md` ADR-008 and need a product-owner decision.
+
+**Do not "fix" this by dropping the ACL.** Uploads would start succeeding and
+every passport and Iqama scan would be readable by anyone with the URL.
+
 ### 6.1 Private by default — non-negotiable
 
 UploadThing defaults to `public-read`, which would expose every passport scan to anyone with the URL (threat T5). Three layers prevent that:

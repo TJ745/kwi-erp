@@ -155,6 +155,30 @@ Two things about it directly conflict with `SECURITY.md` unless handled explicit
 
 **2. Magic-byte validation moves after the upload.** Because the browser uploads directly to UploadThing, we cannot sniff file headers before the bytes are stored. The `onUploadComplete` handler therefore fetches the first bytes via a signed URL, verifies the magic number against the declared type, and on mismatch **deletes the file and refuses to create the `FileObject` row**. The file is only visible to the application once validation passes — `FileObject.scanStatus` gates it.
 
+> ### ⚠️ BLOCKING as of 2026-08-10 — private files require a paid UploadThing tier
+>
+> Verified against the configured app (`pnpm tsx scripts/verify-storage.ts`):
+>
+> | Attempt | Result |
+> |---|---|
+> | Upload with `acl: "private"` | **HTTP 400** — *"Private files are not allowed for free apps. Upgrade your app to a paid tier to enable private files."* |
+> | Upload with the default ACL | Accepted — and the **unsigned URL returns HTTP 200**, i.e. world-readable |
+>
+> Because every OMS route declares `acl: "private"`, uploads are **rejected
+> outright rather than stored publicly**. That is the intended fail-safe
+> behaviour and the boot assertion holds — but **document upload is
+> non-functional** until one of these is chosen:
+>
+> **a)** Upgrade the UploadThing app to a paid tier.
+> **b)** Switch the storage adapter to S3/R2 — which also resolves the PDPL
+> data-residency question below. The `StorageProvider` seam exists for this.
+> **c)** Accept public-read storage. **Not advisable**: passport and Iqama scans
+> would be readable by anyone holding the URL, defeating threat T5 entirely.
+>
+> The code has deliberately **not** been changed to work around this. Removing
+> `acl: "private"` would make uploads "work" and silently publish every identity
+> document.
+
 **Data-residency flag for the product owner:** UploadThing stores files on third-party infrastructure outside Saudi Arabia. Iqama and passport scans are personal data under the Saudi PDPL, which restricts cross-border transfer. This is a business/legal decision, not a technical one — flagging it now rather than after go-live. If it becomes a problem, the storage adapter is deliberately kept behind a `StorageProvider` interface so swapping to a regional S3 bucket is a contained change.
 
 ### ADR-005 — One `ExpiryIndex` projection instead of ten expiry queries

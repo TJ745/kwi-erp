@@ -101,6 +101,19 @@ export default tseslint.config(
     },
   },
 
+  // UploadThing requires throwing its own UploadThingError from route hooks
+  // for error handling to work. It extends Effect's Micro.Error rather than
+  // the native Error, so only-throw-error flags it — a false positive here.
+  {
+    files: ["src/app/api/uploadthing/**/*.ts"],
+    rules: {
+      "@typescript-eslint/only-throw-error": [
+        "error",
+        { allow: [{ from: "package", package: "@uploadthing/shared", name: "UploadThingError" }] },
+      ],
+    },
+  },
+
   // Scripts and seeds are CLI tools: console output is the point.
   {
     files: ["prisma/**/*.ts", "scripts/**/*.ts", "*.config.{ts,mjs}"],

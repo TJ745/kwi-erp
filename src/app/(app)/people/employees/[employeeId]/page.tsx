@@ -8,8 +8,11 @@ import { ExpiryAlert } from "@/components/shared/expiry-alert";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
+import { DocumentUpload } from "@/components/forms/document-upload";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { getEmployee } from "@/server/services/employees";
+import { documentsForEntity, documentTypes } from "@/server/services/documents";
+import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
 
 export const metadata: Metadata = { title: "Employee" };
@@ -31,6 +34,15 @@ export default async function EmployeeDetailPage({
   const employee = await getEmployee(ctx, employeeId);
 
   const canEdit = ctx.permissions.has("employees.update");
+  const canViewDocuments = ctx.permissions.has("documents.view");
+  const canUpload = ctx.permissions.has("documents.upload");
+
+  const [documents, types] = canViewDocuments
+    ? await Promise.all([
+        documentsForEntity(ctx, "EMPLOYEE", employee.id),
+        canUpload ? documentTypes() : Promise.resolve([]),
+      ])
+    : [[], []];
 
   return (
     <PageShell>
@@ -69,6 +81,11 @@ export default async function EmployeeDetailPage({
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="employment">Employment</TabsTrigger>
             <TabsTrigger value="identity">Iqama &amp; Passport</TabsTrigger>
+            {canViewDocuments ? (
+              <TabsTrigger value="documents">
+                Documents{documents.length > 0 ? ` (${String(documents.length)})` : ""}
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="pending">Other tabs</TabsTrigger>
           </TabsList>
         </div>
@@ -193,10 +210,41 @@ export default async function EmployeeDetailPage({
           />
         </TabsContent>
 
+        {canViewDocuments ? (
+          <TabsContent value="documents" className="mt-4 space-y-4">
+            {canUpload ? (
+              <div className="flex justify-end">
+                <DocumentUpload
+                  entityType="EMPLOYEE"
+                  entityId={employee.id}
+                  companyId={employee.companyId}
+                  documentTypes={types}
+                  defaultTitle={`${employee.fullName} — `}
+                />
+              </div>
+            ) : null}
+            <DocumentList
+              canDelete={ctx.permissions.has("documents.delete")}
+              documents={documents.map((d) => ({
+                id: d.id,
+                title: d.title,
+                documentNo: d.documentNo,
+                typeName: d.documentType.name,
+                issueDate: d.issueDate ? d.issueDate.toISOString().slice(0, 10) : null,
+                expiryDate: d.expiryDate ? d.expiryDate.toISOString().slice(0, 10) : null,
+                fileId: d.fileId,
+                originalName: d.file.originalName,
+                sizeBytes: d.file.sizeBytes,
+                version: d.version,
+              }))}
+            />
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="pending" className="mt-4">
           <EmptyState
             title="Remaining tabs arrive with their modules"
-            description="Documents, Contracts, Leave, Timesheet, Evaluation, Warnings, Increment, IT Assets, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in Phases 5–7. Each appears here as its module lands."
+            description="Contracts, Leave, Timesheet, Evaluation, Warnings, Increment, IT Assets, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in Phases 6–7. Each appears here as its module lands."
           />
         </TabsContent>
       </Tabs>
