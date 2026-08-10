@@ -93,7 +93,7 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     label: "Tasks",
     icon: "tasks",
-    items: [{ label: "Tasks & Follow-ups", href: "/tasks", permissions: ["tasks.view"], planned: true }],
+    items: [{ label: "Tasks & Follow-ups", href: "/tasks", permissions: ["tasks.view"] }],
   },
   {
     label: "IT",
@@ -143,8 +143,8 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "Settings",
     icon: "settings",
     items: [
-      { label: "Companies", href: "/settings/companies", permissions: ["companies.view"], planned: true },
-      { label: "Departments", href: "/settings/departments", permissions: ["departments.view"], planned: true },
+      { label: "Companies", href: "/settings/companies", permissions: ["companies.view"] },
+      { label: "Departments", href: "/settings/departments", permissions: ["departments.view"] },
       { label: "Users", href: "/settings/users", permissions: ["users.view"] },
       { label: "Roles & Permissions", href: "/settings/roles", permissions: ["roles.manage"] },
       { label: "Document Types", href: "/settings/document-types", permissions: ["documents.manageTypes"], planned: true },

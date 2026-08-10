@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, UserPlus } from "lucide-react";
+import { AlertTriangle, ListChecks, UserPlus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpiryAlert } from "@/components/shared/expiry-alert";
@@ -10,6 +10,7 @@ import { CardLoadingState, EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { dashboardKpis } from "@/server/services/dashboard";
 import { listExpiring } from "@/server/services/expiry";
+import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -46,10 +47,64 @@ export default async function DashboardPage() {
         <KpiRow ctx={ctx} />
       </Suspense>
 
-      <Suspense fallback={<CardLoadingState count={1} />}>
-        <ExpiringSoon ctx={ctx} />
-      </Suspense>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Suspense fallback={<CardLoadingState count={1} />}>
+          <ExpiringSoon ctx={ctx} />
+        </Suspense>
+
+        {ctx.permissions.has("tasks.view") ? (
+          <Suspense fallback={<CardLoadingState count={1} />}>
+            <OverdueTasks ctx={ctx} />
+          </Suspense>
+        ) : null}
+      </div>
     </PageShell>
+  );
+}
+
+async function OverdueTasks({ ctx }: { ctx: ActorContext }) {
+  const tasks = await overdueTasks(ctx, 8);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ListChecks className="size-4" />
+          Overdue tasks
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {tasks.length === 0 ? (
+          <EmptyState
+            title="Nothing overdue"
+            description="Tasks past their due date appear here."
+            className="border-0 py-6"
+          />
+        ) : (
+          <ul className="divide-y">
+            {tasks.map((task) => (
+              <li key={task.id} className="flex items-center justify-between gap-4 py-2">
+                <div className="min-w-0">
+                  <Link
+                    href={`/tasks/${task.id}`}
+                    className="truncate text-sm font-medium hover:underline"
+                  >
+                    {task.title}
+                  </Link>
+                  <p className="text-muted-foreground text-xs">
+                    {task.taskNo}
+                    {task.assignedToName ? ` · ${task.assignedToName}` : " · unassigned"}
+                  </p>
+                </div>
+                <span className="text-status-expired shrink-0 text-xs font-medium tabular-nums">
+                  {task.dueDate ? task.dueDate.toISOString().slice(0, 10) : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
