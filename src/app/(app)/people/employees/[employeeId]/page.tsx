@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, Pencil } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,9 @@ import { DocumentUpload } from "@/components/forms/document-upload";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { getEmployee } from "@/server/services/employees";
 import { documentsForEntity, documentTypes } from "@/server/services/documents";
-import { contractsForEmployee } from "@/server/services/contracts";
+import { assetsForEmployee } from "@/server/services/assets";
+import { allowanceValue, contractsForEmployee } from "@/server/services/contracts";
+import { ContractDialog } from "./contract-dialog";
 import { leaveForEmployee } from "@/server/services/leave";
 import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
@@ -41,15 +44,20 @@ export default async function EmployeeDetailPage({
 
   const canViewContracts = ctx.permissions.has("hr.contracts.view");
   const canViewLeave = ctx.permissions.has("hr.leave.view");
+  const canViewAssets = ctx.permissions.has("it.assets.view");
 
-  const [documents, types, contracts, leave] = await Promise.all([
+  const [documents, types, contracts, leave, assets] = await Promise.all([
     canViewDocuments
       ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
       : Promise.resolve([]),
     canViewDocuments && canUpload ? documentTypes() : Promise.resolve([]),
     canViewContracts ? contractsForEmployee(ctx, employee.id) : Promise.resolve([]),
     canViewLeave ? leaveForEmployee(ctx, employee.id) : Promise.resolve([]),
+    canViewAssets ? assetsForEmployee(ctx, employee.id) : Promise.resolve([]),
   ]);
+
+  // Only currently-held assets matter for offboarding; history is on the asset.
+  const heldAssets = assets.filter((a) => a.returnedAt === null);
 
   return (
     <PageShell>
@@ -101,6 +109,11 @@ export default async function EmployeeDetailPage({
             {canViewLeave ? (
               <TabsTrigger value="leave">
                 Leave{leave.length > 0 ? ` (${String(leave.length)})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canViewAssets ? (
+              <TabsTrigger value="assets">
+                IT Assets{heldAssets.length > 0 ? ` (${String(heldAssets.length)})` : ""}
               </TabsTrigger>
             ) : null}
             <TabsTrigger value="pending">Other tabs</TabsTrigger>
@@ -259,7 +272,16 @@ export default async function EmployeeDetailPage({
         ) : null}
 
         {canViewContracts ? (
-          <TabsContent value="contracts" className="mt-4">
+          <TabsContent value="contracts" className="mt-4 space-y-4">
+            {ctx.permissions.has("hr.contracts.manage") ? (
+              <div className="flex justify-end">
+                <ContractDialog
+                  employeeId={employee.id}
+                  companyId={employee.companyId}
+                  canSeeSalary={ctx.permissions.has("employees.salary.view")}
+                />
+              </div>
+            ) : null}
             {contracts.length === 0 ? (
               <EmptyState
                 title="No contracts"
@@ -278,6 +300,9 @@ export default async function EmployeeDetailPage({
                         <th className="px-4 py-2 font-medium">Basic salary</th>
                       ) : null}
                       <th className="px-4 py-2 font-medium">Status</th>
+                      {ctx.permissions.has("hr.contracts.manage") ? (
+                        <th className="px-4 py-2" />
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -304,6 +329,31 @@ export default async function EmployeeDetailPage({
                         <td className="px-4 py-2">
                           <StatusBadge status={c.status} />
                         </td>
+                        {ctx.permissions.has("hr.contracts.manage") ? (
+                          <td className="px-4 py-2 text-right">
+                            <ContractDialog
+                              employeeId={employee.id}
+                              companyId={employee.companyId}
+                              canSeeSalary={ctx.permissions.has("employees.salary.view")}
+                              contract={{
+                                id: c.id,
+                                contractType: c.contractType,
+                                startDate: c.startDate.toISOString().slice(0, 10),
+                                endDate: c.endDate ? c.endDate.toISOString().slice(0, 10) : null,
+                                probationEndDate: c.probationEndDate
+                                  ? c.probationEndDate.toISOString().slice(0, 10)
+                                  : null,
+                                status: c.status,
+                                currency: c.currency,
+                                basicSalary: c.basicSalary ? c.basicSalary.toString() : null,
+                                housingAllowance: allowanceValue(c.allowances, "housing"),
+                                transportAllowance: allowanceValue(c.allowances, "transport"),
+                                otherAllowance: allowanceValue(c.allowances, "other"),
+                                notes: c.notes,
+                              }}
+                            />
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -353,10 +403,68 @@ export default async function EmployeeDetailPage({
           </TabsContent>
         ) : null}
 
+        {canViewAssets ? (
+          <TabsContent value="assets" className="mt-4">
+            {assets.length === 0 ? (
+              <EmptyState
+                title="No assets issued"
+                description="Assets issued to this employee appear here, and block offboarding until returned."
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">IT assets issued to this employee</caption>
+                  <thead className="bg-muted/50">
+                    <tr className="text-left">
+                      <th className="px-4 py-2 font-medium">Asset</th>
+                      <th className="px-4 py-2 font-medium">Issued</th>
+                      <th className="px-4 py-2 font-medium">Returned</th>
+                      <th className="px-4 py-2 font-medium">Condition</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assets.map((a) => (
+                      <tr key={a.id} className="border-t">
+                        <td className="px-4 py-2">
+                          <Link
+                            href={`/it/assets/${a.asset.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {a.asset.brand} {a.asset.model}
+                          </Link>
+                          <p className="text-muted-foreground font-mono text-xs">
+                            {a.asset.assetCode}
+                          </p>
+                        </td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {a.assignedAt.toISOString().slice(0, 10)}
+                        </td>
+                        <td className="px-4 py-2">
+                          {a.returnedAt ? (
+                            <span className="tabular-nums">
+                              {a.returnedAt.toISOString().slice(0, 10)}
+                            </span>
+                          ) : (
+                            <Badge variant="info">Still held</Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs">
+                          out {a.conditionOut.toLowerCase()}
+                          {a.conditionIn ? ` · in ${a.conditionIn.toLowerCase()}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="pending" className="mt-4">
           <EmptyState
             title="Remaining tabs arrive with their modules"
-            description="Timesheet, Evaluation, Warnings, Increment, IT Assets, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in Phases 6–7. Each appears here as its module lands."
+            description="Timesheet, Evaluation, Warnings, Increment, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in later phases. Each appears here as its module lands."
           />
         </TabsContent>
       </Tabs>

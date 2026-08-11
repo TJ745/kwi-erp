@@ -99,8 +99,8 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "IT",
     icon: "it",
     items: [
-      { label: "Helpdesk", href: "/it/helpdesk", permissions: ["it.tickets.view", "it.tickets.create"], planned: true },
-      { label: "Assets", href: "/it/assets", permissions: ["it.assets.view"], planned: true },
+      { label: "Helpdesk", href: "/it/helpdesk", permissions: ["it.tickets.view", "it.tickets.create"] },
+      { label: "Assets", href: "/it/assets", permissions: ["it.assets.view"] },
       { label: "Servers", href: "/it/servers", permissions: ["it.infrastructure.view"], planned: true },
       { label: "Active Directory", href: "/it/active-directory", permissions: ["it.infrastructure.view"], planned: true },
       { label: "Network & IP", href: "/it/network", permissions: ["it.infrastructure.view"], planned: true },

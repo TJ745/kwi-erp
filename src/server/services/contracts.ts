@@ -310,7 +310,19 @@ export async function contractsForEmployee(ctx: ActorContext, employeeId: string
       probationEndDate: true,
       status: true,
       currency: true,
+      notes: true,
       basicSalary: canSeeSalary,
+      allowances: canSeeSalary,
     },
   });
+}
+
+/** Reads a single allowance out of the Json column without trusting its shape. */
+export function allowanceValue(
+  allowances: unknown,
+  key: "housing" | "transport" | "other",
+): string | null {
+  if (allowances === null || typeof allowances !== "object") return null;
+  const value = (allowances as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
 }

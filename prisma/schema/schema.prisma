@@ -65,11 +65,15 @@ enum EntityType {
   ROLE
 }
 
+/// Shared by tasks and IT tickets, which use different top values: the brief
+/// specifies URGENT for tasks (§32) and CRITICAL for tickets (§23). Both live
+/// here and each module exposes only its own set in the UI.
 enum Priority {
   LOW
   MEDIUM
   HIGH
   URGENT
+  CRITICAL
 }
 
 enum Severity {
