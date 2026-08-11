@@ -10,6 +10,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` throws on import outside a React Server Component. It
+      // exists to stop server code reaching a CLIENT BUNDLE — not to stop
+      // tests. Stubbing it lets us unit-test service logic directly; the real
+      // protection is unaffected because Next resolves the true package.
+      "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
     },
   },
 });

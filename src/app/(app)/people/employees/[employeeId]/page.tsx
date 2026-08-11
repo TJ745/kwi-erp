@@ -4,7 +4,7 @@ import { ChevronLeft, Pencil } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ExpiryAlert } from "@/components/shared/expiry-alert";
+import { ExpiryAlert, ExpiryDate } from "@/components/shared/expiry-alert";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
@@ -12,6 +12,8 @@ import { DocumentUpload } from "@/components/forms/document-upload";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { getEmployee } from "@/server/services/employees";
 import { documentsForEntity, documentTypes } from "@/server/services/documents";
+import { contractsForEmployee } from "@/server/services/contracts";
+import { leaveForEmployee } from "@/server/services/leave";
 import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
 
@@ -37,12 +39,17 @@ export default async function EmployeeDetailPage({
   const canViewDocuments = ctx.permissions.has("documents.view");
   const canUpload = ctx.permissions.has("documents.upload");
 
-  const [documents, types] = canViewDocuments
-    ? await Promise.all([
-        documentsForEntity(ctx, "EMPLOYEE", employee.id),
-        canUpload ? documentTypes() : Promise.resolve([]),
-      ])
-    : [[], []];
+  const canViewContracts = ctx.permissions.has("hr.contracts.view");
+  const canViewLeave = ctx.permissions.has("hr.leave.view");
+
+  const [documents, types, contracts, leave] = await Promise.all([
+    canViewDocuments
+      ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
+      : Promise.resolve([]),
+    canViewDocuments && canUpload ? documentTypes() : Promise.resolve([]),
+    canViewContracts ? contractsForEmployee(ctx, employee.id) : Promise.resolve([]),
+    canViewLeave ? leaveForEmployee(ctx, employee.id) : Promise.resolve([]),
+  ]);
 
   return (
     <PageShell>
@@ -84,6 +91,16 @@ export default async function EmployeeDetailPage({
             {canViewDocuments ? (
               <TabsTrigger value="documents">
                 Documents{documents.length > 0 ? ` (${String(documents.length)})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canViewContracts ? (
+              <TabsTrigger value="contracts">
+                Contracts{contracts.length > 0 ? ` (${String(contracts.length)})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canViewLeave ? (
+              <TabsTrigger value="leave">
+                Leave{leave.length > 0 ? ` (${String(leave.length)})` : ""}
               </TabsTrigger>
             ) : null}
             <TabsTrigger value="pending">Other tabs</TabsTrigger>
@@ -241,10 +258,105 @@ export default async function EmployeeDetailPage({
           </TabsContent>
         ) : null}
 
+        {canViewContracts ? (
+          <TabsContent value="contracts" className="mt-4">
+            {contracts.length === 0 ? (
+              <EmptyState
+                title="No contracts"
+                description="Contracts with an end date feed the expiry alerts automatically."
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">Employment contracts</caption>
+                  <thead className="bg-muted/50">
+                    <tr className="text-left">
+                      <th className="px-4 py-2 font-medium">Type</th>
+                      <th className="px-4 py-2 font-medium">Start</th>
+                      <th className="px-4 py-2 font-medium">End</th>
+                      {ctx.permissions.has("employees.salary.view") ? (
+                        <th className="px-4 py-2 font-medium">Basic salary</th>
+                      ) : null}
+                      <th className="px-4 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contracts.map((c) => (
+                      <tr key={c.id} className="border-t">
+                        <td className="px-4 py-2">
+                          {c.contractType.replace(/_/g, " ").toLowerCase()}
+                        </td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {c.startDate.toISOString().slice(0, 10)}
+                        </td>
+                        <td className="px-4 py-2">
+                          {c.endDate ? (
+                            <ExpiryDate date={c.endDate} />
+                          ) : (
+                            <span className="text-muted-foreground">Open-ended</span>
+                          )}
+                        </td>
+                        {ctx.permissions.has("employees.salary.view") ? (
+                          <td className="px-4 py-2 tabular-nums">
+                            {c.basicSalary ? `${c.basicSalary.toString()} ${c.currency}` : "—"}
+                          </td>
+                        ) : null}
+                        <td className="px-4 py-2">
+                          <StatusBadge status={c.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+
+        {canViewLeave ? (
+          <TabsContent value="leave" className="mt-4">
+            {leave.length === 0 ? (
+              <EmptyState
+                title="No leave requests"
+                description="Requests appear here with their approval status."
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">Leave history</caption>
+                  <thead className="bg-muted/50">
+                    <tr className="text-left">
+                      <th className="px-4 py-2 font-medium">Type</th>
+                      <th className="px-4 py-2 font-medium">Dates</th>
+                      <th className="px-4 py-2 font-medium">Days</th>
+                      <th className="px-4 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leave.map((l) => (
+                      <tr key={l.id} className="border-t">
+                        <td className="px-4 py-2">{l.leaveType.name}</td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {l.startDate.toISOString().slice(0, 10)} →{" "}
+                          {l.endDate.toISOString().slice(0, 10)}
+                        </td>
+                        <td className="px-4 py-2 tabular-nums">{l.days.toString()}</td>
+                        <td className="px-4 py-2">
+                          <StatusBadge status={l.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="pending" className="mt-4">
           <EmptyState
             title="Remaining tabs arrive with their modules"
-            description="Contracts, Leave, Timesheet, Evaluation, Warnings, Increment, IT Assets, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in Phases 6–7. Each appears here as its module lands."
+            description="Timesheet, Evaluation, Warnings, Increment, IT Assets, Accommodation, Onboarding, Offboarding, Tasks, Correspondence, and Audit History are built in Phases 6–7. Each appears here as its module lands."
           />
         </TabsContent>
       </Tabs>
