@@ -111,7 +111,6 @@ export const NAVIGATION: readonly NavSection[] = [
         label: "Password Vault",
         href: "/it/vault",
         permissions: ["vault.view"],
-        planned: true,
         keywords: ["credentials", "passwords", "secrets"],
       },
     ],

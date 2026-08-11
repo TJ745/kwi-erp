@@ -15,6 +15,7 @@ export type ActorContext = {
   userId: string;
   email: string;
   name: string;
+  roleId: string;
   roleKey: string;
   roleRank: number;
   permissions: ReadonlySet<PermissionKey>;
@@ -55,6 +56,7 @@ export const getActorContext = cache(async (): Promise<ActorContext | null> => {
       lockedUntil: true,
       role: {
         select: {
+          id: true,
           key: true,
           rank: true,
           permissions: { select: { permission: { select: { key: true } } } },
@@ -93,6 +95,7 @@ export const getActorContext = cache(async (): Promise<ActorContext | null> => {
     userId: user.id,
     email: user.email,
     name: user.name,
+    roleId: user.role.id,
     roleKey: user.role.key,
     roleRank: user.role.rank,
     permissions,
