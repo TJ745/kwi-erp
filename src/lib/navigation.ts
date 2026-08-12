@@ -127,7 +127,7 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     label: "Insurance",
     icon: "insurance",
-    items: [{ label: "Medical Insurance", href: "/insurance", permissions: ["insurance.view"], planned: true }],
+    items: [{ label: "Medical Insurance", href: "/insurance", permissions: ["insurance.view"] }],
   },
   {
     label: "Platform",

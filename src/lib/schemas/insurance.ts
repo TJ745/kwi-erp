@@ -1,0 +1,74 @@
+import { z } from "zod";
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => (v === "" ? undefined : v));
+
+const requiredDate = z
+  .string()
+  .min(1, "Date is required")
+  .transform((v) => new Date(v))
+  .refine((v) => !Number.isNaN(v.getTime()), "Enter a valid date");
+
+const optionalMoney = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : v))
+  .refine((v) => v === undefined || /^\d+(\.\d{1,2})?$/.test(v), "Enter a valid amount");
+
+export const POLICY_STATUSES = [
+  "ACTIVE",
+  "EXPIRED",
+  "CANCELLED",
+  "PENDING_RENEWAL",
+] as const;
+
+export const providerSchema = z
+  .object({
+    name: z.string().trim().min(2, "Provider name is required").max(150),
+    contactPerson: optionalText(120),
+    phone: optionalText(40),
+    email: z
+      .string()
+      .trim()
+      .email("Enter a valid email")
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    isActive: z.boolean().default(true),
+  })
+  .strict();
+
+export type ProviderInput = z.infer<typeof providerSchema>;
+
+export const policySchema = z
+  .object({
+    companyId: z.string().min(1, "Company is required"),
+    providerId: z.string().min(1, "Select a provider"),
+    policyNumber: z.string().trim().min(2, "Policy number is required").max(80),
+    className: optionalText(60),
+    startDate: requiredDate,
+    expiryDate: requiredDate,
+    status: z.enum(POLICY_STATUSES).default("ACTIVE"),
+    /**
+     * Distinct from status: brief §31 asks for Working / Not Working. A policy
+     * can be in-date on paper yet not actually usable at a clinic, and the
+     * administrator needs to record that separately.
+     */
+    isWorking: z.boolean().default(true),
+    coverageLimit: optionalMoney,
+    currency: z.string().trim().length(3).default("SAR"),
+    notes: optionalText(1000),
+  })
+  .strict()
+  .refine((d) => d.expiryDate.getTime() >= d.startDate.getTime(), {
+    message: "Expiry cannot precede the start date",
+    path: ["expiryDate"],
+  });
+
+export type PolicyInput = z.infer<typeof policySchema>;
+
+export const updatePolicySchema = z.object({ id: z.string().min(1) }).and(policySchema);
