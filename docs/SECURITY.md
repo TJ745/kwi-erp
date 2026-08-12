@@ -188,6 +188,36 @@ visible instead of arriving as a 404 on click.
 Generalise this when adding any feature that copies data into a new record:
 exports, reports, and PDF snapshots need the same treatment.
 
+### Reports and exports share one column derivation
+
+A report export is the widest version of the same problem — a second read path
+across every domain table at once. It is handled structurally rather than by
+remembering to repeat the check:
+
+```ts
+// lib/reports.ts — the ONLY place visible columns are decided
+visibleColumns(report, ctx.permissions)
+```
+
+The page and `/api/reports/[reportId]/export` both call it, so a gated column
+cannot be absent from the screen yet present in the file. Two further layers sit
+behind it:
+
+- the service never **selects** a gated field — `salaryByEmployee` and
+  `ibanByEmployee` are separate queries that simply do not run without the
+  permission, so a bug in the renderer or exporter has nothing to leak;
+- `reports.export` is checked in the route itself, not only in the page that
+  links to it.
+
+Verified live across four roles plus a purpose-built user holding
+`reports.export` with a DENY override on `employees.salary.view` — the case that
+actually exercises column gating in the export path. Its export header ends at
+`Iqama Expiry`; HR's continues `…, Basic Salary, IBAN`.
+
+Every export writes an audit row recording the report, format, row count, filters,
+and **which columns left the system** — the question asked after an incident. Row
+values are never recorded.
+
 ### Client-side permission checks are cosmetic only
 
 `<Can permission="employees.delete">` hides buttons. It is a UX affordance and carries **no** security weight; the corresponding Server Action re-checks independently. Both exist; only the server one matters.
@@ -455,7 +485,8 @@ Redacted fields record `"[REDACTED]"` for both before and after — the *fact* o
 | Open redirect | Post-login redirect accepts relative paths only, validated against a route allowlist |
 | SSRF | No user-supplied URL is fetched server-side |
 | Prototype pollution | Zod `.strict()` on all schemas; no `Object.assign` from raw request bodies |
-| Excel formula injection | Cells beginning `= + - @` are prefixed with `'` on export |
+| Excel formula injection | Cells beginning `=`, `+`, `-`, `@`, tab, or CR are prefixed with `'` in `lib/export.ts`, applied to **both** CSV and `.xlsx` — a `.xlsx` cell whose value starts `=` is executed just the same. Verified against `=HYPERLINK("…"&A1)` planted in an employee name: the exported cell is inert in both formats, and the `.xlsx` contains zero `<f>` formula elements |
+| Header injection via export filename | `safeFilename` strips CR/LF, quotes, and path separators before the value reaches `Content-Disposition` |
 | Enumeration | cuid2 ids; identical error responses for "not found" and "not permitted" |
 
 ### Security headers (`next.config.ts` + middleware)

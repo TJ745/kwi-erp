@@ -13,6 +13,7 @@ import {
 } from "@/lib/list-query";
 import type { TaskInput } from "@/lib/schemas/task";
 import { nextTaskNo } from "./counter";
+import { resolveUserNames } from "./users";
 
 /**
  * Tasks & follow-ups (brief §32).
@@ -147,21 +148,6 @@ export function isOverdue(
   return dueDate.getTime() < now.getTime();
 }
 
-/**
- * Task.assignedToId has no database-level relation to User (see
- * docs/DATABASE.md §15), so names are resolved in a second query rather than a
- * join. Batched to avoid N+1.
- */
-async function resolveUserNames(ids: (string | null)[]): Promise<Map<string, string>> {
-  const unique = [...new Set(ids.filter((id): id is string => id !== null))];
-  if (unique.length === 0) return new Map();
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: unique } },
-    select: { id: true, name: true },
-  });
-  return new Map(users.map((u) => [u.id, u.name]));
-}
 
 export async function getTask(ctx: ActorContext, id: string) {
   const task = await prisma.task.findFirst({

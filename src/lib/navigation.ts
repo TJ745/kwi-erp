@@ -133,7 +133,7 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "Platform",
     icon: "reports",
     items: [
-      { label: "Reports", href: "/reports", permissions: ["reports.view"], planned: true },
+      { label: "Reports", href: "/reports", permissions: ["reports.view"], keywords: ["export", "excel", "csv", "headcount", "expiry"] },
       { label: "Notifications", href: "/notifications", permissions: ["notifications.view"] },
       { label: "Audit Logs", href: "/audit", permissions: ["audit.view"], planned: true },
     ],

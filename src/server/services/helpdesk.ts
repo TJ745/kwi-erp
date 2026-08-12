@@ -13,6 +13,7 @@ import {
 } from "@/lib/list-query";
 import type { TicketInput } from "@/lib/schemas/it";
 import { nextTicketNo } from "./counter";
+import { resolveUserNames } from "./users";
 
 /**
  * IT helpdesk.
@@ -118,17 +119,6 @@ export async function listTickets(
   );
 }
 
-/** ITTicket has no DB relation to User, so names resolve in a batched lookup. */
-async function resolveUserNames(ids: (string | null)[]): Promise<Map<string, string>> {
-  const unique = [...new Set(ids.filter((id): id is string => id !== null))];
-  if (unique.length === 0) return new Map();
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: unique } },
-    select: { id: true, name: true },
-  });
-  return new Map(users.map((u) => [u.id, u.name]));
-}
 
 export async function getTicket(ctx: ActorContext, id: string) {
   const isItStaff =

@@ -335,3 +335,24 @@ export async function setRolePermissions(
     after: { permissions: permissions.map((p) => p.key).sort() },
   };
 }
+
+/**
+ * Maps user ids to display names.
+ *
+ * `Task.assignedToId` and `ITTicket.requesterId`/`assignedToId` are plain
+ * columns with no Prisma relation, so the name cannot come from an `include`.
+ * One implementation, used by tasks, helpdesk, and reports — it was copied
+ * into two services before reports would have made it three.
+ */
+export async function resolveUserNames(
+  ids: readonly (string | null)[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((id): id is string => id !== null))];
+  if (unique.length === 0) return new Map();
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, name: true },
+  });
+  return new Map(users.map((u) => [u.id, u.name]));
+}

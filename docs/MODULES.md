@@ -404,4 +404,7 @@ Rules that span modules, owned by services rather than any single screen:
 | Generated letters freeze their data | `GeneratedLetter.dataSnapshot` + `renderedHtml`; the letter is never re-rendered from live data |
 | A letter cannot be used to bypass salary permissions | `GeneratedLetter.containsSalary`, set at generation from what actually rendered; `getGeneratedLetter` filters on it unless the actor holds `employees.salary.view` |
 | A template cannot execute anything | Placeholders resolve from a fixed allowlist; bodies are sanitised against a tag/attribute/style allowlist on save and again on render |
+| A report export cannot contain a column the screen hides | Both call `visibleColumns(report, permissions)` in `lib/reports.ts`; the service additionally never selects a gated field |
+| A report filter can narrow the company scope but never widen it | `isCompanyInScope` — an out-of-scope `companyId` is rejected, not ignored |
+| An exported cell cannot execute in a spreadsheet | `neutraliseFormula` in `lib/export.ts`, applied to CSV and `.xlsx` alike |
 | Contract/Iqama renewal supersedes rather than overwrites | `Document.supersedesId` chain + `ExpiryIndex.isActive=false` on the old row |

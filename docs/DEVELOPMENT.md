@@ -199,7 +199,7 @@ Phases follow the dependency layers in `MODULES.md` §1. Each ends with `pnpm ve
 | **9 — Medical insurance** ✅ | Policies, providers, expiry, documents; `EmployeeInsurance` table present, UI deferred | 5 | Policy status dashboard accurate |
 | **10 — Automation** ✅ | Reminder engine, notification rules, dedupe, cron endpoint, overdue detection, dashboard alert wiring, expiry reconciliation job | 5–9 | Scheduled run produces correct, non-duplicated notifications |
 | **11 — Documents & letters** ✅ | Template engine, variable resolution, preview, generation, print view, `dataSnapshot`. Server-side PDF deferred (see §7) | 5, 6 | Letters generate correctly for all seeded templates |
-| **12 — Reports** | All report families, filters, CSV/Excel export, print views | 5–11 | Every report in brief §36 present with filters + export |
+| **12 — Reports** ✅ | 12 report families, filters, CSV/Excel export, print views, one shared column derivation | 5–11 | Every report present with filters + export; gated columns absent from both screen and file |
 | **13 — Security review** | Full checklist in `SECURITY.md` §11, `npm audit`, dependency review, penetration-style self-test | all | Every checklist item verified in code |
 
 ### Sequencing notes
@@ -266,3 +266,6 @@ Recorded here so they are decisions rather than omissions:
 | Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file, and stored files are blocked on the storage decision | With the storage tier decision |
 | WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
 | Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |
+| Reports for petty cash, accommodation, suppliers, subcontractors, electricity bills, company certificates, timesheet, evaluations, increments, warnings | The report layer is a thin projection over its source module. Those modules are not built, so there is nothing to project — a report against an empty table proves nothing | With each source module |
+| Charted reports (Recharts) | `recharts` is installed and used on the dashboard. Report families are tabular by design: they exist to be filtered, printed, and exported, and a chart is not exportable to CSV | If a specific report is asked for as a chart |
+| Scheduled / emailed reports | Needs the email channel, which is itself deferred | With the email notification channel |
