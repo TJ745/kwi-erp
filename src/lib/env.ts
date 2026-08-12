@@ -54,6 +54,31 @@ const serverSchema = z
       .min(1)
       .refine(notPlaceholder, "still set to the .env.example placeholder"),
 
+    /**
+     * Storage tier — the single switch described in docs/SECURITY.md §6.0.
+     *
+     * "free": UploadThing's free plan rejects `acl: "private"` outright (HTTP
+     *   400), so objects are stored world-readable and the URL becomes the
+     *   secret. The application never discloses that URL — downloads are
+     *   streamed through `/api/files/[id]` — but a leaked or logged URL is
+     *   sufficient to read the file with no session.
+     * "pro": objects are private and only reachable via a short-lived signed
+     *   URL that the server mints and consumes internally.
+     *
+     * Flipping this to "pro" is the whole upgrade: no other code changes.
+     */
+    UPLOADTHING_TIER: z.enum(["free", "pro"]).default("free"),
+
+    /**
+     * Required to run the free tier in production. Deliberately separate from
+     * UPLOADTHING_TIER so a development default cannot reach production by
+     * being copied along with the rest of the file.
+     */
+    ACCEPT_PUBLIC_FILE_STORAGE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
+
     CRON_SECRET: z
       .string()
       .min(16, "must be at least 16 characters")
@@ -76,6 +101,12 @@ const serverSchema = z
         message: `VAULT_KEK_V${env.VAULT_KEK_ACTIVE_VERSION} is not set, but it is the active vault key version`,
       });
     }
+
+    // NOTE: the "free tier in production" guard is deliberately NOT here.
+    // `next build` runs with NODE_ENV=production and Turbopack exposes no
+    // build-phase signal, so a check in env parsing fails the build itself
+    // rather than the deployment. It lives in `assertStorageTierAllowed`,
+    // called per request — see lib/storage-policy.ts.
   });
 
 export type ServerEnv = z.infer<typeof serverSchema>;

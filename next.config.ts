@@ -13,7 +13,13 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline'" +
         (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.ufs.sh https://utfs.io",
+      // Deliberately NOT allowing the storage host. Every stored file is read
+      // through /api/files/[id], which authorises then streams the bytes, so
+      // nothing legitimately renders a storage URL. On the free tier those
+      // objects are world-readable, which makes the URL the only secret —
+      // this stops a future <img src="https://…ufs.sh/f/…"> from disclosing
+      // one, at the browser rather than on trust.
+      "img-src 'self' data: blob:",
       "font-src 'self' data:",
       "connect-src 'self' https://*.ufs.sh https://*.uploadthing.com",
       "frame-ancestors 'none'",

@@ -4,21 +4,35 @@ import { consumeRateLimit } from "@/server/auth/rate-limit";
 import { recordAudit } from "@/server/audit/log";
 import { logger } from "@/server/logger";
 import { resolveFileForDownload } from "@/server/services/documents";
-import { signedUrlFor } from "@/server/storage/uploadthing";
+import { assertStorageUsable, readUrlFor } from "@/server/storage/uploadthing";
 
 export const runtime = "nodejs";
 
 /**
  * The ONLY route through which a stored file may be reached — SECURITY.md §6.4.
  *
- * Files are private in storage, so a leaked id is useless without passing every
- * check below. No storage URL is ever rendered into a page or persisted; one is
- * minted here, per request, and lives 60 seconds.
+ * A leaked file id is useless without passing every check below. The bytes are
+ * STREAMED through this handler rather than redirected to, so the storage URL
+ * never reaches the browser at all — which is what makes the free tier's
+ * world-readable objects tolerable (SECURITY.md §6.0). No storage URL is ever
+ * rendered into a page or persisted.
  */
 export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  // Refuses to serve from public storage in production unless that was
+  // explicitly accepted. Per-request by design — the same check in env parsing
+  // fails `next build`, which runs with NODE_ENV=production.
+  try {
+    assertStorageUsable();
+  } catch (error) {
+    logger.error("Storage tier not permitted in this environment", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return deny(503, "File storage is not configured for this environment.");
+  }
+
   const ctx = await getActorContext();
   if (!ctx) return deny(401, "Not signed in.");
 
@@ -46,15 +60,21 @@ export async function GET(
 
   let url: string;
   try {
-    url = await signedUrlFor(file.fileKey);
+    url = await readUrlFor(file.fileKey);
   } catch (error) {
-    logger.error("Could not mint signed URL", {
+    logger.error("Could not resolve a storage URL", {
       fileId: id,
       error: error instanceof Error ? error.message : String(error),
     });
     return deny(502, "The file store is unavailable.");
   }
 
+  // Streamed through the server, never redirected to.
+  //
+  // This is what keeps the storage URL out of the browser entirely — no
+  // Location header, no history entry, no referrer, nothing in devtools. It
+  // matters most on the free tier, where the object is world-readable and the
+  // URL is therefore the only thing protecting it (docs/SECURITY.md §6.0).
   const upstream = await fetch(url);
   if (!upstream.ok || !upstream.body) return deny(502, "The file could not be retrieved.");
 
@@ -76,8 +96,11 @@ export async function GET(
       )}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
-      // Stops the signed URL leaking through a referrer header.
-      "Referrer-Policy": "no-referrer",
+      // No Referrer-Policy override here: next.config.ts sets one globally and
+      // wins, so a stricter value declared at this level would be silently
+      // ignored — a header that looks like a control but is not. The storage
+      // URL never reaches the browser anyway, since this streams rather than
+      // redirects.
     },
   });
 }

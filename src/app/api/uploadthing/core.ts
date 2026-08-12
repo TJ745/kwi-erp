@@ -10,8 +10,10 @@ import { requirePermission } from "@/server/auth/guards";
 import { logger } from "@/server/logger";
 import { isUploadTargetInScope, registerVerifiedFile } from "@/server/services/documents";
 import {
-  assertPrivateAclConfigured,
+  assertStorageAclPolicy,
+  assertStorageUsable,
   deleteStoredFile,
+  storageTier,
   verifyStoredFileBytes,
 } from "@/server/storage/uploadthing";
 
@@ -22,7 +24,7 @@ const f = createUploadthing();
  *
  * The security-critical ordering:
  *   middleware       → authenticate + authorise BEFORE any bytes are accepted
- *   (browser upload) → straight to storage, private ACL
+ *   (browser upload) → straight to storage; ACL depends on the tier (§6.0)
  *   onUploadComplete → magic-byte verification; on failure the object is
  *                      deleted and NO FileObject row is created, so the
  *                      application treats the file as never having existed.
@@ -34,35 +36,69 @@ const uploadInput = z.object({
 });
 
 /**
- * Route configuration, declared as a named constant so the boot assertion can
+ * Route configuration, built from the storage tier so the boot assertion can
  * derive the ACLs from the same object the router actually uses. Passing
  * literals to the assertion would make it decorative — it could never catch a
- * route someone later added without `acl: "private"`.
+ * route someone later added with the wrong ACL.
+ *
+ * On the pro tier every route is `acl: "private"`. On the free tier the ACL is
+ * OMITTED, because the free plan rejects an explicit ACL with HTTP 400 and
+ * every upload would fail. See docs/SECURITY.md §6.0 for the accepted risk.
  */
-const DOCUMENT_ROUTE_CONFIG = {
-  pdf: { maxFileSize: "16MB", maxFileCount: 5, acl: "private" },
-  image: { maxFileSize: "8MB", maxFileCount: 5, acl: "private" },
-  "application/msword": { maxFileSize: "16MB", maxFileCount: 5, acl: "private" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
-    maxFileSize: "16MB",
-    maxFileCount: 5,
-    acl: "private",
-  },
-  "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 5, acl: "private" },
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-    maxFileSize: "16MB",
-    maxFileCount: 5,
-    acl: "private",
-  },
+const TIER = storageTier();
+
+const SIZES = {
+  pdf: "16MB",
+  image: "8MB",
+  doc: "16MB",
 } as const;
 
-// Fails the module load — and so the whole app — if any route is not private.
-assertPrivateAclConfigured(Object.values(DOCUMENT_ROUTE_CONFIG).map((c) => c.acl));
+/** UploadThing types maxFileSize as a template literal, so this stays narrow. */
+type Size = (typeof SIZES)[keyof typeof SIZES];
+type RouteLimits = { maxFileSize: Size; maxFileCount: 5; acl?: "private" };
+
+function limits(maxFileSize: Size): RouteLimits {
+  // The key is omitted rather than set to undefined: under
+  // exactOptionalPropertyTypes those are different, and UploadThing serialises
+  // a present-but-undefined acl into the request.
+  return TIER === "pro"
+    ? { maxFileSize, maxFileCount: 5, acl: "private" }
+    : { maxFileSize, maxFileCount: 5 };
+}
+
+const DOCUMENT_ROUTE_CONFIG = {
+  pdf: limits(SIZES.pdf),
+  image: limits(SIZES.image),
+  "application/msword": limits(SIZES.doc),
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": limits(SIZES.doc),
+  "application/vnd.ms-excel": limits(SIZES.doc),
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": limits(SIZES.doc),
+};
+
+// Fails the module load — and so the whole app — if the declarations do not
+// match the tier in either direction.
+assertStorageAclPolicy(
+  TIER,
+  Object.values(DOCUMENT_ROUTE_CONFIG).map((c) => ("acl" in c ? c.acl : undefined)),
+);
+
+if (TIER === "free") {
+  logger.warn(
+    "Storage tier is FREE: uploaded documents are readable by anyone holding " +
+      "the object URL. The application never discloses that URL — downloads " +
+      "stream through /api/files/[id] — but a leaked URL needs no session. " +
+      "Set UPLOADTHING_TIER=pro to make objects private.",
+  );
+}
 
 export const omsFileRouter = {
   documentUploader: f(DOCUMENT_ROUTE_CONFIG, { awaitServerData: true })
     .input(uploadInput)
     .middleware(async ({ input, files }) => {
+      // 0. Refuse to accept files at all if public storage was not accepted
+      //    for this environment. Per-request, so it cannot fail a build.
+      assertStorageUsable();
+
       // 1. Authenticate and authorise before a single byte is accepted.
       const ctx = await requirePermission("documents.upload");
 

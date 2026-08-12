@@ -52,7 +52,7 @@ All versions below were resolved against the live npm registry, not assumed.
 | Icons | lucide-react | `1.31.0` | Required. |
 | Excel | `exceljs` | `4.4.0` | See ADR-003. |
 | PDF | `puppeteer-core` + `@sparticuz/chromium` | `25.5.0` / `149.0.0` | Arabic-capable — see ADR-004. |
-| File storage | `uploadthing` + `@uploadthing/react` | `7.7.4` / `7.3.3` | Private ACL + signed URLs — see ADR-008. |
+| File storage | `uploadthing` + `@uploadthing/react` | `7.7.4` / `7.3.3` | ACL by tier, signed URLs, proxied downloads — see ADR-008. |
 | Tests | Vitest + Playwright | `4.1.10` / `1.62.1` | Domain unit tests + critical-path E2E. |
 
 ### Deliberately *not* added
@@ -155,7 +155,7 @@ Two things about it directly conflict with `SECURITY.md` unless handled explicit
 
 **2. Magic-byte validation moves after the upload.** Because the browser uploads directly to UploadThing, we cannot sniff file headers before the bytes are stored. The `onUploadComplete` handler therefore fetches the first bytes via a signed URL, verifies the magic number against the declared type, and on mismatch **deletes the file and refuses to create the `FileObject` row**. The file is only visible to the application once validation passes — `FileObject.scanStatus` gates it.
 
-> ### ⚠️ BLOCKING as of 2026-08-10 — private files require a paid UploadThing tier
+> ### Resolved 2026-08-12 — free tier accepted, `UPLOADTHING_TIER` is the switch
 >
 > Verified against the configured app (`pnpm tsx scripts/verify-storage.ts`):
 >
@@ -163,21 +163,25 @@ Two things about it directly conflict with `SECURITY.md` unless handled explicit
 > |---|---|
 > | Upload with `acl: "private"` | **HTTP 400** — *"Private files are not allowed for free apps. Upgrade your app to a paid tier to enable private files."* |
 > | Upload with the default ACL | Accepted — and the **unsigned URL returns HTTP 200**, i.e. world-readable |
+> | `generateSignedURL` on a public object | Works — so reads still use an expiring URL |
 >
-> Because every OMS route declares `acl: "private"`, uploads are **rejected
-> outright rather than stored publicly**. That is the intended fail-safe
-> behaviour and the boot assertion holds — but **document upload is
-> non-functional** until one of these is chosen:
+> **The product owner chose (c), the free tier, with an upgrade to follow.**
+> Commitment 1 above therefore now reads: *files are private when the tier
+> allows it*. On the free tier the route ACL is omitted — declaring one makes
+> every upload fail — and the object is world-readable to anyone with the URL.
 >
-> **a)** Upgrade the UploadThing app to a paid tier.
-> **b)** Switch the storage adapter to S3/R2 — which also resolves the PDPL
-> data-residency question below. The `StorageProvider` seam exists for this.
-> **c)** Accept public-read storage. **Not advisable**: passport and Iqama scans
-> would be readable by anyone holding the URL, defeating threat T5 entirely.
+> The mitigation is that the URL is never disclosed. Downloads **stream through
+> `/api/files/[id]`** rather than redirecting, so the storage URL never reaches
+> the browser; no storage URL is persisted or rendered; and CSP `img-src` no
+> longer allows the storage host, so a future attempt to reference one fails in
+> the browser rather than on trust. Residual risk and its limits are stated in
+> `SECURITY.md` §6.0.
 >
-> The code has deliberately **not** been changed to work around this. Removing
-> `acl: "private"` would make uploads "work" and silently publish every identity
-> document.
+> Upgrading is `UPLOADTHING_TIER=pro` and nothing else: the route config regains
+> `acl: "private"` and `readUrlFor` returns signed URLs only. The boot assertion
+> now enforces the tier in **both** directions — a private ACL on the free tier
+> would break every upload, a missing one on the pro tier would publish identity
+> documents.
 
 **Data-residency flag for the product owner:** UploadThing stores files on third-party infrastructure outside Saudi Arabia. Iqama and passport scans are personal data under the Saudi PDPL, which restricts cross-border transfer. This is a business/legal decision, not a technical one — flagging it now rather than after go-live. If it becomes a problem, the storage adapter is deliberately kept behind a `StorageProvider` interface so swapping to a regional S3 bucket is a contained change.
 

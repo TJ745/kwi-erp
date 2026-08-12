@@ -1,6 +1,7 @@
 import "server-only";
 import { UTApi } from "uploadthing/server";
 import { getEnv } from "@/lib/env";
+import { assertStorageTierAllowed, type StorageTier } from "@/lib/storage-policy";
 import { logger } from "@/server/logger";
 import {
   MAGIC_BYTE_PREFIX_LENGTH,
@@ -26,27 +27,69 @@ export function utapi(): UTApi {
 /** Short-lived by policy: long enough to fetch, too short to pass around. */
 export const SIGNED_URL_TTL_SECONDS = 60;
 
+export type { StorageTier };
+
+export function storageTier(): StorageTier {
+  return getEnv().UPLOADTHING_TIER;
+}
+
 /**
- * Presigned read URL for a private object.
- *
- * `expiresIn` is only honoured when the UploadThing app allows per-request
- * overrides. If it is rejected we fall back to the app default rather than
- * failing the download — but we log it, because a longer-lived URL than we
- * intended is a security-relevant deviation, not a cosmetic one.
+ * Per-request gate on serving or accepting files. Called from the upload
+ * middleware and the download route — both of which only execute on a real
+ * request, so this cannot fail a build (see lib/storage-policy.ts).
  */
-export async function signedUrlFor(fileKey: string): Promise<string> {
+export function assertStorageUsable(): void {
+  const env = getEnv();
+  assertStorageTierAllowed({
+    nodeEnv: env.NODE_ENV,
+    tier: env.UPLOADTHING_TIER,
+    accepted: env.ACCEPT_PUBLIC_FILE_STORAGE,
+  });
+}
+
+/**
+ * A read URL for a stored object, for SERVER-SIDE use only.
+ *
+ * This value must never reach the browser. On the free tier the object is
+ * world-readable, so the URL is the only thing standing between a passport scan
+ * and the internet; on the pro tier it is a signed URL that should still not be
+ * handed out. `/api/files/[id]` streams the bytes through the server rather
+ * than redirecting, so no caller has a reason to want this.
+ *
+ * A signed URL is attempted on both tiers. Signing is local (no round trip) and
+ * an expiring URL is strictly better than the canonical public one even when
+ * the object is public — it is not the address an attacker would guess at.
+ */
+export async function readUrlFor(fileKey: string): Promise<string> {
   try {
     const result = await utapi().generateSignedURL(fileKey, {
       expiresIn: SIGNED_URL_TTL_SECONDS,
     });
     return result.ufsUrl;
   } catch (error) {
-    logger.warn("Signed URL override rejected; using app default TTL", {
+    // A longer-lived URL than intended is a security-relevant deviation, not a
+    // cosmetic one, so it is logged either way.
+    logger.warn("Signed URL with TTL rejected; retrying with the app default", {
       fileKey,
       error: error instanceof Error ? error.message : String(error),
     });
-    const result = await utapi().generateSignedURL(fileKey);
-    return result.ufsUrl;
+
+    try {
+      const result = await utapi().generateSignedURL(fileKey);
+      return result.ufsUrl;
+    } catch (fallbackError) {
+      if (storageTier() === "pro") throw fallbackError;
+
+      // Free tier only: signing is unavailable for public objects on some
+      // plans. The object is world-readable regardless, so this changes the
+      // exposure not at all — but it is logged so it is never a silent
+      // downgrade from an expiring URL to a permanent one.
+      logger.warn("Falling back to the unsigned public URL (free tier)", { fileKey });
+      const listed = await utapi().getFileUrls(fileKey);
+      const url = listed.data[0]?.url;
+      if (!url) throw fallbackError;
+      return url;
+    }
   }
 }
 
@@ -75,7 +118,7 @@ export async function verifyStoredFileBytes(
 ): Promise<{ ok: boolean; reason?: string }> {
   let url: string;
   try {
-    url = await signedUrlFor(fileKey);
+    url = await readUrlFor(fileKey);
   } catch (error) {
     return {
       ok: false,
@@ -104,22 +147,8 @@ export async function verifyStoredFileBytes(
 }
 
 /**
- * Boot assertion (ADR-008).
- *
- * UploadThing defaults to `public-read`. If that default is ever restored on
- * the dashboard, every passport scan becomes readable by URL — so this refuses
- * to let the process start rather than degrade quietly.
- *
- * Verified by uploading nothing: we assert the *route* declarations, which are
- * the only thing that governs new files, plus a live probe when possible.
+ * Boot assertion (ADR-008) — the implementation lives in `lib/storage-policy.ts`
+ * so it can be unit-tested; re-exported here because this is where callers
+ * expect storage concerns to live.
  */
-export function assertPrivateAclConfigured(routeAcls: readonly (string | undefined)[]): void {
-  const offenders = routeAcls.filter((acl) => acl !== "private");
-  if (offenders.length > 0) {
-    throw new Error(
-      "Refusing to start: one or more UploadThing routes are not declared with " +
-        'acl: "private". Employee identity documents would be publicly readable. ' +
-        "See docs/ARCHITECTURE.md ADR-008.",
-    );
-  }
-}
+export { assertStorageAclPolicy } from "@/lib/storage-policy";

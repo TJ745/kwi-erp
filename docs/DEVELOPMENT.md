@@ -254,7 +254,8 @@ Recorded here so they are decisions rather than omissions:
 | TypeScript 7 | `typescript-eslint` peer range excludes it (ADR-001) | When typescript-eslint ships support |
 | ESLint 10 | `eslint-plugin-react` (via `eslint-config-next`) crashes on it (ADR-009) | When eslint-plugin-react supports ESLint 10 |
 | Full Arabic UI / RTL | Decision D: Arabic data + bilingual letters only; UI stays English | Only as a scoped follow-up project, not a toggle |
-| PDPL data residency for uploads | UploadThing stores files outside Saudi Arabia (ADR-008) | **Product-owner decision before go-live** |
+| PDPL data residency for uploads | UploadThing stores files outside Saudi Arabia (ADR-008). Unchanged by the tier decision — pro storage is still non-KSA | **Product-owner decision before go-live** |
+| Upgrade to UploadThing pro tier | The free tier cannot store private files. Accepted 2026-08-12 with the URL-non-disclosure mitigations in SECURITY §6.0; objects remain world-readable to anyone holding the URL until then | Set `UPLOADTHING_TIER=pro` — one variable, no code change |
 | Antivirus scanning of uploads | `FileObject.scanStatus` exists so a scanner can be inserted with no schema change | If policy requires it |
 | MFA / TOTP | Not in v1 scope; schema leaves room | Immediately post-launch for `SUPER_ADMIN` + vault holders |
 | SSO / directory sync | No requirement stated | If the company adopts Microsoft Entra |
@@ -263,7 +264,7 @@ Recorded here so they are decisions rather than omissions:
 | Leave accrual engine | Brief specifies request/approval only | On request |
 | Audit log partitioning | Only needed at high volume | When `AuditLog` passes ~10M rows |
 | Email notification channel | Interface built in Phase 10; provider not wired | When an SMTP/Resend account is available |
-| Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file, and stored files are blocked on the storage decision | With the storage tier decision |
+| Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file. **No longer blocked** now that uploads work (2026-08-12) | On request — it is now buildable |
 | WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
 | Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |
 | Reports for petty cash, accommodation, suppliers, subcontractors, electricity bills, company certificates, timesheet, evaluations, increments, warnings | The report layer is a thin projection over its source module. Those modules are not built, so there is nothing to project — a report against an empty table proves nothing | With each source module |

@@ -352,20 +352,59 @@ A "recently revealed" panel and an alert on anomalous reveal volume give the IT 
 
 Storage is **UploadThing `7.7.4`** (ADR-008). Because uploads go browser → UploadThing directly, the validation order differs from a classic proxied upload, and the design accounts for that explicitly rather than assuming pre-upload inspection is possible.
 
-### 6.0 Current status: uploads BLOCKED (verified 2026-08-10)
+### 6.0 Storage tier — accepted risk (product-owner decision, 2026-08-12)
 
-The configured UploadThing app is on the free tier, which does not support
-private files. Measured, not assumed — `pnpm tsx scripts/verify-storage.ts`:
+The UploadThing free tier does not support private files. Measured, not assumed:
 
 - `acl: "private"` → **HTTP 400**, *"Private files are not allowed for free apps."*
 - default ACL → accepted, and the **unsigned URL returns HTTP 200** (world-readable)
 
-Every route declares `acl: "private"`, so uploads **fail rather than publish**.
-The control worked; the feature does not. Resolution options are in
-`ARCHITECTURE.md` ADR-008 and need a product-owner decision.
+**The product owner has chosen to run the free tier for now**, accepting that
+stored documents are readable by anyone who obtains the object URL, with an
+upgrade to the pro tier to follow. Uploads previously failed rather than
+published; they now work.
 
-**Do not "fix" this by dropping the ACL.** Uploads would start succeeding and
-every passport and Iqama scan would be readable by anyone with the URL.
+`UPLOADTHING_TIER` is the whole switch:
+
+| | `free` (current) | `pro` |
+|---|---|---|
+| Route ACL | omitted — declaring one is rejected | `private` |
+| Object readable by URL | **yes, to anyone** | no |
+| Read URL | signed, else public fallback | signed, 60 s |
+| Production | requires `ACCEPT_PUBLIC_FILE_STORAGE=true` | allowed |
+
+Upgrading is that one variable. No other change.
+
+#### What the URL being the only secret means, and what is done about it
+
+The object key is 48 random characters, so it is not enumerable. The exposure is
+disclosure of a URL, not discovery of one. Everything that could disclose one is
+therefore closed:
+
+1. **Downloads stream through the server.** `/api/files/[id]` authorises, then
+   pipes the bytes. It does **not** redirect — no `Location` header, no history
+   entry, no referrer, nothing in devtools. Verified: the response carries no
+   `ufs.sh`/`utfs.io` reference in body or headers.
+2. **No storage URL is persisted or rendered.** `FileObject` stores the key, not
+   a URL; nothing in the UI references the storage host.
+3. **CSP does not allow the storage host.** `img-src 'self' data: blob:` — a
+   future `<img src="https://….ufs.sh/f/…">` fails in the browser rather than
+   relying on nobody writing one. `connect-src` still allows uploads.
+4. **`readUrlFor` is documented server-only** and has exactly one caller.
+
+Residual risk, stated plainly: anyone who obtains an object URL — from a server
+log, a database dump, a backup, or a compromised server — can read that file
+with no session, from anywhere, and revoking access means deleting the object.
+The controls above prevent disclosure through the application; they cannot make
+a public object private.
+
+**Do not add the storage host back to CSP, and do not redirect to a storage URL.**
+Both would turn an accepted, contained risk into an active leak.
+
+Boot-time enforcement (`assertStorageAclPolicy`) fails the process if the route
+declarations disagree with the tier in either direction: a `private` ACL on the
+free tier would make every upload fail with HTTP 400, and a missing one on the
+pro tier would publish identity documents.
 
 ### 6.1 Private by default — non-negotiable
 
