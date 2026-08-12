@@ -119,8 +119,8 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "Vehicles",
     icon: "vehicles",
     items: [
-      { label: "Vehicles", href: "/vehicles", permissions: ["vehicles.view"], planned: true },
-      { label: "Maintenance", href: "/vehicles/maintenance", permissions: ["vehicles.maintenance.view"], planned: true },
+      { label: "Vehicles", href: "/vehicles", permissions: ["vehicles.view"] },
+      { label: "Maintenance", href: "/vehicles/maintenance", permissions: ["vehicles.maintenance.view"] },
       { label: "Handovers", href: "/vehicles/handovers", permissions: ["vehicles.view"], planned: true },
     ],
   },
