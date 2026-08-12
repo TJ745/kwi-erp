@@ -156,6 +156,38 @@ return all.filter(e => ctx.companyScope.includes(e.companyId));
 
 `companyScopeWhere(ctx)` returns `{}` for `"ALL"` and `{ companyId: { in: ctx.companyScope } }` otherwise. Review rule: any `findMany` on a company-owned table without a scope helper is rejected.
 
+### Derived copies inherit the gates of their source
+
+A generated letter is employee data in another shape. `letters.view` alone would
+therefore be a way around `employees.salary.view`: generate a salary certificate,
+then read the figure off the letter. VIEWER holds every non-sensitive `.view`
+permission, `letters.view` among them, so this was reachable by the least
+privileged role in the system.
+
+The rule, enforced in `getGeneratedLetter`:
+
+```ts
+where: {
+  id,
+  ...companyScopeWhere(ctx),
+  // filtered in the query — a hidden row is indistinguishable from a missing one
+  ...(ctx.permissions.has("employees.salary.view") ? {} : { containsSalary: false }),
+}
+```
+
+`GeneratedLetter.containsSalary` is recorded **per letter at generation time**,
+reflecting whether a salary figure actually rendered into the body — not
+inferred from the template type. Any template can reference `{{salary}}`, and a
+`{{salary}}` that rendered as an unresolved placeholder leaks nothing and must
+not lock the letter away from the people who need it.
+
+The list view still shows these rows: the metadata (number, type, employee) is
+not the secret. The row is rendered locked rather than linked, so the reason is
+visible instead of arriving as a 404 on click.
+
+Generalise this when adding any feature that copies data into a new record:
+exports, reports, and PDF snapshots need the same treatment.
+
 ### Client-side permission checks are cosmetic only
 
 `<Can permission="employees.delete">` hides buttons. It is a UX affordance and carries **no** security weight; the corresponding Server Action re-checks independently. Both exist; only the server one matters.
@@ -418,8 +450,8 @@ Redacted fields record `"[REDACTED]"` for both before and after — the *fact* o
 | Vector | Control |
 |---|---|
 | SQL injection | Prisma parameterises everything. The few `$queryRaw` uses (trigram search, partial indexes) use tagged templates with parameters — never string concatenation |
-| XSS | React escapes by default. `dangerouslySetInnerHTML` is used **only** for letter template preview, and only on server-sanitised HTML (allowlist of tags/attributes, no `<script>`, no `on*`, no `javascript:`) |
-| Template injection | Letter variables are resolved from a declared allowlist and HTML-escaped at substitution; templates cannot execute arbitrary expressions |
+| XSS | React escapes by default. `dangerouslySetInnerHTML` is used **only** for the letter preview and the letter print view, and only on server-sanitised HTML (allowlist of tags/attributes/style properties; no `<script>`, no `on*`, no `javascript:`, no `url()`). Sanitisation runs on save **and** again on render, so a body stored before a rule tightened cannot become exploitable |
+| Template injection | Letter variables are resolved from a declared allowlist and HTML-escaped at substitution; templates cannot execute arbitrary expressions. A substituted value is never re-scanned for placeholders, so a value containing `{{salary}}` cannot expand |
 | Open redirect | Post-login redirect accepts relative paths only, validated against a route allowlist |
 | SSRF | No user-supplied URL is fetched server-side |
 | Prototype pollution | Zod `.strict()` on all schemas; no `Object.assign` from raw request bodies |

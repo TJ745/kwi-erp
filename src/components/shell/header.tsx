@@ -40,7 +40,7 @@ export function Header({
   const match = findNavItem(pathname);
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur">
+    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur print:hidden">
       {/* Sidebar collapses to a sheet below lg — the desktop layout is not
           simply shrunk (docs/ARCHITECTURE.md, brief §42). */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

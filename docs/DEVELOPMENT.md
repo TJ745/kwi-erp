@@ -188,17 +188,17 @@ Phases follow the dependency layers in `MODULES.md` §1. Each ends with `pnpm ve
 | Phase | Scope | Depends on | Exit criteria |
 |---|---|---|---|
 | **1 — Analysis** ✅ | Repo inspection, architecture, data model, security design, roadmap | — | These five documents approved |
-| **2 — Foundation & DB** | `git init`, scaffold, tooling, ESLint/TS config, full Prisma schema, migrations, seed | Answers to A–D | `db:validate` + `typecheck` + `lint` clean; seed runs; all ~68 tables migrated |
-| **3 — Auth & RBAC** | Better Auth + Argon2, session, login/logout, guards, permission resolution, user/role admin | 2 | Login works; `requirePermission` enforced; role matrix seeded; permission unit tests pass |
-| **4 — App shell** | Sidebar, header, breadcrumbs, command menu, theme, toasts, and the full shared-component set from MODULES §6 | 3 | `DataTable`, `PageHeader`, `StatusBadge`, `FileUpload`, `EmptyState`… all built and documented; responsive at 3 breakpoints |
-| **5 — Core data** | Companies, departments, positions, **Employees** (all tabs), Documents + file storage, Tasks, Notifications skeleton, Expiry engine | 4 | Employee CRUD complete; document upload/download authorised; expiry projection populating |
-| **6 — HR & Admin** | Contracts, offers, job descriptions, checklist engine (onboarding/offboarding/clearance), leave, timesheet, evaluations, increments, warnings, correspondence, petty cash, accommodation, suppliers, subcontractors, bills, certificates | 5 | Each module CRUD + audit + permissions; offboarding blocks on outstanding assets |
-| **7 — IT** | Helpdesk, assets + handover lifecycle, servers, AD, network, IP phones, CCTV, software | 5 | Asset double-assignment rejected at DB level |
-| **7b — Password Vault** | Separate sub-phase: crypto module, unlock, reveal, grants, history, access log, generator | 7 | Security checklist §11 items for vault all verified |
-| **8 — Vehicles** | Vehicles, registration/insurance expiry, maintenance, driver assignment, handover forms | 5 | Fleet alerts appear on dashboard |
-| **9 — Medical insurance** | Policies, providers, expiry, documents; `EmployeeInsurance` table present, UI deferred | 5 | Policy status dashboard accurate |
-| **10 — Automation** | Reminder engine, notification rules, dedupe, cron endpoint, overdue detection, dashboard alert wiring, expiry reconciliation job | 5–9 | Scheduled run produces correct, non-duplicated notifications |
-| **11 — Documents & letters** | Template engine, variable resolution, preview, generation, PDF, `dataSnapshot` | 5, 6 | Letters generate correctly for all seeded templates |
+| **2 — Foundation & DB** ✅ | `git init`, scaffold, tooling, ESLint/TS config, full Prisma schema, migrations, seed | Answers to A–D | `db:validate` + `typecheck` + `lint` clean; seed runs; all ~68 tables migrated |
+| **3 — Auth & RBAC** ✅ | Better Auth + Argon2, session, login/logout, guards, permission resolution, user/role admin | 2 | Login works; `requirePermission` enforced; role matrix seeded; permission unit tests pass |
+| **4 — App shell** ✅ | Sidebar, header, breadcrumbs, command menu, theme, toasts, and the full shared-component set from MODULES §6 | 3 | `DataTable`, `PageHeader`, `StatusBadge`, `FileUpload`, `EmptyState`… all built and documented; responsive at 3 breakpoints |
+| **5 — Core data** ✅ | Companies, departments, positions, **Employees** (all tabs), Documents + file storage, Tasks, Notifications skeleton, Expiry engine | 4 | Employee CRUD complete; document upload/download authorised; expiry projection populating |
+| **6 — HR & Admin** ✅ | Contracts, offers, job descriptions, checklist engine (onboarding/offboarding/clearance), leave, timesheet, evaluations, increments, warnings, correspondence, petty cash, accommodation, suppliers, subcontractors, bills, certificates | 5 | Each module CRUD + audit + permissions; offboarding blocks on outstanding assets |
+| **7 — IT** ✅ | Helpdesk, assets + handover lifecycle, servers, AD, network, IP phones, CCTV, software | 5 | Asset double-assignment rejected at DB level |
+| **7b — Password Vault** ✅ | Separate sub-phase: crypto module, unlock, reveal, grants, history, access log, generator | 7 | Security checklist §11 items for vault all verified |
+| **8 — Vehicles** ✅ | Vehicles, registration/insurance expiry, maintenance, driver assignment, handover forms | 5 | Fleet alerts appear on dashboard |
+| **9 — Medical insurance** ✅ | Policies, providers, expiry, documents; `EmployeeInsurance` table present, UI deferred | 5 | Policy status dashboard accurate |
+| **10 — Automation** ✅ | Reminder engine, notification rules, dedupe, cron endpoint, overdue detection, dashboard alert wiring, expiry reconciliation job | 5–9 | Scheduled run produces correct, non-duplicated notifications |
+| **11 — Documents & letters** ✅ | Template engine, variable resolution, preview, generation, print view, `dataSnapshot`. Server-side PDF deferred (see §7) | 5, 6 | Letters generate correctly for all seeded templates |
 | **12 — Reports** | All report families, filters, CSV/Excel export, print views | 5–11 | Every report in brief §36 present with filters + export |
 | **13 — Security review** | Full checklist in `SECURITY.md` §11, `npm audit`, dependency review, penetration-style self-test | all | Every checklist item verified in code |
 
@@ -263,3 +263,6 @@ Recorded here so they are decisions rather than omissions:
 | Leave accrual engine | Brief specifies request/approval only | On request |
 | Audit log partitioning | Only needed at high volume | When `AuditLog` passes ~10M rows |
 | Email notification channel | Interface built in Phase 10; provider not wired | When an SMTP/Resend account is available |
+| Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file, and stored files are blocked on the storage decision | With the storage tier decision |
+| WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
+| Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |

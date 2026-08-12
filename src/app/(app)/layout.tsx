@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <aside className="bg-sidebar hidden w-64 shrink-0 border-r lg:block">
+      <aside className="bg-sidebar hidden w-64 shrink-0 border-r lg:block print:lg:hidden">
         <div className="flex h-14 items-center border-b px-5">
           <Link href="/dashboard" className="text-sm font-semibold tracking-tight">
             Operations

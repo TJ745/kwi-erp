@@ -401,5 +401,7 @@ Rules that span modules, owned by services rather than any single screen:
 | Expired items always surface in reports | Reports read `ExpiryIndex`, never a cached status |
 | Task overdue is derived | `dueDate < now() AND status NOT IN (COMPLETED, CANCELLED)` |
 | Credentials never appear in HR/employee APIs | Vault services live in a separate module; no other service imports `server/crypto` |
-| Generated letters freeze their data | `GeneratedLetter.dataSnapshot` |
+| Generated letters freeze their data | `GeneratedLetter.dataSnapshot` + `renderedHtml`; the letter is never re-rendered from live data |
+| A letter cannot be used to bypass salary permissions | `GeneratedLetter.containsSalary`, set at generation from what actually rendered; `getGeneratedLetter` filters on it unless the actor holds `employees.salary.view` |
+| A template cannot execute anything | Placeholders resolve from a fixed allowlist; bodies are sanitised against a tag/attribute/style allowlist on save and again on render |
 | Contract/Iqama renewal supersedes rather than overwrites | `Document.supersedesId` chain + `ExpiryIndex.isActive=false` on the old row |

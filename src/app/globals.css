@@ -159,6 +159,52 @@
   }
 }
 
+/*
+ * Letter body typography. Templates are authored HTML, so the elements the
+ * sanitiser allows need sensible defaults — Tailwind's preflight strips them.
+ */
+.letter-body {
+  line-height: 1.7;
+}
+.letter-body p {
+  margin-block: 0.75rem;
+}
+.letter-body h1,
+.letter-body h2,
+.letter-body h3 {
+  margin-block: 1.25rem 0.5rem;
+  font-weight: 600;
+}
+.letter-body h1 { font-size: 1.4rem; }
+.letter-body h2 { font-size: 1.2rem; }
+.letter-body h3 { font-size: 1.05rem; }
+.letter-body ul,
+.letter-body ol {
+  margin-block: 0.75rem;
+  padding-inline-start: 1.5rem;
+}
+.letter-body ul { list-style: disc; }
+.letter-body ol { list-style: decimal; }
+.letter-body strong, .letter-body b { font-weight: 600; }
+.letter-body em, .letter-body i { font-style: italic; }
+.letter-body u { text-decoration: underline; }
+.letter-body table {
+  width: 100%;
+  margin-block: 1rem;
+  border-collapse: collapse;
+}
+.letter-body th,
+.letter-body td {
+  border: 1px solid currentColor;
+  padding: 0.4rem 0.6rem;
+  text-align: start;
+}
+.letter-body hr {
+  margin-block: 1.5rem;
+  border-top: 1px solid currentColor;
+  opacity: 0.25;
+}
+
 /* Letters render to PDF through the browser print dialog (ADR-004). */
 @media print {
   .no-print {
@@ -167,5 +213,26 @@
   body {
     background: white;
     color: black;
+  }
+  /* A4 with the margins a Saudi letterhead expects. */
+  @page {
+    size: A4;
+    margin: 20mm 18mm;
+  }
+  /* The print dialog adds its own page furniture; the app's is redundant. */
+  .letter-sheet {
+    max-width: none;
+    box-shadow: none;
+  }
+  .letter-body {
+    color: black;
+  }
+  /* A letter split mid-signature reads as tampered-with. */
+  .letter-body h1,
+  .letter-body h2,
+  .letter-body h3,
+  .letter-body table {
+    break-inside: avoid;
+    break-after: avoid;
   }
 }

@@ -943,6 +943,7 @@ model GeneratedLetter {
   renderedHtml String
   dataSnapshot Json                      // values at generation time
   fileId       String?                   // PDF, if stored
+  containsSalary Boolean @default(false) // gates reading on employees.salary.view
   status       LetterStatus @default(GENERATED)
   generatedById String
   generatedAt  DateTime @default(now())
@@ -958,7 +959,9 @@ model RateLimitBucket {                   // DB-backed limiter (no Redis depende
 }
 ```
 
-`dataSnapshot` on `GeneratedLetter` matters: a salary letter must keep saying what it said when it was issued, even after the employee's salary changes.
+`dataSnapshot` on `GeneratedLetter` matters: a salary letter must keep saying what it said when it was issued, even after the employee's salary changes. `renderedHtml` is stored alongside it — the letter is never re-rendered from live data.
+
+`containsSalary` exists because a letter is employee data in another shape. It is set per letter from what actually rendered, not inferred from the template type: any template can reference `{{salary}}`, and a placeholder that rendered unresolved leaks nothing. Reading a flagged letter requires `employees.salary.view` — see SECURITY §3.
 
 ---
 

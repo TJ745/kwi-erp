@@ -112,8 +112,14 @@ export function DateField({
 export function TextAreaField({
   defaultValue,
   rows = 3,
+  onChange,
   ...base
-}: BaseProps & { defaultValue?: string | undefined; rows?: number }) {
+}: BaseProps & {
+  defaultValue?: string | undefined;
+  rows?: number;
+  /** Notified on every keystroke, for live hints. The field stays uncontrolled. */
+  onChange?: ((value: string) => void) | undefined;
+}) {
   return (
     <FieldFrame {...base}>
       {({ id, describedBy }) => (
@@ -122,6 +128,13 @@ export function TextAreaField({
           name={base.name}
           rows={rows}
           defaultValue={defaultValue ?? ""}
+          {...(onChange
+            ? {
+                onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+                  onChange(event.target.value);
+                },
+              }
+            : {})}
           aria-invalid={Boolean(base.errors?.length)}
           {...(describedBy ? { "aria-describedby": describedBy } : {})}
           className="border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"

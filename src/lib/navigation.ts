@@ -69,7 +69,7 @@ export const NAVIGATION: readonly NavSection[] = [
     label: "HR & Admin",
     icon: "hr",
     items: [
-      { label: "Letters & Memos", href: "/hr/letters", permissions: ["letters.view"], planned: true },
+      { label: "Letters & Memos", href: "/hr/letters", permissions: ["letters.view"], keywords: ["certificate", "salary letter", "experience"] },
       { label: "Contracts", href: "/hr/contracts", permissions: ["hr.contracts.view"] },
       { label: "Job Offers", href: "/hr/offers", permissions: ["hr.offers.view"], planned: true },
       { label: "Job Descriptions", href: "/hr/job-descriptions", permissions: ["hr.view"], planned: true },
@@ -148,7 +148,7 @@ export const NAVIGATION: readonly NavSection[] = [
       { label: "Roles & Permissions", href: "/settings/roles", permissions: ["roles.manage"] },
       { label: "Document Types", href: "/settings/document-types", permissions: ["documents.manageTypes"], planned: true },
       { label: "Checklist Templates", href: "/settings/checklists", permissions: ["settings.manage"], planned: true },
-      { label: "Letter Templates", href: "/settings/templates", permissions: ["letters.manageTemplates"], planned: true },
+      { label: "Letter Templates", href: "/settings/templates", permissions: ["letters.manageTemplates"] },
     ],
   },
 ];

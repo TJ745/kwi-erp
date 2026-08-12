@@ -10,6 +10,8 @@ import {
   ROLE_PERMISSIONS,
   ROLE_RANKS,
 } from "../src/lib/permissions.js";
+import { extractVariables, sanitiseTemplateHtml } from "../src/lib/templates.js";
+import { SEED_TEMPLATES } from "./seed-letter-templates.js";
 
 for (const file of [".env", ".env.local"]) {
   if (existsSync(file)) process.loadEnvFile(file);
@@ -467,6 +469,40 @@ async function main() {
     }
   }
   console.log(`  notification rules ${notificationRules.length}`);
+
+  // --- Letter templates ----------------------------------------------------
+  // Company-neutral (companyId null) so both entities can use them; a company
+  // wanting its own wording clones one rather than editing the shared original.
+  for (const seed of SEED_TEMPLATES) {
+    // Run through the same sanitiser the service uses, so a seed can never
+    // introduce markup the editor would have rejected.
+    const bodyHtml = sanitiseTemplateHtml(seed.bodyHtml);
+    const bodyHtmlAr = seed.bodyHtmlAr ? sanitiseTemplateHtml(seed.bodyHtmlAr) : null;
+
+    const used = extractVariables(`${bodyHtml} ${bodyHtmlAr ?? ""}`);
+    if (used.unknown.length > 0) {
+      throw new Error(
+        `Template "${seed.key}" references unknown placeholders: ${used.unknown.join(", ")}`,
+      );
+    }
+
+    const data = {
+      name: seed.name,
+      type: seed.type,
+      companyId: null,
+      bodyHtml,
+      bodyHtmlAr,
+      variables: { known: used.known, unknown: [] },
+      isActive: true,
+    };
+
+    await prisma.letterTemplate.upsert({
+      where: { key: seed.key },
+      update: data,
+      create: { key: seed.key, ...data },
+    });
+  }
+  console.log(`  letter templates ${SEED_TEMPLATES.length}`);
 
   // --- Counters ------------------------------------------------------------
   for (const key of ["employee", "task", "ticket", "asset", "vehicle", "letter"]) {

@@ -282,6 +282,12 @@ model GeneratedLetter {
   dataSnapshot Json
   fileId       String?
 
+  /// True when the rendered body actually contains a salary figure. Recorded
+  /// per letter rather than inferred from the template type, because any
+  /// template can reference {{salary}}. Reading such a letter requires
+  /// employees.salary.view — otherwise a letter is a way around that gate.
+  containsSalary Boolean @default(false)
+
   status        LetterStatus @default(GENERATED)
   generatedById String
   generatedAt   DateTime     @default(now())
