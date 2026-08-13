@@ -34,7 +34,7 @@ const optionalId = z
   .optional()
   .transform((v) => (v === "" || v === "none" ? undefined : v));
 
-export const taskSchema = z
+const taskSchemaObject = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     title: z.string().trim().min(3, "Title is required").max(200),
@@ -47,19 +47,37 @@ export const taskSchema = z
     entityType: z.enum(TASK_ENTITY_TYPES).optional().or(z.literal("").transform(() => undefined)),
     entityId: optionalId,
   })
-  .strict()
-  .refine((d) => !d.entityType || Boolean(d.entityId), {
-    message: "Select the related record",
-    path: ["entityId"],
-  })
-  .refine((d) => !d.entityId || Boolean(d.entityType), {
-    message: "Select the related record type",
-    path: ["entityType"],
-  });
+  .strict();
+
+/**
+ * Cross-field rules, applied to create and update alike.
+ *
+ * Shared through a function rather than by intersecting schemas: an
+ * intersection of a bare object with a strict one silently stops rejecting
+ * unknown keys (verified — see storage of Phase 13 findings).
+ */
+function checkTaskEntity(
+  d: { entityType?: string | undefined; entityId?: string | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  // A polymorphic link needs both halves or neither; one alone points nowhere.
+  if (d.entityType && !d.entityId) {
+    ctx.addIssue({ code: "custom", message: "Select the related record", path: ["entityId"] });
+  }
+  if (d.entityId && !d.entityType) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Select the related record type",
+      path: ["entityType"],
+    });
+  }
+}
+
+export const taskSchema = taskSchemaObject.superRefine(checkTaskEntity);
 
 export type TaskInput = z.infer<typeof taskSchema>;
 
-export const updateTaskSchema = z.object({ id: z.string().min(1) }).and(taskSchema);
+export const updateTaskSchema = taskSchemaObject.extend({ id: z.string().min(1) }).superRefine(checkTaskEntity);
 
 /** Quick status change from the list, without opening the full form. */
 export const taskStatusSchema = z

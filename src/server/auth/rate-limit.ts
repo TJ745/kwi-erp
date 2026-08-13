@@ -15,6 +15,14 @@ export type RateLimitRule = { limit: number; windowSeconds: number };
 export const RATE_LIMITS = {
   login: { limit: 5, windowSeconds: 15 * 60 },
   passwordReset: { limit: 3, windowSeconds: 60 * 60 },
+  /**
+   * Changing your own password requires the current one, which makes it a
+   * brute-force target for anyone holding a stolen session cookie — and a
+   * successful change revokes the real user's other sessions, completing the
+   * takeover. Matches the login window rather than the tighter reset one, so a
+   * user who mistypes their current password is not locked out for an hour.
+   */
+  passwordChange: { limit: 5, windowSeconds: 15 * 60 },
   vaultUnlock: { limit: 5, windowSeconds: 15 * 60 },
   vaultReveal: { limit: 10, windowSeconds: 5 * 60 },
   fileDownload: { limit: 120, windowSeconds: 60 },

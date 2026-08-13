@@ -200,7 +200,7 @@ Phases follow the dependency layers in `MODULES.md` §1. Each ends with `pnpm ve
 | **10 — Automation** ✅ | Reminder engine, notification rules, dedupe, cron endpoint, overdue detection, dashboard alert wiring, expiry reconciliation job | 5–9 | Scheduled run produces correct, non-duplicated notifications |
 | **11 — Documents & letters** ✅ | Template engine, variable resolution, preview, generation, print view, `dataSnapshot`. Server-side PDF deferred (see §7) | 5, 6 | Letters generate correctly for all seeded templates |
 | **12 — Reports** ✅ | 12 report families, filters, CSV/Excel export, print views, one shared column derivation | 5–11 | Every report present with filters + export; gated columns absent from both screen and file |
-| **13 — Security review** | Full checklist in `SECURITY.md` §11, `npm audit`, dependency review, penetration-style self-test | all | Every checklist item verified in code |
+| **13 — Security review** | Full checklist in `SECURITY.md` §11, `pnpm audit`, dependency review, penetration-style self-test | all | All 20 items verified in code and, where observable, live. Three findings fixed: non-strict update schemas, unlimited change-password attempts, one high + one moderate advisory |
 
 ### Sequencing notes
 

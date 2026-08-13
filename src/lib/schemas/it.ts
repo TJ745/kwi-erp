@@ -47,7 +47,7 @@ export const ASSET_STATUSES = [
 
 export const ASSET_CONDITIONS = ["NEW", "GOOD", "FAIR", "POOR", "DAMAGED"] as const;
 
-export const assetSchema = z
+const assetSchemaObject = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     type: z.enum(ASSET_TYPES),
@@ -62,16 +62,37 @@ export const assetSchema = z
     location: optionalText(120),
     notes: optionalText(1000),
   })
-  .strict()
-  .refine(
-    (d) =>
-      !d.purchaseDate || !d.warrantyExpiry || d.warrantyExpiry.getTime() >= d.purchaseDate.getTime(),
-    { message: "Warranty cannot expire before purchase", path: ["warrantyExpiry"] },
-  );
+  .strict();
+
+/**
+ * Cross-field rules, applied to create and update alike.
+ *
+ * Shared through a function rather than by intersecting schemas: an
+ * intersection of a bare object with a strict one silently stops rejecting
+ * unknown keys (verified — see storage of Phase 13 findings).
+ */
+function checkAssetDates(
+  d: { purchaseDate?: Date | undefined; warrantyExpiry?: Date | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    d.purchaseDate &&
+    d.warrantyExpiry &&
+    d.warrantyExpiry.getTime() < d.purchaseDate.getTime()
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Warranty cannot expire before purchase",
+      path: ["warrantyExpiry"],
+    });
+  }
+}
+
+export const assetSchema = assetSchemaObject.superRefine(checkAssetDates);
 
 export type AssetInput = z.infer<typeof assetSchema>;
 
-export const updateAssetSchema = z.object({ id: z.string().min(1) }).and(assetSchema);
+export const updateAssetSchema = assetSchemaObject.extend({ id: z.string().min(1) }).superRefine(checkAssetDates);
 
 /** Handover-out. Accessories are free text so the form stays usable. */
 export const assignAssetSchema = z

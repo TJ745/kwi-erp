@@ -45,7 +45,7 @@ export const CONTRACT_STATUSES = [
   "RENEWED",
 ] as const;
 
-export const contractSchema = z
+const contractSchemaObject = z
   .object({
     employeeId: z.string().min(1),
     companyId: z.string().min(1, "Company is required"),
@@ -61,26 +61,54 @@ export const contractSchema = z
     status: z.enum(CONTRACT_STATUSES).default("ACTIVE"),
     notes: optionalText(1000),
   })
-  .strict()
-  .refine((d) => !d.endDate || d.endDate.getTime() >= d.startDate.getTime(), {
-    message: "End date cannot precede the start date",
-    path: ["endDate"],
-  })
-  .refine(
-    (d) =>
-      !d.probationEndDate || d.probationEndDate.getTime() >= d.startDate.getTime(),
-    { message: "Probation end cannot precede the start date", path: ["probationEndDate"] },
-  )
+  .strict();
+
+/**
+ * Cross-field rules, applied to create and update alike.
+ *
+ * Shared through a function rather than by intersecting schemas: an
+ * intersection of a bare object with a strict one silently stops rejecting
+ * unknown keys (verified — see storage of Phase 13 findings).
+ */
+function checkContractDates(
+  d: {
+    startDate: Date;
+    endDate?: Date | undefined;
+    probationEndDate?: Date | undefined;
+    contractType: string;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.endDate && d.endDate.getTime() < d.startDate.getTime()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "End date cannot precede the start date",
+      path: ["endDate"],
+    });
+  }
+  if (d.probationEndDate && d.probationEndDate.getTime() < d.startDate.getTime()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Probation end cannot precede the start date",
+      path: ["probationEndDate"],
+    });
+  }
   // A fixed-term contract without an end date has no term — the expiry engine
   // would never see it and it would never be renewed.
-  .refine((d) => d.contractType !== "FIXED_TERM" || Boolean(d.endDate), {
-    message: "A fixed-term contract must have an end date",
-    path: ["endDate"],
-  });
+  if (d.contractType === "FIXED_TERM" && !d.endDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "A fixed-term contract must have an end date",
+      path: ["endDate"],
+    });
+  }
+}
+
+export const contractSchema = contractSchemaObject.superRefine(checkContractDates);
 
 export type ContractInput = z.infer<typeof contractSchema>;
 
-export const updateContractSchema = z.object({ id: z.string().min(1) }).and(contractSchema);
+export const updateContractSchema = contractSchemaObject.extend({ id: z.string().min(1) }).superRefine(checkContractDates);
 
 // --- Leave -------------------------------------------------------------------
 

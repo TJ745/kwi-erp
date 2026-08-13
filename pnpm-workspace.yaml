@@ -16,3 +16,15 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - lucide-react@1.31.0
   - tsx@4.23.12
+
+# Forced transitive versions, each closing a specific advisory.
+# pnpm 11 reads overrides here, not from package.json.
+overrides:
+  # GHSA-38f7-945m-qr2g (high): AsyncLocalStorage context lost or contaminated
+  # inside Effect fibers under concurrent load. UploadThing carries per-request
+  # user identity through this machinery, so contamination is not an abstract
+  # risk here. Patched in 3.20.0, which prisma already resolves.
+  effect: '>=3.20.0'
+  # GHSA-w5hq-g745-h8pq (moderate): missing buffer bounds check in uuid v3/v5/v6
+  # when a buffer is supplied. Reached only through exceljs.
+  uuid: '>=11.1.1'

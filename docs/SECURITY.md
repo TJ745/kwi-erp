@@ -14,7 +14,7 @@ This system stores personal data (Iqama numbers, passports, salaries, IBANs) and
 | T2 | Vertical privilege escalation | `USER` calls a Server Action directly to approve their own leave | Permission check inside the action pipeline, never in the UI |
 | T3 | Credential theft from DB | Database dump, Neon branch copy, or stolen backup | Envelope encryption; KEK never in the database |
 | T4 | Insider credential harvesting | IT staff member bulk-reveals the vault before resigning | Per-reveal audit, rate limiting, vault unlock, export permission split |
-| T5 | Direct object reference on files | Guessing/sharing a document URL to read someone's passport scan | Private ACL on every file; authorisation-gated downloads issuing 60 s signed URLs; no file URL ever rendered or stored |
+| T5 | Direct object reference on files | Guessing/sharing a document URL to read someone's passport scan | Authorisation-gated downloads that **stream** the bytes, never redirect; no storage URL rendered, stored, or allowed by CSP. Object privacy depends on the tier — on the free tier the object is public and the URL is the secret (§6.0) |
 | T6 | Secret leakage through logs | Password appears in a server log, error message, or audit diff | Central redaction list; ciphertext never logged; no secrets in GET |
 | T7 | Credential stuffing / brute force | Reused password from a breach | Argon2id, per-account lockout, rate limiting |
 | T8 | Malicious file upload | `.svg` with script, or `.exe` renamed to `.pdf` | Magic-byte validation, MIME allowlist, size caps, no inline HTML/SVG rendering |
@@ -579,25 +579,56 @@ The system holds Saudi national/residency identifiers and financial data.
 
 ## 11. Phase 13 security review checklist
 
-Executed before the system is declared complete. Each item is verified by reading code, not by assertion.
+Completed 2026-08-13. Every item was verified by reading code and, where the
+claim is observable, by exercising a running instance. Three items were rewritten
+because they described a system that no longer exists — ticking them as written
+would have been false.
 
-- [ ] Every Server Action begins with `requireAuth` + `requirePermission`
-- [ ] Every `findMany` on a company-owned table applies `companyScopeWhere`
-- [ ] No client-supplied actor id is trusted anywhere
-- [ ] Every Zod schema is `.strict()`
-- [ ] Vault: KEK absent from DB, git history, and logs; AAD applied; reveal is POST-only, unlocked, rate-limited, audited
-- [ ] `grep -ri "password" src/server` finds no logging of credential values
-- [ ] All file downloads pass through `/api/files/[id]`; no UploadThing URL is ever rendered or stored
-- [ ] Every UploadThing route declares `acl: "private"`; app default ACL is private; boot assertion active
-- [ ] `onUploadComplete` magic-byte validation active; failures delete the file and create no `FileObject`
-- [ ] Signed URLs expire in 60 s; `Referrer-Policy: no-referrer` on file responses
-- [ ] SVG, archives, and executables rejected
-- [ ] Audit redaction list applied to every diff writer
-- [ ] No `AuditLog` update/delete path exists
-- [ ] Security headers present on every response
-- [ ] Rate limits active on login, reset, unlock, reveal, export, search
-- [ ] Env validation fails closed at boot
-- [ ] `npm audit` clean of high/critical
-- [ ] Seeded roles: `HR`/`ADMIN` hold zero `vault.*` permissions
-- [ ] Error responses leak no stack traces, Prisma messages, or schema details
-- [ ] Sessions revoked on logout, password change, role change, and deactivation
+Legend: **✅ verified** · **⚠️ changed** (rewritten, see note) · **➖ n/a**
+
+| # | Item | Result |
+|---|---|---|
+| 1 | Every Server Action begins with `requireAuth` + `requirePermission` | ✅ Five of ~90 actions bypass `defineAction`; each was read individually. `loginAction`/`logoutAction` are pre-auth by nature; `changePasswordAction` calls `requireAuth`; `revealCredentialAction` and `generatePasswordAction` call `requirePermission` directly with `.strict()` schemas — deliberately outside the pipeline so a secret is never handed to the generic audit diff |
+| 2 | Every `findMany` on a company-owned table applies `companyScopeWhere` | ✅ 167 company-owned queries enumerated. All are scoped, transitively scoped (ids sourced from a scoped query), deliberate system-wide scans (`reconcileExpiryIndex` and the reminder scans, documented in ADR-005), global uniqueness checks that **must** be global, or validators that compare `companyId` explicitly |
+| 3 | No client-supplied actor id is trusted anywhere | ✅ No action schema accepts an actor id. `users.ts` accepts `userId` as the **target**, guarded by `requireSeniorTo` and a self-modification check. `uploadedById` comes from the upload middleware's `ctx.userId`; `generatedById`/`createdById` from `ctx` |
+| 4 | Every Zod schema is `.strict()` | ⚠️ **Was false.** Six `update*Schema` were built as `z.object({ id }).and(base)`; a Zod intersection with a bare object silently stops rejecting unknown keys. Rebuilt as `baseObject.extend({ id })`, with cross-field rules shared through a typed `superRefine` so they are written once. 41 regression tests in `schemas/strictness.test.ts` |
+| 5 | Vault: KEK absent from DB, git, and logs; AAD applied; reveal POST-only, unlocked, rate-limited, audited | ✅ No KEK column exists; git history holds only `replace-me` placeholders; no KEK reference outside `server/crypto` and `lib/env`. AAD is the credential id and is rejected when empty. Reveal is a Server Action (POST-only) enforcing permission → vault unlock → per-credential grant → rate limit → company scope → audit-without-value |
+| 6 | `grep -ri "password" src/server` finds no logging of credential values | ✅ Every hit is a variable name, schema field, or audit summary. No `logger.*` call receives a secret, password, plaintext, or ciphertext |
+| 7 | All file downloads pass through `/api/files/[id]`; no storage URL rendered or stored | ✅ One caller of `readUrlFor`; `FileObject` stores the key, not a URL; nothing in the UI references the storage host. Verified live — the download response carries no `ufs.sh`/`utfs.io` reference and issues no redirect |
+| 8 | ~~Every UploadThing route declares `acl: "private"`~~ | ⚠️ **Rewritten.** The free tier rejects an explicit ACL with HTTP 400 (§6.0). Route ACLs must now match `UPLOADTHING_TIER`, enforced at boot by `assertStorageAclPolicy` in **both** directions: a private ACL on the free tier breaks every upload, a missing one on the pro tier publishes identity documents. 15 unit tests |
+| 9 | `onUploadComplete` magic-byte validation active; failures delete the file and create no `FileObject` | ✅ Verified live end to end — a valid PDF was accepted and registered; the rejection path deletes the object before any row exists |
+| 10 | ~~Signed URLs expire in 60 s; `Referrer-Policy: no-referrer` on file responses~~ | ⚠️ **Rewritten.** Signed URLs are still minted with a 60 s TTL and confirmed working on the free tier. The route-level `Referrer-Policy: no-referrer` was **removed**: `next.config.ts` sets the header globally and wins, so the route-level value was silently ignored — a header that looked like a control but was not. It is moot regardless, since the route streams rather than redirects and no storage URL reaches the browser |
+| 11 | SVG, archives, and executables rejected | ✅ Allowlist of nine extensions; SVG rejected outright rather than sanitised; magic bytes are authoritative. `invoice.pdf.exe` resolves to `exe` and is refused — tested |
+| 12 | Audit redaction list applied to every diff writer | ✅ `recordAudit` is the only writer taking before/after, and routes them through `diffRecords`. The single other `auditLog.create` is the system-actor path, which carries no diff |
+| 13 | No `AuditLog` update/delete path exists | ✅ No `auditLog.update`/`delete`/`upsert` anywhere in `src/`. The model has no `updatedAt`, and `audit/log.ts` deliberately exposes no such helper |
+| 14 | Security headers present on every response | ✅ Applied at `/:path*`. Confirmed live on an API response: CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS |
+| 15 | Rate limits active on login, reset, unlock, reveal, export, search | ⚠️ **Partly.** Active and verified: login, vault unlock, vault reveal, file download, report export. **Added during this review:** `passwordChange` (5 per 15 min). `changePasswordAction` had none, so anyone holding a stolen session could brute-force the current password without limit — and a success revokes the real user's other sessions, completing the takeover. Verified live: attempts 1–5 fail on the password, attempt 6 returns `RATE_LIMITED`. `passwordReset` and `globalSearch` remain declared but unwired ➖ because neither feature is built |
+| 16 | Env validation fails closed at boot | ✅ Invalid configuration throws before the app serves anything, listing every problem and never a value. Demonstrated unintentionally during the storage work, when a misplaced production guard halted `next build` |
+| 17 | `npm audit` clean of high/critical | ⚠️ **Was not.** One high (`effect` < 3.20.0 — `AsyncLocalStorage` context contamination, and UploadThing carries per-request user identity through that machinery) and one moderate (`uuid` < 11.1.1 via `exceljs`). Both pinned through `pnpm-workspace.yaml` overrides; `pnpm audit` now reports **no known vulnerabilities** |
+| 18 | Seeded roles: `HR`/`ADMIN` hold zero `vault.*` | ✅ Both hold none. `IT_ADMIN` holds view/reveal/create/update but **not** delete/export/grant. Only `SUPER_ADMIN` holds all seven |
+| 19 | Error responses leak no stack traces, Prisma messages, or schema details | ✅ Only typed `AppError` messages — authored for users — reach the client. Anything else returns a generic message plus a correlation id, with the detail logged server-side |
+| 20 | Sessions revoked on logout, password change, role change, and deactivation | ✅ Logout signs out; password change sets `revokeOtherSessions`; deactivation deletes both `Session` and `VaultSession`, verified live (a live session went from 200 to a login redirect). **Role change needs no revocation**: permissions resolve per request from the database. Verified live — promoting a user changed their access on the very next request with the same cookie, and demoting them removed it immediately. That is stronger than revocation, which has a race window |
+
+### Penetration-style self-test
+
+Run against a live instance with four seeded roles plus a purpose-built user.
+Server Action ids were extracted from the public JavaScript bundles — exactly as
+an attacker would — and the actions invoked directly with `curl`, bypassing the
+UI entirely.
+
+| Attack | Result |
+|---|---|
+| Unauthenticated access to six protected pages | 307 → `/login` on every one |
+| VIEWER → `/it/vault`, `/settings/users`, `/settings/roles`, `/settings/templates` | 307 → `/no-access` on every one |
+| HR → IT and vault pages | denied |
+| VIEWER forging `createEmployeeAction` | `FORBIDDEN` |
+| HR (KWI-scoped) forging an **ICC** employee | `FORBIDDEN` |
+| HR injecting `employeeNo` + `deletedAt` (mass assignment) | `VALIDATION` — the item-4 fix, confirmed against a forged request |
+| Brute-forcing the current password via a forged action | five attempts, then `RATE_LIMITED` |
+| Cron endpoint with no secret, and with a wrong secret | 401 both |
+| Report export by a role without `reports.export` | 404 |
+| Report export columns for a role denied `employees.salary.view` | salary and IBAN absent from screen **and** file |
+| File download: anonymous / no `documents.download` / wrong company | 401 / 404 / 404 |
+
+Every fixture created during the test was removed.
+

@@ -44,7 +44,7 @@ export const providerSchema = z
 
 export type ProviderInput = z.infer<typeof providerSchema>;
 
-export const policySchema = z
+const policySchemaObject = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     providerId: z.string().min(1, "Select a provider"),
@@ -63,12 +63,30 @@ export const policySchema = z
     currency: z.string().trim().length(3).default("SAR"),
     notes: optionalText(1000),
   })
-  .strict()
-  .refine((d) => d.expiryDate.getTime() >= d.startDate.getTime(), {
-    message: "Expiry cannot precede the start date",
-    path: ["expiryDate"],
-  });
+  .strict();
+
+/**
+ * Cross-field rules, applied to create and update alike.
+ *
+ * Shared through a function rather than by intersecting schemas: an
+ * intersection of a bare object with a strict one silently stops rejecting
+ * unknown keys (verified — see storage of Phase 13 findings).
+ */
+function checkPolicyDates(
+  d: { startDate: Date; expiryDate: Date },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.expiryDate.getTime() < d.startDate.getTime()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Expiry cannot precede the start date",
+      path: ["expiryDate"],
+    });
+  }
+}
+
+export const policySchema = policySchemaObject.superRefine(checkPolicyDates);
 
 export type PolicyInput = z.infer<typeof policySchema>;
 
-export const updatePolicySchema = z.object({ id: z.string().min(1) }).and(policySchema);
+export const updatePolicySchema = policySchemaObject.extend({ id: z.string().min(1) }).superRefine(checkPolicyDates);

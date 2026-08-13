@@ -6,6 +6,7 @@ import { changePasswordSchema } from "@/lib/schemas/auth";
 import { err, ok, type ActionResult } from "@/lib/result";
 import { auth } from "@/server/auth/auth";
 import { requireAuth } from "@/server/auth/guards";
+import { consumeRateLimit } from "@/server/auth/rate-limit";
 import { recordAudit } from "@/server/audit/log";
 import { prisma } from "@/server/db/client";
 import { logger } from "@/server/logger";
@@ -18,6 +19,17 @@ export async function changePasswordAction(
   rawInput: unknown,
 ): Promise<ActionResult<{ ok: true }>> {
   const ctx = await requireAuth();
+
+  // Before validation, so a hostile payload cannot buy free attempts by
+  // failing the schema instead of the password check.
+  try {
+    await consumeRateLimit("passwordChange", ctx.userId);
+  } catch {
+    return err(
+      "RATE_LIMITED",
+      "Too many password change attempts. Please wait a few minutes.",
+    );
+  }
 
   const parsed = changePasswordSchema.safeParse(rawInput);
   if (!parsed.success) {

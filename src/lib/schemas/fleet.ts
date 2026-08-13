@@ -55,7 +55,7 @@ export const MAINTENANCE_TYPES = [
 
 export const FUEL_LEVELS = ["EMPTY", "QUARTER", "HALF", "THREE_QUARTER", "FULL"] as const;
 
-export const vehicleSchema = z
+const vehicleSchemaObject = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     plateNumber: z.string().trim().min(2, "Plate number is required").max(20),
@@ -86,9 +86,11 @@ export const vehicleSchema = z
   })
   .strict();
 
+export const vehicleSchema = vehicleSchemaObject;
+
 export type VehicleInput = z.infer<typeof vehicleSchema>;
 
-export const updateVehicleSchema = z.object({ id: z.string().min(1) }).and(vehicleSchema);
+export const updateVehicleSchema = vehicleSchemaObject.extend({ id: z.string().min(1) });
 
 export const assignDriverSchema = z
   .object({

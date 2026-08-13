@@ -29,7 +29,7 @@ export const EMPLOYEE_STATUSES = [
   "INACTIVE",
 ] as const;
 
-export const employeeSchema = z
+const employeeSchemaObject = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     departmentId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
@@ -74,18 +74,33 @@ export const employeeSchema = z
       .or(z.literal("").transform(() => undefined)),
     notes: optionalText(2000),
   })
-  .strict()
-  .refine(
-    (data) =>
-      !data.lastWorkingDate || data.lastWorkingDate.getTime() >= data.joiningDate.getTime(),
-    { message: "Last working date cannot precede the joining date", path: ["lastWorkingDate"] },
-  );
+  .strict();
+
+/**
+ * Cross-field rules, applied to create and update alike.
+ *
+ * Shared through a function rather than by intersecting schemas: an
+ * intersection of a bare object with a strict one silently stops rejecting
+ * unknown keys (verified — see storage of Phase 13 findings).
+ */
+function checkEmployeeDates(
+  d: { joiningDate: Date; lastWorkingDate?: Date | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.lastWorkingDate && d.lastWorkingDate.getTime() < d.joiningDate.getTime()) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Last working date cannot precede the joining date",
+      path: ["lastWorkingDate"],
+    });
+  }
+}
+
+export const employeeSchema = employeeSchemaObject.superRefine(checkEmployeeDates);
 
 export type EmployeeInput = z.infer<typeof employeeSchema>;
 
-export const updateEmployeeSchema = z
-  .object({ id: z.string().min(1) })
-  .and(employeeSchema);
+export const updateEmployeeSchema = employeeSchemaObject.extend({ id: z.string().min(1) }).superRefine(checkEmployeeDates);
 
 /** Status transitions are their own action: an employee is never deleted
  *  through the UI, only transitioned (brief §50). */
