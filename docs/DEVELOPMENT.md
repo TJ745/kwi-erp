@@ -245,6 +245,31 @@ Nothing is reported complete that is not actually implemented and verified.
 
 ---
 
+## 9a. Module completion (2026-08-13)
+
+Every module in the brief now has a working screen, and `planned: true` no
+longer appears in `lib/navigation.ts`. The modules below were built after the
+13-phase roadmap, in nine commits, against tables and permissions that had
+shipped in Phase 2 and been waiting since:
+
+| Group | Modules |
+|---|---|
+| Admin & Ops | Suppliers, Subcontractors + contracts, Company Certificates, Electricity Bills, Petty Cash, Accommodation |
+| HR | Warnings, Correspondence, Increments, Evaluations, Job Offers, Job Descriptions, Timesheet |
+| IT | Servers, Network + IP register, IP Phones, CCTV, Software Licences, Active Directory |
+| Platform | Audit Log, Documents hub, Document Types, Checklist Templates, Org Chart, Vehicle Handovers, Global Search |
+
+Two defects in existing code were found by building on top of it:
+
+- `SOFTWARE_LICENSE` was an `ExpirySource` with no collector in
+  `reconcileExpiryIndex`, which deactivates any active row it does not collect.
+  Licence expiries would have been switched off on the first nightly run.
+- The increments table gated its salary columns in the page rather than the
+  service, leaving the figures in the RSC payload — the same shape as the
+  Phase 11 letters leak.
+
+---
+
 ## 10. Deferred items (tracked, not forgotten)
 
 Recorded here so they are decisions rather than omissions:
@@ -267,6 +292,6 @@ Recorded here so they are decisions rather than omissions:
 | Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file. **No longer blocked** now that uploads work (2026-08-12) | On request — it is now buildable |
 | WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
 | Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |
-| Reports for petty cash, accommodation, suppliers, subcontractors, electricity bills, company certificates, timesheet, evaluations, increments, warnings | The report layer is a thin projection over its source module. Those modules are not built, so there is nothing to project — a report against an empty table proves nothing | With each source module |
+| Reports for petty cash, accommodation, suppliers, subcontractors, electricity bills, company certificates, timesheet, evaluations, increments, warnings | The source modules now exist (2026-08-13), so these are buildable. The report catalogue was not extended with them at the time | On request |
 | Charted reports (Recharts) | `recharts` is installed and used on the dashboard. Report families are tabular by design: they exist to be filtered, printed, and exported, and a chart is not exportable to CSV | If a specific report is asked for as a chart |
 | Scheduled / emailed reports | Needs the email channel, which is itself deferred | With the email notification channel |
