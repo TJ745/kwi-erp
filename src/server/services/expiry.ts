@@ -412,6 +412,28 @@ export async function reconcileExpiryIndex(): Promise<{
     });
   }
 
+  // --- Software licences ---
+  //
+  // Added with the IT infrastructure module. Until then SOFTWARE_LICENSE was an
+  // ExpirySource with no collector, which mattered more than it looks: the
+  // deactivation step below turns off every active row it did not collect, so
+  // licence expiries written by syncExpiry would have been silently switched
+  // off on the next nightly run — reminders included.
+  const licences = await prisma.softwareLicense.findMany({
+    where: { expiryDate: { not: null } },
+    select: { id: true, name: true, vendor: true, expiryDate: true, companyId: true },
+  });
+  for (const row of licences) {
+    if (!row.expiryDate) continue;
+    await apply({
+      source: "SOFTWARE_LICENSE",
+      sourceId: row.id,
+      label: `Licence — ${row.name}${row.vendor ? ` (${row.vendor})` : ""}`,
+      expiryDate: row.expiryDate,
+      companyId: row.companyId,
+    });
+  }
+
   // --- Deactivate rows whose source no longer qualifies ---
   const stale = existing.filter((e) => e.isActive && !seen.has(`${e.source}:${e.sourceId}`));
   for (const row of stale) {

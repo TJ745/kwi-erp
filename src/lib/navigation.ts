@@ -101,12 +101,12 @@ export const NAVIGATION: readonly NavSection[] = [
     items: [
       { label: "Helpdesk", href: "/it/helpdesk", permissions: ["it.tickets.view", "it.tickets.create"] },
       { label: "Assets", href: "/it/assets", permissions: ["it.assets.view"] },
-      { label: "Servers", href: "/it/servers", permissions: ["it.infrastructure.view"], planned: true },
-      { label: "Active Directory", href: "/it/active-directory", permissions: ["it.infrastructure.view"], planned: true },
-      { label: "Network & IP", href: "/it/network", permissions: ["it.infrastructure.view"], planned: true },
-      { label: "IP Phones", href: "/it/ip-phones", permissions: ["it.infrastructure.view"], planned: true },
-      { label: "CCTV", href: "/it/cctv", permissions: ["it.infrastructure.view"], planned: true },
-      { label: "Software & Licences", href: "/it/software", permissions: ["it.infrastructure.view"], planned: true },
+      { label: "Servers", href: "/it/servers", permissions: ["it.infrastructure.view"], keywords: ["server", "vm", "host"] },
+      { label: "Active Directory", href: "/it/active-directory", permissions: ["it.infrastructure.view"], keywords: ["AD", "domain", "account", "OU"] },
+      { label: "Network & IP", href: "/it/network", permissions: ["it.infrastructure.view"], keywords: ["switch", "router", "firewall", "IP", "VLAN"] },
+      { label: "IP Phones", href: "/it/ip-phones", permissions: ["it.infrastructure.view"], keywords: ["extension", "handset", "telephony"] },
+      { label: "CCTV", href: "/it/cctv", permissions: ["it.infrastructure.view"], keywords: ["camera", "NVR", "DVR", "surveillance"] },
+      { label: "Software & Licences", href: "/it/software", permissions: ["it.infrastructure.view"], keywords: ["licence", "license", "seats", "subscription"] },
       {
         label: "Password Vault",
         href: "/it/vault",
