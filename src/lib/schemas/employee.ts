@@ -83,14 +83,38 @@ const employeeSchemaObject = z
  * intersection of a bare object with a strict one silently stops rejecting
  * unknown keys (verified — see storage of Phase 13 findings).
  */
+/** Statuses that mean the person has left. */
+export const LEAVING_STATUSES = ["RESIGNED", "TERMINATED", "EXITED"] as const;
+
 function checkEmployeeDates(
-  d: { joiningDate: Date; lastWorkingDate?: Date | undefined },
+  d: {
+    joiningDate: Date;
+    lastWorkingDate?: Date | undefined;
+    status?: (typeof EMPLOYEE_STATUSES)[number] | undefined;
+  },
   ctx: z.RefinementCtx,
 ): void {
   if (d.lastWorkingDate && d.lastWorkingDate.getTime() < d.joiningDate.getTime()) {
     ctx.addIssue({
       code: "custom",
       message: "Last working date cannot precede the joining date",
+      path: ["lastWorkingDate"],
+    });
+  }
+
+  // `setEmployeeStatus` has always required this, but that service had no
+  // caller — the edit form writes through `updateEmployee` instead, so someone
+  // could be marked TERMINATED with no leaving date. Offboarding, final
+  // settlement, and the leavers report all key off that date, so the rule
+  // belongs on every path that can set the status, not just the one.
+  if (
+    d.status &&
+    (LEAVING_STATUSES as readonly string[]).includes(d.status) &&
+    !d.lastWorkingDate
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "A last working date is required when an employee leaves",
       path: ["lastWorkingDate"],
     });
   }
@@ -111,7 +135,18 @@ export const employeeStatusSchema = z
     lastWorkingDate: optionalDate,
     reason: optionalText(500),
   })
-  .strict();
+  .strict()
+  .superRefine((d, ctx) => {
+    // The service enforces this too, but it can fall back to a date already on
+    // the record; here the form must show the error on the right field.
+    if ((LEAVING_STATUSES as readonly string[]).includes(d.status) && !d.lastWorkingDate) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A last working date is required when an employee leaves",
+        path: ["lastWorkingDate"],
+      });
+    }
+  });
 
 export const iqamaSchema = z
   .object({

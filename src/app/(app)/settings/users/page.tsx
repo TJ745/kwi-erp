@@ -7,6 +7,7 @@ import { SearchInput } from "@/components/shared/search-input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
 import { parseListQuery, type SearchParams } from "@/lib/list-query";
+import { PERMISSIONS, PERMISSION_KEYS } from "@/lib/permissions";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listUsers, type UserListRow } from "@/server/services/users";
 import { UserRowActions } from "./user-row-actions";
@@ -30,6 +31,11 @@ export default async function UsersPage({
   ]);
 
   const canManage = ctx.permissions.has("users.manage");
+
+  // The dialog offers only what the server will accept: an ALLOW override can
+  // never hand out a permission the actor does not hold themselves.
+  const allPermissions = PERMISSION_KEYS.map((key) => ({ key, label: PERMISSIONS[key].label }));
+  const grantablePermissions = allPermissions.filter((p) => ctx.permissions.has(p.key));
 
   const columns: readonly Column<UserListRow>[] = [
     {
@@ -98,6 +104,14 @@ export default async function UsersPage({
             roles={roles}
             companies={companies}
             isSelf={row.id === ctx.userId}
+            overrides={row.overrides.map((o) => ({
+              key: o.key,
+              label: o.label,
+              effect: o.effect,
+              expiresAt: o.expiresAt ? o.expiresAt.toISOString().slice(0, 10) : null,
+            }))}
+            grantablePermissions={grantablePermissions}
+            allPermissions={allPermissions}
           />
         ) : null,
     },

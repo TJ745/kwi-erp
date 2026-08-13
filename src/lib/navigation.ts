@@ -143,7 +143,7 @@ export const NAVIGATION: readonly NavSection[] = [
     icon: "settings",
     items: [
       { label: "Companies", href: "/settings/companies", permissions: ["companies.view"] },
-      { label: "Departments", href: "/settings/departments", permissions: ["departments.view"] },
+      { label: "Departments & Positions", href: "/settings/departments", permissions: ["departments.view"], keywords: ["positions", "job titles", "grades"] },
       { label: "Users", href: "/settings/users", permissions: ["users.view"] },
       { label: "Roles & Permissions", href: "/settings/roles", permissions: ["roles.manage"] },
       { label: "Document Types", href: "/settings/document-types", permissions: ["documents.manageTypes"], keywords: ["type", "category"] },

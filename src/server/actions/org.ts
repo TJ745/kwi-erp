@@ -102,7 +102,7 @@ export const createPositionAction = defineAction({
     });
     return { id: position.id };
   },
-  revalidate: () => ["/settings/positions"],
+  revalidate: () => ["/settings/departments"],
 });
 
 export const updatePositionAction = defineAction({
@@ -120,5 +120,5 @@ export const updatePositionAction = defineAction({
     });
     return { id: after.id };
   },
-  revalidate: () => ["/settings/positions"],
+  revalidate: () => ["/settings/departments"],
 });

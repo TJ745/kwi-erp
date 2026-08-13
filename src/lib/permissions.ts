@@ -156,6 +156,17 @@ export type PermissionKey = keyof typeof PERMISSIONS;
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as PermissionKey[];
 
+/**
+ * Narrows a string from the database to a known permission key.
+ *
+ * The `Permission` table is seeded from this catalogue, but a row could outlive
+ * a key that was renamed or removed. Anything not in the catalogue cannot be
+ * reasoned about, so it is treated as unknown rather than trusted.
+ */
+export function isPermissionKey(value: string): value is PermissionKey {
+  return Object.hasOwn(PERMISSIONS, value);
+}
+
 export function isSensitive(key: PermissionKey): boolean {
   return "sensitive" in PERMISSIONS[key] && PERMISSIONS[key].sensitive === true;
 }

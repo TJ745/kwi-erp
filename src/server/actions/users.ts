@@ -3,8 +3,10 @@
 import { z } from "zod";
 import { defineAction } from "./define-action";
 import {
+  removeUserPermissionOverride,
   setRolePermissions,
   setUserCompanyAccess,
+  setUserPermissionOverride,
   updateUserRole,
   updateUserStatus,
 } from "@/server/services/users";
@@ -101,4 +103,62 @@ export const setRolePermissionsAction = defineAction({
     return { ok: true as const };
   },
   revalidate: (input) => ["/settings/roles", `/settings/roles/${input.roleId}`],
+});
+
+/**
+ * Per-user permission overrides.
+ *
+ * The escalation guards live in the service (it may not grant a permission the
+ * actor lacks, may not target a peer or senior, and may not target the actor
+ * themselves). The audit verb is PERMISSION_CHANGE, matching the role change,
+ * so a review of who gained access reads as one list.
+ */
+export const setUserPermissionOverrideAction = defineAction({
+  permission: "users.manage",
+  schema: z
+    .object({
+      userId: z.string().min(1),
+      permissionKey: z.string().min(1),
+      effect: z.enum(["ALLOW", "DENY"]),
+      expiresAt: z
+        .string()
+        .optional()
+        .transform((v) => (v === "" || v === undefined ? undefined : new Date(v)))
+        .refine((v) => v === undefined || !Number.isNaN(v.getTime()), "Enter a valid date"),
+      reason: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  audit: { action: "PERMISSION_CHANGE", entity: "USER" },
+  handler: async ({ input, ctx, audit }) => {
+    const result = await setUserPermissionOverride(ctx, input);
+    audit.record({
+      entityId: input.userId,
+      summary: `${input.effect === "ALLOW" ? "Granted" : "Denied"} "${result.permission.key}" for ${result.user.name}${
+        input.expiresAt ? ` until ${input.expiresAt.toISOString().slice(0, 10)}` : ""
+      }${input.reason ? ` (${input.reason})` : ""}`,
+      before: result.before,
+      after: result.after,
+    });
+    return { ok: true as const };
+  },
+  revalidate: () => ["/settings/users"],
+});
+
+export const removeUserPermissionOverrideAction = defineAction({
+  permission: "users.manage",
+  schema: z
+    .object({ userId: z.string().min(1), permissionKey: z.string().min(1) })
+    .strict(),
+  audit: { action: "PERMISSION_CHANGE", entity: "USER" },
+  handler: async ({ input, ctx, audit }) => {
+    const result = await removeUserPermissionOverride(ctx, input);
+    audit.record({
+      entityId: input.userId,
+      summary: `Removed the "${result.permission.key}" override for ${result.user.name}; their role now decides`,
+      before: result.before,
+      after: { effect: null },
+    });
+    return { ok: true as const };
+  },
+  revalidate: () => ["/settings/users"],
 });

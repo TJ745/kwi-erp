@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma, VaultAction } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere } from "@/server/auth/guards";
+import { optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { consumeRateLimit } from "@/server/auth/rate-limit";
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError } from "@/lib/result";
 import { logger } from "@/server/logger";
@@ -24,6 +24,10 @@ export type CredentialListRow = {
   id: string;
   name: string;
   categoryName: string;
+  /** Ids the edit form needs. Not secret material — the names are already here. */
+  categoryId: string;
+  companyId: string | null;
+  email: string | null;
   companyCode: string | null;
   username: string | null;
   url: string | null;
@@ -109,20 +113,30 @@ export async function listCredentials(
   const { restricted, allowed } = await grantedCredentialIds(ctx, "READ");
 
   const rows = await prisma.credential.findMany({
+    // Company scope and the search filter are BOTH `OR` clauses. Spreading them
+    // into one object would let the later key overwrite the earlier one, so a
+    // search would silently run unscoped. They are composed under `AND` so each
+    // keeps its own `OR` and both must hold.
     where: {
-      status: "ACTIVE",
-      ...companyScopeWhere(ctx),
-      ...visibleWhere(restricted, allowed),
-      ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { name: { contains: filters.q, mode: "insensitive" } },
-              { username: { contains: filters.q, mode: "insensitive" } },
-              { url: { contains: filters.q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
+      AND: [
+        {
+          status: "ACTIVE",
+          ...visibleWhere(restricted, allowed),
+          ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+        },
+        optionalCompanyScopeWhere(ctx),
+        ...(filters.q
+          ? [
+              {
+                OR: [
+                  { name: { contains: filters.q, mode: "insensitive" as const } },
+                  { username: { contains: filters.q, mode: "insensitive" as const } },
+                  { url: { contains: filters.q, mode: "insensitive" as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
     // NOTE: ciphertext, iv, authTag, and wrappedDek are deliberately absent.
@@ -133,6 +147,9 @@ export async function listCredentials(
       username: true,
       url: true,
       status: true,
+      email: true,
+      categoryId: true,
+      companyId: true,
       lastRotatedAt: true,
       updatedAt: true,
       category: { select: { name: true } },
@@ -145,6 +162,9 @@ export async function listCredentials(
     id: c.id,
     name: c.name,
     categoryName: c.category.name,
+    categoryId: c.categoryId,
+    companyId: c.companyId,
+    email: c.email,
     companyCode: c.company?.code ?? null,
     username: c.username,
     url: c.url,
@@ -161,7 +181,7 @@ export async function getCredentialMeta(ctx: ActorContext, id: string) {
   if (restricted.has(id) && !allowed.has(id)) throw new NotFoundError("Credential not found.");
 
   const credential = await prisma.credential.findFirst({
-    where: { id, deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { id, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
     select: {
       id: true,
       name: true,
@@ -269,7 +289,7 @@ export async function updateCredential(
   input: Omit<CredentialInput, "secret"> & { id: string; secret?: string | undefined },
 ) {
   const before = await prisma.credential.findFirst({
-    where: { id: input.id, deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { id: input.id, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
     select: {
       id: true,
       name: true,
@@ -386,7 +406,7 @@ export async function revealCredential(ctx: ActorContext, id: string): Promise<s
   }
 
   const credential = await prisma.credential.findFirst({
-    where: { id, deletedAt: null, status: "ACTIVE", ...companyScopeWhere(ctx) },
+    where: { id, deletedAt: null, status: "ACTIVE", ...optionalCompanyScopeWhere(ctx) },
     select: {
       id: true,
       ciphertext: true,
@@ -414,7 +434,7 @@ export async function revealCredential(ctx: ActorContext, id: string): Promise<s
 
 export async function deleteCredential(ctx: ActorContext, id: string) {
   const credential = await prisma.credential.findFirst({
-    where: { id, deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { id, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
     select: { id: true, name: true, companyId: true },
   });
   if (!credential) throw new NotFoundError("Credential not found.");
@@ -447,7 +467,7 @@ export async function toggleFavorite(ctx: ActorContext, credentialId: string) {
   }
 
   const credential = await prisma.credential.findFirst({
-    where: { id: credentialId, deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { id: credentialId, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
     select: { id: true },
   });
   if (!credential) throw new NotFoundError("Credential not found.");
@@ -527,7 +547,7 @@ export async function assertNoDuplicateName(
     where: {
       name,
       deletedAt: null,
-      ...companyScopeWhere(ctx),
+      ...optionalCompanyScopeWhere(ctx),
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
     select: { id: true },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { updateEmployeeSchema, employeeSchema } from "./employee";
+import { updateEmployeeSchema, employeeSchema, employeeStatusSchema } from "./employee";
 import { updateVehicleSchema, vehicleSchema } from "./fleet";
 import { updateContractSchema, contractSchema } from "./hr";
 import { updatePolicySchema, policySchema } from "./insurance";
@@ -117,6 +117,41 @@ describe("cross-field rules survive the update variant", () => {
     const bad = { ...VALID.employee, id: "x", lastWorkingDate: "2020-01-01" };
     expect(updateEmployeeSchema.safeParse(bad).success).toBe(false);
     expect(employeeSchema.safeParse({ ...VALID.employee, lastWorkingDate: "2020-01-01" }).success).toBe(false);
+  });
+
+  it("employee: a leaving status requires a last working date", () => {
+    // The rule lived only in `setEmployeeStatus`, which had no caller, so the
+    // edit form could mark someone TERMINATED with no leaving date.
+    for (const status of ["RESIGNED", "TERMINATED", "EXITED"]) {
+      const missing = { ...VALID.employee, status };
+      expect(employeeSchema.safeParse(missing).success).toBe(false);
+      expect(updateEmployeeSchema.safeParse({ ...missing, id: "x" }).success).toBe(false);
+
+      const supplied = { ...missing, lastWorkingDate: "2026-06-30" };
+      expect(employeeSchema.safeParse(supplied).success).toBe(true);
+      expect(updateEmployeeSchema.safeParse({ ...supplied, id: "x" }).success).toBe(true);
+    }
+  });
+
+  it("employee: a non-leaving status does not require a last working date", () => {
+    // The control: the rule must not fire on statuses where the person stays.
+    for (const status of ["ACTIVE", "ON_LEAVE", "INACTIVE"]) {
+      expect(employeeSchema.safeParse({ ...VALID.employee, status }).success).toBe(true);
+    }
+  });
+
+  it("employee status transition: the same rule applies to the dedicated action", () => {
+    expect(
+      employeeStatusSchema.safeParse({ id: "e1", status: "TERMINATED" }).success,
+    ).toBe(false);
+    expect(
+      employeeStatusSchema.safeParse({
+        id: "e1",
+        status: "TERMINATED",
+        lastWorkingDate: "2026-06-30",
+      }).success,
+    ).toBe(true);
+    expect(employeeStatusSchema.safeParse({ id: "e1", status: "ACTIVE" }).success).toBe(true);
   });
 
   it("policy: expiry cannot precede start", () => {

@@ -10,6 +10,7 @@ import {
   listCredentials,
 } from "@/server/services/vault/credentials";
 import { isVaultUnlocked, VAULT_IDLE_MINUTES } from "@/server/services/vault/session";
+import { orgOptions } from "@/server/services/org";
 import { CredentialDialog } from "./credential-dialog";
 import { CredentialList } from "./credential-list";
 import { VaultLock } from "./vault-lock";
@@ -35,14 +36,17 @@ export default async function VaultPage({
   const ctx = await requirePagePermission("vault.view");
   const { category, q } = await searchParams;
 
-  const [unlocked, credentials, categories] = await Promise.all([
+  const [unlocked, credentials, categories, options] = await Promise.all([
     isVaultUnlocked(ctx),
     listCredentials(ctx, { categoryId: category, q }),
     credentialCategories(),
+    orgOptions(ctx),
   ]);
 
   const canReveal = ctx.permissions.has("vault.reveal");
   const canCreate = ctx.permissions.has("vault.create");
+  const canUpdate = ctx.permissions.has("vault.update");
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
 
   return (
     <PageShell>
@@ -54,7 +58,9 @@ export default async function VaultPage({
             <VaultLock unlocked={unlocked} canReveal={canReveal} />
             {canCreate ? (
               <CredentialDialog
-                categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+                mode="create"
+                categories={categoryOptions}
+                companies={options.companies}
               />
             ) : null}
           </div>
@@ -103,7 +109,13 @@ export default async function VaultPage({
               lastRotatedAt: c.lastRotatedAt
                 ? c.lastRotatedAt.toISOString().slice(0, 10)
                 : null,
+              categoryId: c.categoryId,
+              companyId: c.companyId,
+              email: c.email,
             }))}
+            categories={categoryOptions}
+            companies={options.companies}
+            canUpdate={canUpdate}
             canReveal={canReveal}
             isUnlocked={unlocked}
             idleMinutes={VAULT_IDLE_MINUTES}

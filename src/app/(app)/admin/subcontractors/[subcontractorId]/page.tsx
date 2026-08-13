@@ -13,6 +13,7 @@ import { orgOptions } from "@/server/services/org";
 import { ContractDialog } from "./contract-dialog";
 import { ContractRowActions } from "./contract-row-actions";
 import { SubcontractorEditButton } from "./subcontractor-edit-button";
+import { SubcontractorArchiveButton } from "./archive-button";
 
 export const metadata: Metadata = { title: "Subcontractor" };
 
@@ -75,6 +76,15 @@ export default async function SubcontractorPage({
                 subcontractorId={subcontractor.id}
                 companies={options.companies}
               />
+              {subcontractor.status === "ACTIVE" ? (
+                <SubcontractorArchiveButton
+                  subcontractor={{
+                    id: subcontractor.id,
+                    name: subcontractor.name,
+                    contractCount: subcontractor.contracts.length,
+                  }}
+                />
+              ) : null}
             </>
           ) : null}
         </div>

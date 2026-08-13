@@ -10,6 +10,7 @@ import {
   type Paginated,
 } from "@/lib/list-query";
 import { requireSeniorTo } from "@/server/auth/guards";
+import { isPermissionKey } from "@/lib/permissions";
 
 /**
  * User administration.
@@ -31,6 +32,8 @@ export type UserListRow = {
   roleKey: string;
   roleName: string;
   companyCount: number;
+  /** Active overrides, so the row can show that this user is not just their role. */
+  overrides: { key: string; label: string; effect: string; expiresAt: Date | null }[];
 };
 
 export async function listUsers(
@@ -66,6 +69,13 @@ export async function listUsers(
         mustChangePassword: true,
         role: { select: { key: true, name: true } },
         _count: { select: { companyAccess: true } },
+        overrides: {
+          select: {
+            effect: true,
+            expiresAt: true,
+            permission: { select: { key: true, label: true } },
+          },
+        },
       },
     }),
     prisma.user.count({ where }),
@@ -83,6 +93,12 @@ export async function listUsers(
       roleKey: u.role.key,
       roleName: u.role.name,
       companyCount: u._count.companyAccess,
+      overrides: u.overrides.map((o) => ({
+        key: o.permission.key,
+        label: o.permission.label,
+        effect: o.effect,
+        expiresAt: o.expiresAt,
+      })),
     })),
     total,
     query,
@@ -355,4 +371,137 @@ export async function resolveUserNames(
     select: { id: true, name: true },
   });
   return new Map(users.map((u) => [u.id, u.name]));
+}
+
+// --- Per-user permission overrides -------------------------------------------
+
+/**
+ * Grants or denies a single permission for one user, on top of their role.
+ *
+ * The resolver in `server/auth/context.ts` has always honoured these rows
+ * (GRANT wins, DENY wins over the role, expired rows are ignored) — but nothing
+ * could create one, so the feature was half-built: enforcement without
+ * administration.
+ *
+ * Three escalation guards, all required:
+ *   1. The actor may not modify a user at or above their own seniority.
+ *   2. The actor may not modify themselves — otherwise `users.manage` alone is
+ *      a route to every other permission in the system.
+ *   3. The actor may not ALLOW a permission they do not themselves hold. This
+ *      is the important one: without it, an ADMIN holding `users.manage` could
+ *      hand out `vault.reveal`, which no ADMIN is ever meant to have.
+ *
+ * A DENY is deliberately not covered by (3): taking a permission away from
+ * someone is not an escalation, and an actor may legitimately need to restrict
+ * access they cannot themselves use.
+ */
+export async function setUserPermissionOverride(
+  ctx: ActorContext,
+  input: {
+    userId: string;
+    permissionKey: string;
+    effect: "ALLOW" | "DENY";
+    expiresAt?: Date | undefined;
+    reason?: string | undefined;
+  },
+) {
+  const [target, permission] = await Promise.all([
+    prisma.user.findFirst({
+      where: { id: input.userId, deletedAt: null },
+      select: { id: true, name: true, email: true, role: { select: { rank: true } } },
+    }),
+    prisma.permission.findUnique({
+      where: { key: input.permissionKey },
+      select: { id: true, key: true, label: true },
+    }),
+  ]);
+
+  if (!target) throw new NotFoundError("User not found.");
+  if (!permission) throw new NotFoundError("Permission not found.");
+
+  requireSeniorTo(ctx, target.role.rank);
+
+  if (ctx.userId === input.userId) {
+    throw new ForbiddenError("You cannot change your own permissions.");
+  }
+
+  if (!isPermissionKey(permission.key)) {
+    // A row that outlived its catalogue entry cannot be reasoned about, so it
+    // is not handed out — narrowing here also removes the need for a cast.
+    throw new NotFoundError("Permission not found.");
+  }
+
+  if (input.effect === "ALLOW" && !ctx.permissions.has(permission.key)) {
+    throw new ForbiddenError("You cannot grant a permission you do not hold yourself.");
+  }
+
+  const existing = await prisma.userPermission.findUnique({
+    where: { userId_permissionId: { userId: target.id, permissionId: permission.id } },
+    select: { effect: true, expiresAt: true },
+  });
+
+  await prisma.userPermission.upsert({
+    where: { userId_permissionId: { userId: target.id, permissionId: permission.id } },
+    create: {
+      userId: target.id,
+      permissionId: permission.id,
+      effect: input.effect,
+      grantedById: ctx.userId,
+      expiresAt: input.expiresAt ?? null,
+      reason: input.reason ?? null,
+    },
+    update: {
+      effect: input.effect,
+      grantedById: ctx.userId,
+      expiresAt: input.expiresAt ?? null,
+      reason: input.reason ?? null,
+    },
+  });
+
+  return {
+    user: target,
+    permission,
+    before: existing
+      ? { effect: existing.effect, expiresAt: existing.expiresAt }
+      : { effect: null, expiresAt: null },
+    after: { effect: input.effect, expiresAt: input.expiresAt ?? null },
+  };
+}
+
+/** Removes an override, returning the user to whatever their role grants. */
+export async function removeUserPermissionOverride(
+  ctx: ActorContext,
+  input: { userId: string; permissionKey: string },
+) {
+  const [target, permission] = await Promise.all([
+    prisma.user.findFirst({
+      where: { id: input.userId, deletedAt: null },
+      select: { id: true, name: true, email: true, role: { select: { rank: true } } },
+    }),
+    prisma.permission.findUnique({
+      where: { key: input.permissionKey },
+      select: { id: true, key: true, label: true },
+    }),
+  ]);
+
+  if (!target) throw new NotFoundError("User not found.");
+  if (!permission) throw new NotFoundError("Permission not found.");
+
+  requireSeniorTo(ctx, target.role.rank);
+
+  if (ctx.userId === input.userId) {
+    throw new ForbiddenError("You cannot change your own permissions.");
+  }
+
+  const existing = await prisma.userPermission.findUnique({
+    where: { userId_permissionId: { userId: target.id, permissionId: permission.id } },
+    select: { effect: true },
+  });
+  if (!existing) throw new NotFoundError("That override does not exist.");
+
+  await prisma.userPermission.delete({
+    where: { userId_permissionId: { userId: target.id, permissionId: permission.id } },
+  });
+
+  return { user: target, permission, before: { effect: existing.effect } };
 }

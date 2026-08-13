@@ -68,7 +68,7 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 | Authentication | `/login` | Better Auth email+password, Argon2id, session management, lockout |
 | Users & Roles | `/settings/users`, `/settings/roles` | User CRUD, role assignment, per-user permission overrides, company access |
 | Companies | `/settings/companies` | KWI/ICC + extensible; logo, registration, contacts, status |
-| Departments & Positions | `/settings/departments` | Hierarchical departments, positions, department heads |
+| Departments & Positions | `/settings/departments` | Hierarchical departments and positions (job titles, optionally shared across companies). Department heads are modelled but not yet editable — the org chart is built from manager relationships |
 | App Shell | — | Sidebar, header, breadcrumbs, command menu (`⌘K`), theme, user menu |
 
 ### Layer 2 — Shared infrastructure
@@ -143,7 +143,7 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 |---|---|---|
 | Dashboard | `/dashboard` | KPI cards, today/overdue tasks, all alert feeds, quick actions |
 | Reports | `/reports` | Employee/HR/IT/Fleet/Insurance/Admin reports with filters + export |
-| Global Search | `⌘K` | Trigram search across 12 entity types, permission-filtered |
+| Global Search | `⌘K` | Trigram search across 9 entity types (Employees, Documents, Tasks, Tickets, IT assets, Vehicles, Suppliers, Subcontractors, Vault names), permission-filtered per source |
 | Notifications | `/notifications` | Rule-driven, deduplicated, in-app first |
 | Audit Log | `/audit` | Filterable by actor, entity, action, date |
 
@@ -151,7 +151,9 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 
 ## 3. Employee profile tabs
 
-The 18 tabs from §8 of the brief map to modules as follows. Tabs are **lazy-loaded route segments** (`/people/employees/[id]/documents`), not one giant client component — each is a Server Component fetching only its own slice.
+The 18 tabs from §8 of the brief map to modules as follows.
+
+> **As built:** the profile is a single Server Component with client `Tabs`, not one route segment per tab. Each tab's data is fetched by the page, so a tab the actor cannot see is never queried. Splitting into route segments remains the plan if the page's payload becomes a problem; it is recorded here so the description matches the code.
 
 | Tab | Source | Permission |
 |---|---|---|

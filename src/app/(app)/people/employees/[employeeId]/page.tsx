@@ -16,6 +16,7 @@ import { documentsForEntity, documentTypes } from "@/server/services/documents";
 import { assetsForEmployee } from "@/server/services/assets";
 import { allowanceValue, contractsForEmployee } from "@/server/services/contracts";
 import { ContractDialog } from "./contract-dialog";
+import { EmployeeStatusDialog } from "./status-dialog";
 import { leaveForEmployee } from "@/server/services/leave";
 import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
@@ -78,13 +79,25 @@ export default async function EmployeeDetailPage({
           <div className="flex items-center gap-2">
             <StatusBadge status={employee.status} />
             {canEdit ? (
-              <Link
-                href={`/people/employees/${employee.id}/edit`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <Pencil />
-                Edit
-              </Link>
+              <>
+                <EmployeeStatusDialog
+                  employee={{
+                    id: employee.id,
+                    fullName: employee.fullName,
+                    status: employee.status,
+                    lastWorkingDate: employee.lastWorkingDate
+                      ? employee.lastWorkingDate.toISOString().slice(0, 10)
+                      : null,
+                  }}
+                />
+                <Link
+                  href={`/people/employees/${employee.id}/edit`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Pencil />
+                  Edit
+                </Link>
+              </>
             ) : null}
           </div>
         }

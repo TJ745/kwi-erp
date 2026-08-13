@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { getTask } from "@/server/services/tasks";
+import { assignableUsers, getTask } from "@/server/services/tasks";
+import { orgOptions } from "@/server/services/org";
 import { TaskComments } from "./task-comments";
+import { TaskCreateButton } from "../task-form";
 
 export const metadata: Metadata = { title: "Task" };
 
@@ -19,6 +21,13 @@ export default async function TaskDetailPage({
   const ctx = await requirePagePermission("tasks.view");
   const { taskId } = await params;
   const task = await getTask(ctx, taskId);
+
+  // Editing is its own permission; the form is only fetched for actors holding it.
+  const canUpdate = ctx.permissions.has("tasks.update");
+  const [options, users] = await Promise.all([
+    canUpdate ? orgOptions(ctx) : Promise.resolve({ companies: [] }),
+    canUpdate ? assignableUsers(ctx) : Promise.resolve([]),
+  ]);
 
   return (
     <PageShell>
@@ -38,6 +47,29 @@ export default async function TaskDetailPage({
             {task.isOverdue ? <Badge variant="expired">Overdue</Badge> : null}
             <StatusBadge status={task.priority} />
             <StatusBadge status={task.status} />
+            {canUpdate ? (
+              <TaskCreateButton
+                mode="edit"
+                companies={options.companies}
+                users={users}
+                task={{
+                  id: task.id,
+                  taskNo: task.taskNo,
+                  companyId: task.companyId,
+                  title: task.title,
+                  description: task.description,
+                  status: task.status,
+                  priority: task.priority,
+                  assignedToId: task.assignedToId,
+                  dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
+                  followUpDate: task.followUpDate
+                    ? task.followUpDate.toISOString().slice(0, 10)
+                    : null,
+                  entityType: task.entityType,
+                  entityId: task.entityId,
+                }}
+              />
+            ) : null}
           </div>
         }
       />

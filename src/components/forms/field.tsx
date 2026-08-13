@@ -160,11 +160,14 @@ export function SelectField({
   options,
   defaultValue,
   placeholder = "Select…",
+  onChange,
   ...base
 }: BaseProps & {
   options: readonly SelectOption[];
   defaultValue?: string | undefined;
   placeholder?: string | undefined;
+  /** Notified on selection, for forms whose other fields depend on this one. */
+  onChange?: ((value: string) => void) | undefined;
 }) {
   // Controlled so the value can be posted through a hidden input: Radix Select
   // is not a native form control.
@@ -175,7 +178,13 @@ export function SelectField({
       {({ id, describedBy }) => (
         <>
           <input type="hidden" name={base.name} value={value} />
-          <Select value={value} onValueChange={setValue}>
+          <Select
+            value={value}
+            onValueChange={(next) => {
+              setValue(next);
+              onChange?.(next);
+            }}
+          >
             <SelectTrigger
               id={id}
               className="w-full"

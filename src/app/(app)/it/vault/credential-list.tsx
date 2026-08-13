@@ -21,17 +21,23 @@ import {
   revealCredentialAction,
   toggleFavoriteAction,
 } from "@/server/actions/vault";
+import { CredentialDialog } from "./credential-dialog";
 
 type Credential = {
   id: string;
   name: string;
   categoryName: string;
+  categoryId: string;
+  companyId: string | null;
   companyCode: string | null;
   username: string | null;
+  email: string | null;
   url: string | null;
   isFavorite: boolean;
   lastRotatedAt: string | null;
 };
+
+type Company = { id: string; code: string; name: string };
 
 /**
  * Credential list with per-row reveal.
@@ -42,12 +48,18 @@ type Credential = {
  */
 export function CredentialList({
   credentials,
+  categories,
+  companies,
   canReveal,
+  canUpdate,
   isUnlocked,
   idleMinutes,
 }: {
   credentials: Credential[];
+  categories: { id: string; name: string }[];
+  companies: Company[];
   canReveal: boolean;
+  canUpdate: boolean;
   isUnlocked: boolean;
   idleMinutes: number;
 }) {
@@ -88,7 +100,10 @@ export function CredentialList({
         <CredentialCard
           key={credential.id}
           credential={credential}
+          categories={categories}
+          companies={companies}
           canReveal={canReveal}
+          canUpdate={canUpdate}
           isUnlocked={isUnlocked}
           secret={revealed.get(credential.id) ?? null}
           onRevealed={(secret) => {
@@ -109,14 +124,20 @@ export function CredentialList({
 
 function CredentialCard({
   credential,
+  categories,
+  companies,
   canReveal,
+  canUpdate,
   isUnlocked,
   secret,
   onRevealed,
   onHidden,
 }: {
   credential: Credential;
+  categories: { id: string; name: string }[];
+  companies: Company[];
   canReveal: boolean;
+  canUpdate: boolean;
   isUnlocked: boolean;
   secret: string | null;
   onRevealed: (secret: string) => void;
@@ -161,6 +182,23 @@ function CredentialCard({
               {credential.companyCode ? ` · ${credential.companyCode}` : ""}
             </p>
           </div>
+          <div className="flex shrink-0 items-center">
+          {canUpdate ? (
+            <CredentialDialog
+              mode="edit"
+              categories={categories}
+              companies={companies}
+              credential={{
+                id: credential.id,
+                name: credential.name,
+                categoryId: credential.categoryId,
+                companyId: credential.companyId,
+                username: credential.username,
+                email: credential.email,
+                url: credential.url,
+              }}
+            />
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -180,6 +218,7 @@ function CredentialCard({
               )}
             />
           </Button>
+          </div>
         </div>
 
         {credential.username ? (

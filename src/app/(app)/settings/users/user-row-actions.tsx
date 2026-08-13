@@ -31,6 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  PermissionOverridesDialog,
+  type OverrideRow,
+} from "./permission-overrides-dialog";
+import {
   setUserCompanyAccessAction,
   updateUserRoleAction,
   updateUserStatusAction,
@@ -44,16 +48,23 @@ export function UserRowActions({
   roles,
   companies,
   isSelf,
+  overrides,
+  grantablePermissions,
+  allPermissions,
 }: {
   user: { id: string; name: string; status: string; roleKey: string };
   roles: Role[];
   companies: Company[];
   isSelf: boolean;
+  overrides: OverrideRow[];
+  grantablePermissions: { key: string; label: string }[];
+  allPermissions: { key: string; label: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [roleOpen, setRoleOpen] = React.useState(false);
   const [companyOpen, setCompanyOpen] = React.useState(false);
+  const [overridesOpen, setOverridesOpen] = React.useState(false);
 
   function run(fn: () => Promise<{ success: boolean; error?: string }>, successMessage: string) {
     startTransition(async () => {
@@ -95,6 +106,15 @@ export function UserRowActions({
           >
             Company access
           </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isSelf}
+            onSelect={() => {
+              setOverridesOpen(true);
+            }}
+          >
+            Permission overrides
+            {overrides.length > 0 ? ` (${String(overrides.length)})` : ""}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user.status === "ACTIVE" ? (
             <DropdownMenuItem
@@ -134,6 +154,16 @@ export function UserRowActions({
         onSubmit={(roleId) => {
           run(() => updateUserRoleAction({ userId: user.id, roleId }), "Role updated.");
         }}
+      />
+
+      <PermissionOverridesDialog
+        open={overridesOpen}
+        onOpenChange={setOverridesOpen}
+        user={user}
+        overrides={overrides}
+        grantablePermissions={grantablePermissions}
+        allPermissions={allPermissions}
+        isSelf={isSelf}
       />
 
       <CompanyDialog
