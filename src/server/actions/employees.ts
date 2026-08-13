@@ -5,7 +5,12 @@ import { defineAction } from "./define-action";
 import {
   employeeSchema,
   employeeStatusSchema,
+  emergencyContactIdSchema,
+  emergencyContactSchema,
   iqamaSchema,
+  startIqamaRenewalSchema,
+  updateEmergencyContactSchema,
+  updateIqamaRenewalSchema,
   passportSchema,
   updateEmployeeSchema,
 } from "@/lib/schemas/employee";
@@ -13,6 +18,11 @@ import {
   createEmployee,
   setEmployeeStatus,
   updateEmployee,
+  createEmergencyContact,
+  deleteEmergencyContact,
+  startIqamaRenewal,
+  updateEmergencyContact,
+  updateIqamaRenewal,
   upsertIqama,
   upsertPassport,
 } from "@/server/services/employees";
@@ -137,4 +147,108 @@ export const managerOptionsAction = defineAction({
     const { managerOptions } = await import("@/server/services/employees");
     return managerOptions(ctx, input.companyId, input.excludeId);
   },
+});
+
+// --- Iqama renewals ----------------------------------------------------------
+
+export const startIqamaRenewalAction = defineAction({
+  permission: "employees.update",
+  schema: startIqamaRenewalSchema,
+  audit: { action: "UPDATE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { renewal, employee } = await startIqamaRenewal(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      // The Iqama number is never in a summary — it is a national identifier
+      // and the audit log is widely readable.
+      summary: `Started an Iqama renewal for ${employee.fullName} (current expiry ${renewal.previousExpiry.toISOString().slice(0, 10)})`,
+      after: { status: renewal.status },
+    });
+    return { id: renewal.id };
+  },
+  revalidate: (input) => [
+    `/people/employees/${input.employeeId}`,
+    "/people/iqama",
+    "/dashboard",
+  ],
+});
+
+export const updateIqamaRenewalAction = defineAction({
+  permission: "employees.update",
+  schema: updateIqamaRenewalSchema,
+  audit: { action: "UPDATE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { renewal, employee, previousStatus } = await updateIqamaRenewal(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      summary:
+        input.status === "COMPLETED" && renewal.newExpiry
+          ? `Completed the Iqama renewal for ${employee.fullName} — expiry moved to ${renewal.newExpiry.toISOString().slice(0, 10)}`
+          : `Iqama renewal for ${employee.fullName} is now ${input.status.replace(/_/g, " ").toLowerCase()}`,
+      before: { status: previousStatus },
+      after: { status: renewal.status, newExpiry: renewal.newExpiry },
+    });
+    return { id: renewal.id };
+  },
+  revalidate: (input) => [
+    `/people/employees/${input.employeeId}`,
+    "/people/iqama",
+    "/dashboard",
+  ],
+});
+
+// --- Emergency contacts ------------------------------------------------------
+
+export const createEmergencyContactAction = defineAction({
+  permission: "employees.update",
+  schema: emergencyContactSchema,
+  audit: { action: "CREATE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { contact, employee } = await createEmergencyContact(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      // Names the contact and the relationship, never the phone number.
+      summary: `Added emergency contact ${contact.name} (${contact.relation}) for ${employee.fullName}`,
+      after: { name: contact.name, relation: contact.relation },
+    });
+    return { id: contact.id };
+  },
+  revalidate: (input) => [`/people/employees/${input.employeeId}`],
+});
+
+export const updateEmergencyContactAction = defineAction({
+  permission: "employees.update",
+  schema: updateEmergencyContactSchema,
+  audit: { action: "UPDATE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { before, after, employee } = await updateEmergencyContact(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      summary: `Updated emergency contact ${after.name} for ${employee.fullName}`,
+      before: { name: before.name, relation: before.relation },
+      after: { name: after.name, relation: after.relation },
+    });
+    return { id: after.id };
+  },
+  revalidate: (input) => [`/people/employees/${input.employeeId}`],
+});
+
+export const deleteEmergencyContactAction = defineAction({
+  permission: "employees.update",
+  schema: emergencyContactIdSchema,
+  audit: { action: "DELETE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { contact, employee } = await deleteEmergencyContact(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      summary: `Removed emergency contact ${contact.name} for ${employee.fullName}`,
+    });
+    return { id: contact.id };
+  },
+  revalidate: (input) => [`/people/employees/${input.employeeId}`],
 });

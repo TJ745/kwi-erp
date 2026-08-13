@@ -508,3 +508,270 @@ export async function managerOptions(ctx: ActorContext, companyId: string, exclu
     select: { id: true, fullName: true, employeeNo: true },
   });
 }
+
+// --- Iqama renewals ----------------------------------------------------------
+
+/**
+ * Opens a renewal against the employee's current Iqama.
+ *
+ * `previousExpiry` is captured now, from the record, rather than supplied by
+ * the caller: it is the date the renewal is replacing, and taking it from the
+ * request would let the history record a date that was never true.
+ *
+ * One open renewal at a time. Two would leave it ambiguous which one a
+ * completion applies to, and the Iqama page would show two conflicting states.
+ */
+export async function startIqamaRenewal(
+  ctx: ActorContext,
+  input: { employeeId: string; notes?: string | undefined },
+) {
+  const employee = await getEmployee(ctx, input.employeeId);
+  if (!employee.iqama) {
+    throw new ConflictError("Record the Iqama before starting a renewal.");
+  }
+
+  const open = await prisma.iqamaRenewal.findFirst({
+    where: {
+      iqamaRecordId: employee.iqama.id,
+      status: { notIn: ["COMPLETED", "REJECTED"] },
+    },
+    select: { id: true },
+  });
+  if (open) throw new ConflictError("A renewal is already open for this Iqama.");
+
+  return prisma.$transaction(async (tx) => {
+    const renewal = await tx.iqamaRenewal.create({
+      data: {
+        iqamaRecordId: employee.iqama!.id,
+        previousExpiry: employee.iqama!.expiryDate,
+        status: "IN_PROGRESS",
+        notes: input.notes ?? null,
+      },
+      select: { id: true, previousExpiry: true, status: true },
+    });
+
+    // The record's own flag drives the Iqama page's buckets, so it moves with
+    // the renewal rather than being derived by a second query.
+    await tx.iqamaRecord.update({
+      where: { id: employee.iqama!.id },
+      data: { renewalStatus: "IN_PROGRESS" },
+    });
+
+    return { renewal, employee };
+  });
+}
+
+/**
+ * Advances or closes a renewal.
+ *
+ * Completing one is the only path that moves `IqamaRecord.expiryDate`. The new
+ * date and the ExpiryIndex row are written in the same transaction (ADR-005),
+ * so the register can never disagree with the record — the reconciler would
+ * eventually fix a drift, but "eventually" is a night away and the expiry
+ * buckets are what people act on.
+ */
+export async function updateIqamaRenewal(
+  ctx: ActorContext,
+  input: {
+    id: string;
+    status: "IN_PROGRESS" | "SUBMITTED" | "COMPLETED" | "REJECTED";
+    submittedAt?: Date | undefined;
+    newExpiry?: Date | undefined;
+    notes?: string | undefined;
+  },
+) {
+  const renewal = await prisma.iqamaRenewal.findUnique({
+    where: { id: input.id },
+    select: {
+      id: true,
+      status: true,
+      previousExpiry: true,
+      iqamaRecord: { select: { id: true, employeeId: true, expiryDate: true } },
+    },
+  });
+  if (!renewal) throw new NotFoundError("Renewal not found.");
+
+  // Scope is checked through the employee, which is where company lives.
+  const employee = await getEmployee(ctx, renewal.iqamaRecord.employeeId);
+
+  if (renewal.status === "COMPLETED") {
+    throw new ConflictError("This renewal is already completed.");
+  }
+
+  if (input.status === "COMPLETED") {
+    if (!input.newExpiry) {
+      throw new ConflictError("A new expiry date is required to complete a renewal.");
+    }
+    if (input.newExpiry.getTime() <= renewal.previousExpiry.getTime()) {
+      throw new ConflictError("The new expiry must be later than the previous one.");
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const after = await tx.iqamaRenewal.update({
+      where: { id: input.id },
+      data: {
+        status: input.status,
+        ...(input.submittedAt ? { submittedAt: input.submittedAt } : {}),
+        ...(input.status === "SUBMITTED" && !input.submittedAt
+          ? { submittedAt: new Date() }
+          : {}),
+        ...(input.newExpiry ? { newExpiry: input.newExpiry } : {}),
+        ...(input.status === "COMPLETED" ? { completedAt: new Date() } : {}),
+        ...(input.notes === undefined ? {} : { notes: input.notes }),
+      },
+      select: { id: true, status: true, newExpiry: true, previousExpiry: true },
+    });
+
+    await tx.iqamaRecord.update({
+      where: { id: renewal.iqamaRecord.id },
+      data: {
+        renewalStatus: input.status,
+        ...(input.status === "COMPLETED" && input.newExpiry
+          ? { expiryDate: input.newExpiry }
+          : {}),
+      },
+    });
+
+    if (input.status === "COMPLETED" && input.newExpiry) {
+      await syncExpiry(
+        {
+          source: "IQAMA",
+          sourceId: renewal.iqamaRecord.id,
+          label: `Iqama — ${employee.fullName}`,
+          expiryDate: input.newExpiry,
+          employeeId: employee.id,
+          companyId: employee.companyId,
+        },
+        tx,
+      );
+    }
+
+    return { renewal: after, employee, previousStatus: renewal.status };
+  });
+}
+
+/** Renewal history for one Iqama, newest first. */
+export async function iqamaRenewals(ctx: ActorContext, employeeId: string) {
+  const employee = await getEmployee(ctx, employeeId);
+  if (!employee.iqama) return [];
+
+  return prisma.iqamaRenewal.findMany({
+    where: { iqamaRecordId: employee.iqama.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      previousExpiry: true,
+      newExpiry: true,
+      submittedAt: true,
+      completedAt: true,
+      status: true,
+      notes: true,
+    },
+  });
+}
+
+// --- Emergency contacts ------------------------------------------------------
+
+/**
+ * Next of kin. Read through `getEmployee` already, but there was no way to
+ * write one — the relation was included in the profile query and then never
+ * rendered, so the data was fetched and discarded.
+ */
+export async function listEmergencyContacts(ctx: ActorContext, employeeId: string) {
+  await getEmployee(ctx, employeeId);
+
+  return prisma.emergencyContact.findMany({
+    where: { employeeId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      relation: true,
+      phone: true,
+      altPhone: true,
+      address: true,
+    },
+  });
+}
+
+export async function createEmergencyContact(
+  ctx: ActorContext,
+  input: {
+    employeeId: string;
+    name: string;
+    relation: string;
+    phone: string;
+    altPhone?: string | undefined;
+    address?: string | undefined;
+  },
+) {
+  const employee = await getEmployee(ctx, input.employeeId);
+
+  const contact = await prisma.emergencyContact.create({
+    data: {
+      employeeId: input.employeeId,
+      name: input.name,
+      relation: input.relation,
+      phone: input.phone,
+      altPhone: input.altPhone ?? null,
+      address: input.address ?? null,
+    },
+    select: { id: true, name: true, relation: true },
+  });
+
+  return { contact, employee };
+}
+
+export async function updateEmergencyContact(
+  ctx: ActorContext,
+  input: {
+    id: string;
+    employeeId: string;
+    name: string;
+    relation: string;
+    phone: string;
+    altPhone?: string | undefined;
+    address?: string | undefined;
+  },
+) {
+  const employee = await getEmployee(ctx, input.employeeId);
+
+  // Scoped by employee as well as id: an id alone would let a contact be moved
+  // or edited across companies by guessing it.
+  const before = await prisma.emergencyContact.findFirst({
+    where: { id: input.id, employeeId: input.employeeId },
+    select: { id: true, name: true, relation: true, phone: true },
+  });
+  if (!before) throw new NotFoundError("Emergency contact not found.");
+
+  const after = await prisma.emergencyContact.update({
+    where: { id: input.id },
+    data: {
+      name: input.name,
+      relation: input.relation,
+      phone: input.phone,
+      altPhone: input.altPhone ?? null,
+      address: input.address ?? null,
+    },
+    select: { id: true, name: true, relation: true, phone: true },
+  });
+
+  return { before, after, employee };
+}
+
+export async function deleteEmergencyContact(
+  ctx: ActorContext,
+  input: { id: string; employeeId: string },
+) {
+  const employee = await getEmployee(ctx, input.employeeId);
+
+  const contact = await prisma.emergencyContact.findFirst({
+    where: { id: input.id, employeeId: input.employeeId },
+    select: { id: true, name: true },
+  });
+  if (!contact) throw new NotFoundError("Emergency contact not found.");
+
+  await prisma.emergencyContact.delete({ where: { id: contact.id } });
+  return { contact, employee };
+}

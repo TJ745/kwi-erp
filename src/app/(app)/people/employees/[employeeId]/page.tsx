@@ -29,9 +29,12 @@ import { accommodationForEmployee } from "@/server/services/accommodation";
 import { checklistsForEmployee } from "@/server/services/checklists";
 import { tasksForEntity } from "@/server/services/tasks";
 import { listAuditEntries } from "@/server/services/platform";
+import { iqamaRenewals, listEmergencyContacts } from "@/server/services/employees";
 import { AuditChanges } from "@/app/(app)/audit/audit-changes";
 import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
+import { IqamaRenewals } from "./iqama-renewals";
+import { EmergencyContacts } from "./emergency-contacts";
 
 export const metadata: Metadata = { title: "Employee" };
 
@@ -93,6 +96,8 @@ export default async function EmployeeDetailPage({
     employeeTasks,
     correspondence,
     auditHistory,
+    renewals,
+    emergencyContacts,
   ] = await Promise.all([
     canViewDocuments
       ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
@@ -122,6 +127,8 @@ export default async function EmployeeDetailPage({
     canViewAudit
       ? listAuditEntries(ctx, { entityType: "EMPLOYEE", entityId: employee.id })
       : Promise.resolve(null),
+    iqamaRenewals(ctx, employee.id),
+    listEmergencyContacts(ctx, employee.id),
   ]);
 
   const onboarding = checklists.filter((c) => c.type === "ONBOARDING");
@@ -295,6 +302,12 @@ export default async function EmployeeDetailPage({
             </Card>
           </div>
 
+          <EmergencyContacts
+            employeeId={employee.id}
+            canEdit={canEdit}
+            contacts={emergencyContacts}
+          />
+
           {employee.notes ? (
             <Card>
               <CardHeader>
@@ -371,6 +384,23 @@ export default async function EmployeeDetailPage({
               employee.passport ? <ExpiryAlert date={employee.passport.expiryDate} /> : null
             }
           />
+
+          <div className="mt-4">
+            <IqamaRenewals
+              employeeId={employee.id}
+              canEdit={canEdit}
+              hasIqama={employee.iqama !== null}
+              renewals={renewals.map((r) => ({
+                id: r.id,
+                previousExpiry: r.previousExpiry.toISOString().slice(0, 10),
+                newExpiry: r.newExpiry ? r.newExpiry.toISOString().slice(0, 10) : null,
+                submittedAt: r.submittedAt ? r.submittedAt.toISOString().slice(0, 10) : null,
+                completedAt: r.completedAt ? r.completedAt.toISOString().slice(0, 10) : null,
+                status: r.status,
+                notes: r.notes,
+              }))}
+            />
+          </div>
         </TabsContent>
 
         {canViewDocuments ? (

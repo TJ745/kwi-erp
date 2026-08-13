@@ -19,22 +19,26 @@ import { createDepartmentAction, updateDepartmentAction } from "@/server/actions
 
 type Company = { id: string; code: string; name: string };
 type Parent = { id: string; name: string; companyId: string };
+type Employee = { id: string; fullName: string; employeeNo: string; companyId: string };
 
 export function DepartmentDialog({
   mode,
   companies,
   parents,
+  employees,
   department,
 }: {
   mode: "create" | "edit";
   companies: Company[];
   parents: Parent[];
+  employees: Employee[];
   department?: {
     id: string;
     code: string;
     name: string;
     companyId: string;
     parentId: string | null;
+    headEmployeeId: string | null;
     status: string;
   };
 }) {
@@ -51,6 +55,10 @@ export function DepartmentDialog({
     (p) => p.companyId === companyId && p.id !== department?.id,
   );
 
+  // The server refuses a head from another company, so only same-company
+  // employees are offered.
+  const headChoices = employees.filter((e) => e.companyId === companyId);
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrors({});
@@ -61,6 +69,7 @@ export function DepartmentDialog({
       code: readString(fd, "code").toUpperCase(),
       name: readString(fd, "name"),
       parentId: readString(fd, "parentId"),
+      headEmployeeId: readString(fd, "headEmployeeId"),
       status: readString(fd, "status") || "ACTIVE",
     };
 
@@ -163,6 +172,21 @@ export function DepartmentDialog({
                 ...parentChoices.map((p) => ({ value: p.id, label: p.name })),
               ]}
               errors={errors.parentId}
+            />
+
+            <SelectField
+              name="headEmployeeId"
+              label="Department head"
+              hint="Must be an employee of the same company."
+              defaultValue={department?.headEmployeeId ?? "none"}
+              options={[
+                { value: "none", label: "— Not set —" },
+                ...headChoices.map((e) => ({
+                  value: e.id,
+                  label: `${e.fullName} (${e.employeeNo})`,
+                })),
+              ]}
+              errors={errors.headEmployeeId}
             />
 
             <SelectField

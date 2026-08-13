@@ -54,6 +54,10 @@ export const departmentSchema = z
     name: z.string().trim().min(2, "Name is required").max(150),
     nameAr: optionalText(150),
     parentId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
+    headEmployeeId: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" || v === "none" ? undefined : v)),
     status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).default("ACTIVE"),
   })
   .strict();

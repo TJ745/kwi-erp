@@ -76,6 +76,9 @@ const employeeSchemaObject = z
   })
   .strict();
 
+/** Statuses that mean the person has left. */
+export const LEAVING_STATUSES = ["RESIGNED", "TERMINATED", "EXITED"] as const;
+
 /**
  * Cross-field rules, applied to create and update alike.
  *
@@ -83,9 +86,6 @@ const employeeSchemaObject = z
  * intersection of a bare object with a strict one silently stops rejecting
  * unknown keys (verified — see storage of Phase 13 findings).
  */
-/** Statuses that mean the person has left. */
-export const LEAVING_STATUSES = ["RESIGNED", "TERMINATED", "EXITED"] as const;
-
 function checkEmployeeDates(
   d: {
     joiningDate: Date;
@@ -193,3 +193,59 @@ export const passportSchema = z
   });
 
 export type PassportInput = z.infer<typeof passportSchema>;
+
+/** Opening a renewal takes only the employee: the date it replaces is read
+ *  from the record, so history cannot record a date that was never true. */
+export const startIqamaRenewalSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    notes: optionalText(1000),
+  })
+  .strict();
+
+export const RENEWAL_STATUSES = [
+  "IN_PROGRESS",
+  "SUBMITTED",
+  "COMPLETED",
+  "REJECTED",
+] as const;
+
+export const updateIqamaRenewalSchema = z
+  .object({
+    id: z.string().min(1),
+    employeeId: z.string().min(1),
+    status: z.enum(RENEWAL_STATUSES),
+    submittedAt: optionalDate,
+    newExpiry: optionalDate,
+    notes: optionalText(1000),
+  })
+  .strict()
+  .superRefine((d, ctx) => {
+    // The service refuses this too; here it lands on the field that is wrong.
+    if (d.status === "COMPLETED" && !d.newExpiry) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A new expiry date is required to complete a renewal",
+        path: ["newExpiry"],
+      });
+    }
+  });
+
+export const emergencyContactSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    name: z.string().trim().min(2, "Name is required").max(150),
+    relation: z.string().trim().min(2, "Relationship is required").max(60),
+    phone: z.string().trim().min(5, "Phone is required").max(30),
+    altPhone: optionalText(30),
+    address: optionalText(300),
+  })
+  .strict();
+
+export const updateEmergencyContactSchema = emergencyContactSchema
+  .extend({ id: z.string().min(1) })
+  .strict();
+
+export const emergencyContactIdSchema = z
+  .object({ id: z.string().min(1), employeeId: z.string().min(1) })
+  .strict();

@@ -102,8 +102,10 @@ export async function listDepartments(ctx: ActorContext) {
       status: true,
       companyId: true,
       parentId: true,
+      headEmployeeId: true,
       company: { select: { code: true } },
       parent: { select: { name: true } },
+      headEmployee: { select: { id: true, fullName: true, employeeNo: true } },
       _count: { select: { employees: true, children: true } },
     },
   });
@@ -121,6 +123,7 @@ export async function createDepartment(ctx: ActorContext, input: DepartmentInput
   }
 
   await assertParentIsSameCompany(input.parentId, input.companyId);
+  await assertHeadIsSameCompany(input.headEmployeeId, input.companyId);
 
   return prisma.department.create({
     data: {
@@ -129,6 +132,7 @@ export async function createDepartment(ctx: ActorContext, input: DepartmentInput
       name: input.name,
       nameAr: input.nameAr ?? null,
       parentId: input.parentId ?? null,
+      headEmployeeId: input.headEmployeeId ?? null,
       status: input.status,
     },
   });
@@ -161,6 +165,8 @@ export async function updateDepartment(
     await assertParentIsSameCompany(input.parentId, input.companyId);
   }
 
+  await assertHeadIsSameCompany(input.headEmployeeId, input.companyId);
+
   const after = await prisma.department.update({
     where: { id: input.id },
     data: {
@@ -169,11 +175,35 @@ export async function updateDepartment(
       name: input.name,
       nameAr: input.nameAr ?? null,
       parentId: input.parentId ?? null,
+      headEmployeeId: input.headEmployeeId ?? null,
       status: input.status,
     },
   });
 
   return { before, after };
+}
+
+/**
+ * A department head must be an employee of the same company.
+ *
+ * Without this, a head could be set to anyone whose id was guessed — including
+ * someone in the other entity — and the department card would then name a
+ * person the viewer may have no right to see.
+ */
+async function assertHeadIsSameCompany(
+  headEmployeeId: string | undefined,
+  companyId: string,
+) {
+  if (!headEmployeeId) return;
+
+  const head = await prisma.employee.findUnique({
+    where: { id: headEmployeeId },
+    select: { companyId: true, deletedAt: true },
+  });
+  if (!head || head.deletedAt) throw new NotFoundError("That employee was not found.");
+  if (head.companyId !== companyId) {
+    throw new ConflictError("A department head must belong to the same company.");
+  }
 }
 
 async function assertParentIsSameCompany(parentId: string | undefined, companyId: string) {

@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listCompanies, listDepartments, listPositions } from "@/server/services/org";
+import { employeeOptions } from "@/server/services/hr-records";
 import { DepartmentDialog } from "./department-dialog";
 import { PositionDialog } from "./position-dialog";
 
@@ -19,13 +20,19 @@ export default async function DepartmentsPage() {
   const canViewPositions = ctx.permissions.has("positions.view");
   const canManagePositions = ctx.permissions.has("positions.manage");
 
-  const [departments, companies, positions] = await Promise.all([
+  const canManage = ctx.permissions.has("departments.manage");
+
+  const [departments, companies, positions, employees] = await Promise.all([
     listDepartments(ctx),
     listCompanies(ctx),
     canViewPositions ? listPositions(ctx) : Promise.resolve([]),
+    // Only fetched for actors who can manage departments AND read employees —
+    // the head picker is the only thing that needs it, and it is a list of people.
+    canManage && ctx.permissions.has("employees.view")
+      ? employeeOptions(ctx)
+      : Promise.resolve([]),
   ]);
 
-  const canManage = ctx.permissions.has("departments.manage");
   const options = companies.map((c) => ({ id: c.id, code: c.code, name: c.name }));
   const parentOptions = departments.map((d) => ({
     id: d.id,
@@ -40,7 +47,12 @@ export default async function DepartmentsPage() {
         description="Departments are company-scoped and can nest — a manager's visibility follows the department subtree. Positions are job titles, optionally shared across companies."
         action={
           canManage ? (
-            <DepartmentDialog mode="create" companies={options} parents={parentOptions} />
+            <DepartmentDialog
+              mode="create"
+              companies={options}
+              parents={parentOptions}
+              employees={employees}
+            />
           ) : null
         }
       />
@@ -62,6 +74,7 @@ export default async function DepartmentsPage() {
                 <th className="px-4 py-2 font-medium">Department</th>
                 <th className="px-4 py-2 font-medium">Company</th>
                 <th className="px-4 py-2 font-medium">Parent</th>
+                <th className="px-4 py-2 font-medium">Head</th>
                 <th className="px-4 py-2 font-medium">Employees</th>
                 <th className="px-4 py-2 font-medium">Status</th>
                 {canManage ? <th className="px-4 py-2" /> : null}
@@ -78,6 +91,9 @@ export default async function DepartmentsPage() {
                   <td className="text-muted-foreground px-4 py-2">
                     {dept.parent?.name ?? "—"}
                   </td>
+                  <td className="text-muted-foreground px-4 py-2">
+                    {dept.headEmployee?.fullName ?? "—"}
+                  </td>
                   <td className="px-4 py-2 tabular-nums">{dept._count.employees}</td>
                   <td className="px-4 py-2">
                     <StatusBadge status={dept.status} />
@@ -88,12 +104,14 @@ export default async function DepartmentsPage() {
                         mode="edit"
                         companies={options}
                         parents={parentOptions}
+                        employees={employees}
                         department={{
                           id: dept.id,
                           code: dept.code,
                           name: dept.name,
                           companyId: dept.companyId,
                           parentId: dept.parentId,
+                          headEmployeeId: dept.headEmployeeId,
                           status: dept.status,
                         }}
                       />
