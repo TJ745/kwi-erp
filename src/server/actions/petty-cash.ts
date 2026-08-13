@@ -20,8 +20,19 @@ import {
 
 const PATHS = ["/admin/petty-cash"];
 
+/**
+ * Opening and editing an account is the most privileged thing in this module,
+ * so it requires `pettycash.approve` — the controller who owns the float.
+ *
+ * It was gated on `pettycash.view` until the Phase 13b review, which is a READ
+ * permission that VIEWER holds along with every other non-sensitive `.view`.
+ * A VIEWER could therefore open an account, and — worse — edit an existing
+ * account's opening balance, which silently shifts every balance that account
+ * has ever displayed, because the balance is derived from opening + ledger.
+ * Caught by forging the action from a VIEWER session.
+ */
 export const createAccountAction = defineAction({
-  permission: "pettycash.view",
+  permission: "pettycash.approve",
   schema: accountSchema,
   audit: { action: "CREATE", entity: "PETTY_CASH_TRANSACTION" },
   handler: async ({ input, ctx, audit }) => {
@@ -38,7 +49,7 @@ export const createAccountAction = defineAction({
 });
 
 export const updateAccountAction = defineAction({
-  permission: "pettycash.view",
+  permission: "pettycash.approve",
   schema: updateAccountSchema,
   audit: { action: "UPDATE", entity: "PETTY_CASH_TRANSACTION" },
   handler: async ({ input, ctx, audit }) => {

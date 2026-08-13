@@ -34,7 +34,9 @@ export default async function PettyCashPage() {
       <PageHeader
         title="Petty Cash"
         description="Balances are computed from the ledger, never stored — the figure shown is always the one the transactions justify. Only approved entries move it."
-        action={<AccountDialog companies={options.companies} />}
+        // Opening an account requires pettycash.approve; the server refuses
+        // otherwise, so the button is not offered to anyone else.
+        action={canApprove ? <AccountDialog companies={options.companies} /> : null}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

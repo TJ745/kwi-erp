@@ -426,9 +426,23 @@ export async function listIncrements(
   }));
 }
 
-/** The employee's current basic salary, for pre-filling the request. */
+/**
+ * The employee's current basic salary, for pre-filling an increment request.
+ *
+ * Gated on `employees.salary.view` as well as employee scope. Employee scope
+ * alone is NOT enough: this returns a salary, and the whole point of that
+ * permission is that holding `hr.increments.manage` does not imply holding it.
+ *
+ * The gate is here rather than at a call site because there is currently no
+ * call site — and an ungated salary read sitting ready to be wired up is
+ * exactly how the increments-table leak happened.
+ */
 export async function currentSalaryFor(ctx: ActorContext, employeeId: string) {
   await assertEmployeeInScope(ctx, employeeId);
+
+  if (!ctx.permissions.has("employees.salary.view")) {
+    throw new ForbiddenError("You do not have permission to view salary details.");
+  }
 
   const contract = await prisma.contract.findFirst({
     where: { employeeId, status: "ACTIVE", deletedAt: null },

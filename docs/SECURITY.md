@@ -643,3 +643,66 @@ UI entirely.
 
 Every fixture created during the test was removed.
 
+## 12. Phase 13b — re-review of the modules built after Phase 13
+
+Completed 2026-08-13. Phase 13 was run against the codebase at commit `8d0bc8d`.
+Roughly twenty-six modules were built **after** that point — petty cash, increments,
+appraisals, timesheets, job offers, servers, network, IP phones, CCTV, software
+licences, AD accounts, documents hub, document types, checklist templates, audit
+log UI, global search, org chart, vehicle handovers, and the rest — and none of
+them existed when the checklist was ticked. A security review that only covers the
+code that was present when it ran is a review of a smaller system than the one
+being shipped, so the four checklist items that scale with surface area (1, 2, 4,
+and the penetration self-test) were re-run against the new surface only.
+
+### Findings
+
+Two, both fixed. A third issue often grouped with these — `ExpirySource.SOFTWARE_LICENSE`
+having no branch in `reconcileExpiryIndex`, which would have let the first nightly run
+silently deactivate every software-licence expiry — was found and fixed while building
+that module (commit `b7bb313`), not here. 13b only **verified** it, against the real cron
+endpoint rather than a unit test: `reconciledDeactivated: 0`.
+
+| # | Finding | Severity | Resolution |
+|---|---|---|---|
+| 1 | **Privilege escalation in petty cash.** `createAccountAction` and `updateAccountAction` were gated on `pettycash.view` — a *read* permission that VIEWER holds. Any authenticated VIEWER could open an account, and, worse, edit an existing account's opening balance. The balance is derived as `opening + ledger` and never stored, so changing the opening figure silently rewrites every balance that account has ever displayed, with no transaction to explain the movement | **High** | Both actions moved to `pettycash.approve`. The page's "Open account" button is now rendered only when the actor holds it — an offered control that always fails is worse than no control. Re-forged from a VIEWER session: `FORBIDDEN`; SUPER_ADMIN control still succeeds, so the fix is not over-broad |
+| 2 | **Ungated salary read.** `currentSalaryFor` in `services/hr-records.ts` checked company scope but not `employees.salary.view`. It had no caller at the time, so nothing leaked in the shipped build — but it is exactly the shape of function a future page calls without thinking | **Medium** (latent) | Now throws `ForbiddenError` unless the actor holds `employees.salary.view`, matching every other salary read |
+
+### Checklist items re-run
+
+| # | Item, restricted to the post-`8d0bc8d` surface | Result |
+|---|---|---|
+| 1 | Every new Server Action declares a permission | ✅ All go through `defineAction`; no new action bypasses the pipeline. A separate sweep pairs each action's `permission` with its audit verb and flags any write (`CREATE`/`UPDATE`/`DELETE`/`APPROVE`/`ASSIGN`/`RETURN`) gated on a `.view` permission — the shape of finding 1. **Zero remain** |
+| 2 | Every new query is company-scoped | ✅ 23 candidates flagged by pattern and read one by one. Twenty-two were false positives — transitively scoped, explicit `companyId` comparison, or a deliberate global uniqueness check. The twenty-third was finding 2 |
+| 4 | Every new schema is `.strict()` | ✅ 46 new schema objects, all strict by reading; 70 schemas then proven at runtime to reject an unknown key rather than drop it |
+| — | Penetration self-test on the new surface | See below |
+
+### Penetration self-test — new surface
+
+Same method as Phase 13: Server Action ids harvested from the public JavaScript
+bundles and fired with `curl` against a live instance, no UI involved.
+
+| Attack | Result |
+|---|---|
+| **Control:** SUPER_ADMIN creates a document type | `success: true` — proves the harness reaches the action |
+| VIEWER forging `createAccommodationAction` | `FORBIDDEN` |
+| VIEWER forging `createAccountAction` (petty cash) | **`success: true` → finding 1** · after fix: `FORBIDDEN` |
+| VIEWER forging `createLicenceAction` | `FORBIDDEN` |
+| VIEWER forging `createDocumentTypeAction` | `FORBIDDEN` |
+| HR forging `createLicenceAction` (IT module) | `FORBIDDEN` |
+| IT_ADMIN forging `createIncrementAction` (HR module) | `FORBIDDEN` |
+| IT_ADMIN forging `approveIncrementAction` | `FORBIDDEN` |
+| Unknown-key injection into a new schema | `VALIDATION` |
+
+Every fixture created during the test was removed: two petty cash accounts and one
+document type, deleted after confirming none had dependent rows. The three audit
+entries they generated were **kept** — the log is append-only, and a security test
+that erases its own trail is testing the wrong property.
+
+> **Method note.** The first run of this harness reported all-clear. It was wrong:
+> the id-harvesting grep never matched, so every request went out with an empty
+> `Next-Action` header and received page HTML — which contains neither `success`
+> nor a `code`, and so read as "not exploited". The harness was rebuilt with a
+> positive control (row 1) that must succeed for the run to mean anything. This is
+> the fifth vacuous test caught in this project; a negative result is only evidence
+> when a positive result was demonstrably reachable by the same path.
