@@ -77,7 +77,7 @@ export const NAVIGATION: readonly NavSection[] = [
       { label: "Increments", href: "/hr/increments", permissions: ["hr.increments.view"], planned: true },
       { label: "Warning Letters", href: "/hr/warnings", permissions: ["hr.warnings.view"], planned: true },
       { label: "Correspondence", href: "/hr/correspondence", permissions: ["hr.correspondence.view"], planned: true },
-      { label: "Petty Cash", href: "/admin/petty-cash", permissions: ["pettycash.view"], planned: true },
+      { label: "Petty Cash", href: "/admin/petty-cash", permissions: ["pettycash.view"], keywords: ["cash", "expense", "reimbursement", "float"] },
       { label: "Accommodation", href: "/admin/accommodation", permissions: ["accommodation.view"], planned: true },
       { label: "Suppliers", href: "/admin/suppliers", permissions: ["suppliers.view"], keywords: ["vendor", "purchase", "payment terms"] },
       { label: "Subcontractors", href: "/admin/subcontractors", permissions: ["subcontractors.view"], keywords: ["contract", "vendor", "CR"] },
