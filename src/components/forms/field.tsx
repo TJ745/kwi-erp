@@ -72,11 +72,14 @@ export function TextField({
   type = "text",
   defaultValue,
   placeholder,
+  onChange,
   ...base
 }: BaseProps & {
   type?: string;
   defaultValue?: string | undefined;
   placeholder?: string | undefined;
+  /** Notified on every keystroke, for live previews. Stays uncontrolled. */
+  onChange?: ((value: string) => void) | undefined;
 }) {
   return (
     <FieldFrame {...base}>
@@ -88,6 +91,13 @@ export function TextField({
           defaultValue={defaultValue ?? ""}
           placeholder={placeholder ?? ""}
           required={base.required ?? false}
+          {...(onChange
+            ? {
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                  onChange(event.target.value);
+                },
+              }
+            : {})}
           aria-invalid={Boolean(base.errors?.length)}
           {...(describedBy ? { "aria-describedby": describedBy } : {})}
         />
