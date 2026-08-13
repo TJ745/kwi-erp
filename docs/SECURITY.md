@@ -504,7 +504,18 @@ token, tokenHash, secret, apiKey, iban, accountNo,
 notesCipher, sessionToken
 ```
 
-Redacted fields record `"[REDACTED]"` for both before and after — the *fact* of the change is auditable, the value is not. IBAN and salary changes log that they changed and by whom, never the values.
+Redacted fields record `"[REDACTED]"` for both before and after — the *fact* of the change is auditable, the value is not. Verified by exercising `redact()` against a hostile payload: `password`, `passwordHash`, `ciphertext`, and `iban` are all masked, and no secret value survives anywhere in the serialised output.
+
+#### Salary figures are deliberately NOT redacted
+
+`basicSalary` and the increment fields are **not** in `REDACTED_FIELDS`, and this is a decision rather than an oversight. For a financial approval, "who approved a raise, and to what figure" is the entire content of the audit record; masking the amount would leave a trail that cannot answer the question it exists for.
+
+The consequence is a **permission coupling that must be respected when granting roles**:
+
+> `audit.view` exposes salary figures through increment and contract entries.
+> It must only be granted alongside `employees.salary.view`.
+
+Today that holds by construction — only `SUPER_ADMIN` and `ADMIN` have `audit.view`, and both also have `employees.salary.view`. It would stop holding if a custom role, or a DENY override on `employees.salary.view`, were combined with audit access. The reports layer gates salary per column precisely because that combination is expressible; the audit log cannot do the same without destroying the record, so the constraint is stated here instead.
 
 ### Integrity
 

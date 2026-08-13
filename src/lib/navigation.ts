@@ -88,7 +88,7 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     label: "Documents",
     icon: "documents",
-    items: [{ label: "Documents", href: "/documents", permissions: ["documents.view"], planned: true }],
+    items: [{ label: "Documents", href: "/documents", permissions: ["documents.view"], keywords: ["file", "attachment", "expiry"] }],
   },
   {
     label: "Tasks",
@@ -135,7 +135,7 @@ export const NAVIGATION: readonly NavSection[] = [
     items: [
       { label: "Reports", href: "/reports", permissions: ["reports.view"], keywords: ["export", "excel", "csv", "headcount", "expiry"] },
       { label: "Notifications", href: "/notifications", permissions: ["notifications.view"] },
-      { label: "Audit Logs", href: "/audit", permissions: ["audit.view"], planned: true },
+      { label: "Audit Logs", href: "/audit", permissions: ["audit.view"], keywords: ["trail", "history", "who did"] },
     ],
   },
   {
@@ -146,8 +146,8 @@ export const NAVIGATION: readonly NavSection[] = [
       { label: "Departments", href: "/settings/departments", permissions: ["departments.view"] },
       { label: "Users", href: "/settings/users", permissions: ["users.view"] },
       { label: "Roles & Permissions", href: "/settings/roles", permissions: ["roles.manage"] },
-      { label: "Document Types", href: "/settings/document-types", permissions: ["documents.manageTypes"], planned: true },
-      { label: "Checklist Templates", href: "/settings/checklists", permissions: ["settings.manage"], planned: true },
+      { label: "Document Types", href: "/settings/document-types", permissions: ["documents.manageTypes"], keywords: ["type", "category"] },
+      { label: "Checklist Templates", href: "/settings/checklists", permissions: ["settings.manage"], keywords: ["onboarding", "offboarding", "clearance", "steps"] },
       { label: "Letter Templates", href: "/settings/templates", permissions: ["letters.manageTemplates"] },
     ],
   },
