@@ -640,3 +640,37 @@ export async function accommodationCounts(ctx: ActorContext) {
     { properties: 0, beds: 0, occupied: 0, available: 0 },
   );
 }
+
+/**
+ * An employee's accommodation history, for their profile tab.
+ *
+ * Ordered current-first: the open assignment (no check-out) is what matters
+ * during offboarding, and the rest is history.
+ */
+export async function accommodationForEmployee(ctx: ActorContext, employeeId: string) {
+  return prisma.bedAssignment.findMany({
+    where: {
+      employeeId,
+      bed: { room: { accommodation: companyScopeWhere(ctx) } },
+    },
+    orderBy: [{ checkOutDate: { sort: "asc", nulls: "first" } }, { checkInDate: "desc" }],
+    take: 50,
+    select: {
+      id: true,
+      checkInDate: true,
+      checkOutDate: true,
+      notes: true,
+      bed: {
+        select: {
+          bedLabel: true,
+          room: {
+            select: {
+              roomNumber: true,
+              accommodation: { select: { id: true, name: true, city: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+}

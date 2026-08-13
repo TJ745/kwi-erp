@@ -385,3 +385,36 @@ export async function overdueTasks(ctx: ActorContext, limit = 8) {
     assignedToName: t.assignedToId ? (names.get(t.assignedToId) ?? null) : null,
   }));
 }
+
+/**
+ * Tasks attached to one record, for that record's profile tab.
+ *
+ * Applies the same visibility rule as the list: without `tasks.viewAll` an
+ * actor sees only tasks they raised or were assigned. A profile tab is not a
+ * way around that.
+ */
+export async function tasksForEntity(
+  ctx: ActorContext,
+  entityType: EntityType,
+  entityId: string,
+) {
+  return prisma.task.findMany({
+    where: {
+      entityType,
+      entityId,
+      ...companyScopeWhere(ctx),
+      ...visibilityWhere(ctx),
+    },
+    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+    take: 100,
+    select: {
+      id: true,
+      taskNo: true,
+      title: true,
+      status: true,
+      priority: true,
+      dueDate: true,
+      assignedToId: true,
+    },
+  });
+}

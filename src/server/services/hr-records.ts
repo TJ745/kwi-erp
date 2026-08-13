@@ -213,13 +213,19 @@ export async function deleteWarning(ctx: ActorContext, id: string) {
 
 export async function listCorrespondence(
   ctx: ActorContext,
-  filters: { status?: string | undefined; type?: string | undefined; q?: string | undefined } = {},
+  filters: {
+    status?: string | undefined;
+    type?: string | undefined;
+    q?: string | undefined;
+    employeeId?: string | undefined;
+  } = {},
 ) {
   return prisma.correspondence.findMany({
     where: {
       ...companyScopeWhere(ctx),
       ...(filters.status ? { status: filters.status as "DRAFT" } : {}),
       ...(filters.type ? { type: filters.type as "VISA" } : {}),
+      ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
       ...(filters.q
         ? {
             OR: [

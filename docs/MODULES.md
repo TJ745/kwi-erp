@@ -153,7 +153,9 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 
 The 18 tabs from §8 of the brief map to modules as follows.
 
-> **As built:** the profile is a single Server Component with client `Tabs`, not one route segment per tab. Each tab's data is fetched by the page, so a tab the actor cannot see is never queried. Splitting into route segments remains the plan if the page's payload becomes a problem; it is recorded here so the description matches the code.
+> **As built:** the profile is a single Server Component with client `Tabs`, not one route segment per tab. Each tab's data is fetched by the page only when the actor holds its permission, so a tab they cannot see is never queried and its data never reaches the RSC payload. Splitting into route segments remains the plan if the page's payload becomes a problem; it is recorded here so the description matches the code.
+>
+> All 17 in-app tabs are live. Bank details remain deliberately absent from the profile — see §5 of docs/SECURITY.md.
 
 | Tab | Source | Permission |
 |---|---|---|
