@@ -62,7 +62,7 @@ export const NAVIGATION: readonly NavSection[] = [
       { label: "Offboarding", href: "/people/offboarding", permissions: ["hr.offboarding.view"], keywords: ["clearance", "exit"] },
       { label: "Leave", href: "/people/leave", permissions: ["hr.leave.view", "hr.leave.request"] },
       { label: "Timesheet", href: "/people/timesheet", permissions: ["hr.timesheet.view"], keywords: ["delayed hours", "overtime", "attendance"] },
-      { label: "Organisation Chart", href: "/people/org-chart", permissions: ["employees.view"], planned: true },
+      { label: "Organisation Chart", href: "/people/org-chart", permissions: ["employees.view"], keywords: ["hierarchy", "reporting", "manager", "structure"] },
     ],
   },
   {
@@ -121,7 +121,7 @@ export const NAVIGATION: readonly NavSection[] = [
     items: [
       { label: "Vehicles", href: "/vehicles", permissions: ["vehicles.view"] },
       { label: "Maintenance", href: "/vehicles/maintenance", permissions: ["vehicles.maintenance.view"] },
-      { label: "Handovers", href: "/vehicles/handovers", permissions: ["vehicles.view"], planned: true },
+      { label: "Handovers", href: "/vehicles/handovers", permissions: ["vehicles.view"], keywords: ["keys", "transfer", "driver change"] },
     ],
   },
   {

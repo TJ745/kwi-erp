@@ -600,3 +600,52 @@ export async function driverOptions(ctx: ActorContext, companyId: string) {
     select: { id: true, fullName: true, employeeNo: true },
   });
 }
+
+/**
+ * Every handover across the fleet — brief §27.
+ *
+ * The per-vehicle tab answers "who has had this car"; this answers "what
+ * changed hands this month", which is the question at fleet-review time.
+ */
+export async function listHandovers(
+  ctx: ActorContext,
+  filters: { vehicleId?: string | undefined; from?: Date | undefined; to?: Date | undefined } = {},
+) {
+  return prisma.vehicleHandover.findMany({
+    where: {
+      vehicle: { ...companyScopeWhere(ctx), deletedAt: null },
+      ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {}),
+      ...(filters.from || filters.to
+        ? {
+            handoverDate: {
+              ...(filters.from ? { gte: filters.from } : {}),
+              ...(filters.to ? { lte: filters.to } : {}),
+            },
+          }
+        : {}),
+    },
+    orderBy: { handoverDate: "desc" },
+    take: 300,
+    select: {
+      id: true,
+      handoverDate: true,
+      mileage: true,
+      fuelLevel: true,
+      condition: true,
+      remarks: true,
+      acknowledgedAt: true,
+      documentId: true,
+      vehicle: {
+        select: {
+          id: true,
+          plateNumber: true,
+          make: true,
+          model: true,
+          company: { select: { code: true } },
+        },
+      },
+      fromEmployee: { select: { id: true, fullName: true } },
+      toEmployee: { select: { id: true, fullName: true } },
+    },
+  });
+}
