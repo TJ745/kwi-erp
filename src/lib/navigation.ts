@@ -81,8 +81,8 @@ export const NAVIGATION: readonly NavSection[] = [
       { label: "Accommodation", href: "/admin/accommodation", permissions: ["accommodation.view"], planned: true },
       { label: "Suppliers", href: "/admin/suppliers", permissions: ["suppliers.view"], keywords: ["vendor", "purchase", "payment terms"] },
       { label: "Subcontractors", href: "/admin/subcontractors", permissions: ["subcontractors.view"], keywords: ["contract", "vendor", "CR"] },
-      { label: "Electricity Bills", href: "/admin/electricity-bills", permissions: ["bills.view"], planned: true },
-      { label: "Company Certificates", href: "/admin/certificates", permissions: ["certificates.view"], planned: true },
+      { label: "Electricity Bills", href: "/admin/electricity-bills", permissions: ["bills.view"], keywords: ["meter", "utility", "power"] },
+      { label: "Company Certificates", href: "/admin/certificates", permissions: ["certificates.view"], keywords: ["CR", "VAT", "GOSI", "zakat", "licence"] },
     ],
   },
   {
