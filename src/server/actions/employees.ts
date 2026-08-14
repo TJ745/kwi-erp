@@ -1,10 +1,13 @@
 "use server";
 
 import { z } from "zod";
+import { maskIban } from "@/lib/bank";
 import { defineAction } from "./define-action";
 import {
   employeeSchema,
   employeeStatusSchema,
+  bankDetailIdSchema,
+  bankDetailSchema,
   emergencyContactIdSchema,
   emergencyContactSchema,
   iqamaSchema,
@@ -19,6 +22,8 @@ import {
   setEmployeeStatus,
   updateEmployee,
   createEmergencyContact,
+  deleteBankDetail,
+  upsertBankDetail,
   deleteEmergencyContact,
   startIqamaRenewal,
   updateEmergencyContact,
@@ -249,6 +254,52 @@ export const deleteEmergencyContactAction = defineAction({
       summary: `Removed emergency contact ${contact.name} for ${employee.fullName}`,
     });
     return { id: contact.id };
+  },
+  revalidate: (input) => [`/people/employees/${input.employeeId}`],
+});
+
+// --- Bank details ------------------------------------------------------------
+
+/**
+ * The action requires `employees.bank.manage` and the service checks it again.
+ * Belt and braces on a field that decides where somebody's salary lands.
+ */
+export const upsertBankDetailAction = defineAction({
+  permission: "employees.bank.manage",
+  schema: bankDetailSchema,
+  audit: { action: "UPDATE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { before, after, employee, ibanChanged } = await upsertBankDetail(ctx, input);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      // The IBAN is masked in the summary: the audit log is readable by anyone
+      // holding audit.view, which does not imply employees.bank.view.
+      summary: `${before ? "Updated" : "Added"} bank details for ${employee.fullName} — ${after.bankName} ${maskIban(after.iban)}${
+        ibanChanged ? " (IBAN changed; verification cleared)" : ""
+      }`,
+      // `iban` is on the audit redaction list, so the diff records that it
+      // changed without recording the value.
+      ...(before ? { before: { bankName: before.bankName, iban: before.iban } } : {}),
+      after: { bankName: after.bankName, iban: after.iban },
+    });
+    return { ok: true as const };
+  },
+  revalidate: (input) => [`/people/employees/${input.employeeId}`],
+});
+
+export const deleteBankDetailAction = defineAction({
+  permission: "employees.bank.manage",
+  schema: bankDetailIdSchema,
+  audit: { action: "DELETE", entity: "EMPLOYEE" },
+  handler: async ({ input, ctx, audit }) => {
+    const { employee, bankName } = await deleteBankDetail(ctx, input.employeeId);
+    audit.record({
+      entityId: input.employeeId,
+      companyId: employee.companyId,
+      summary: `Removed bank details (${bankName}) for ${employee.fullName}`,
+    });
+    return { ok: true as const };
   },
   revalidate: (input) => [`/people/employees/${input.employeeId}`],
 });

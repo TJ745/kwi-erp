@@ -34,12 +34,14 @@ export type AuditFilters = {
 
 const AUDIT_PAGE_SIZE = 100;
 
-export async function listAuditEntries(
-  ctx: ActorContext,
-  filters: AuditFilters,
-  page = 1,
-) {
-  const where = {
+/**
+ * The single scoping derivation for the audit log.
+ *
+ * Extracted so the on-screen list and the export cannot drift: an export that
+ * scoped differently from the screen is exactly the shape of the Phase 11 leak.
+ */
+function auditWhere(ctx: ActorContext, filters: AuditFilters) {
+  return {
     // Entries with no company (platform-level actions) stay visible to
     // everyone who can read the log at all; company-owned ones are scoped.
     ...optionalCompanyScopeWhere(ctx),
@@ -65,6 +67,14 @@ export async function listAuditEntries(
         }
       : {}),
   };
+}
+
+export async function listAuditEntries(
+  ctx: ActorContext,
+  filters: AuditFilters,
+  page = 1,
+) {
+  const where = auditWhere(ctx, filters);
 
   const safePage = Math.max(1, Math.min(page, 1000));
 
@@ -98,6 +108,39 @@ export async function listAuditEntries(
     pageSize: AUDIT_PAGE_SIZE,
     pageCount: Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE)),
   };
+}
+
+/**
+ * The same query as `listAuditEntries`, unpaginated and capped, for export.
+ *
+ * A separate function rather than a page-size argument so the cap is explicit
+ * and cannot be raised by a caller passing a large number. The cap is a real
+ * limit, not a nicety: the route reports when it bites so an export is never
+ * silently partial.
+ */
+export const AUDIT_EXPORT_LIMIT = 10_000;
+
+export async function auditEntriesForExport(ctx: ActorContext, filters: AuditFilters) {
+  const entries = await prisma.auditLog.findMany({
+    where: auditWhere(ctx, filters),
+    orderBy: { createdAt: "desc" },
+    take: AUDIT_EXPORT_LIMIT + 1,
+    select: {
+      id: true,
+      createdAt: true,
+      actorLabel: true,
+      action: true,
+      entityType: true,
+      entityId: true,
+      companyId: true,
+      summary: true,
+      changes: true,
+      ipAddress: true,
+    },
+  });
+
+  const truncated = entries.length > AUDIT_EXPORT_LIMIT;
+  return { entries: truncated ? entries.slice(0, AUDIT_EXPORT_LIMIT) : entries, truncated };
 }
 
 /** Distinct actors, for the filter dropdown. */

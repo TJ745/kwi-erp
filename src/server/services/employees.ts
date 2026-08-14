@@ -1,6 +1,7 @@
 import "server-only";
 import type { EmployeeStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { describeIbanProblem, validateIban } from "@/lib/bank";
 import type { ActorContext } from "@/server/auth/context";
 import {
   companyScopeWhere,
@@ -19,6 +20,7 @@ import type {
   EmployeeInput,
   IqamaInput,
   PassportInput,
+  BankDetailInput,
 } from "@/lib/schemas/employee";
 import { nextEmployeeNo } from "./counter";
 import { deactivateExpiry, syncExpiry } from "./expiry";
@@ -774,4 +776,102 @@ export async function deleteEmergencyContact(
 
   await prisma.emergencyContact.delete({ where: { id: contact.id } });
   return { contact, employee };
+}
+
+// --- Bank details ------------------------------------------------------------
+
+/**
+ * Payroll bank details.
+ *
+ * Gated on `employees.bank.view` in the service, not only at the call site.
+ * `employees.view` is broad and `employees.bank.view` is sensitive precisely
+ * because holding one must not imply the other — and an ungated read sitting
+ * ready to be wired up is how the increments-table leak happened (SECURITY §12).
+ */
+export async function bankDetailFor(ctx: ActorContext, employeeId: string) {
+  await getEmployee(ctx, employeeId);
+
+  if (!ctx.permissions.has("employees.bank.view")) {
+    throw new ForbiddenError("You do not have permission to view bank details.");
+  }
+
+  return prisma.employeeBankDetail.findUnique({
+    where: { employeeId },
+    select: {
+      id: true,
+      bankName: true,
+      iban: true,
+      accountNo: true,
+      swift: true,
+      verifiedAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+/**
+ * Creates or replaces the bank details.
+ *
+ * Changing an IBAN invalidates any previous verification: whoever confirmed the
+ * old account did not confirm this one, and leaving the tick in place would
+ * mean a changed account looks checked when nobody has checked it.
+ */
+export async function upsertBankDetail(ctx: ActorContext, input: BankDetailInput) {
+  const employee = await getEmployee(ctx, input.employeeId);
+
+  if (!ctx.permissions.has("employees.bank.manage")) {
+    throw new ForbiddenError("You do not have permission to edit bank details.");
+  }
+
+  const check = validateIban(input.iban);
+  if (!check.ok) {
+    // The schema checks this too; a direct service call must not bypass it.
+    throw new ConflictError(describeIbanProblem(check.problem));
+  }
+
+  const before = await prisma.employeeBankDetail.findUnique({
+    where: { employeeId: input.employeeId },
+    select: { iban: true, bankName: true, verifiedAt: true },
+  });
+
+  const ibanChanged = before !== null && before.iban !== check.iban;
+
+  const after = await prisma.employeeBankDetail.upsert({
+    where: { employeeId: input.employeeId },
+    create: {
+      employeeId: input.employeeId,
+      bankName: input.bankName,
+      iban: check.iban,
+      accountNo: input.accountNo ?? null,
+      swift: input.swift ?? null,
+      verifiedAt: input.verifiedAt ?? null,
+    },
+    update: {
+      bankName: input.bankName,
+      iban: check.iban,
+      accountNo: input.accountNo ?? null,
+      swift: input.swift ?? null,
+      verifiedAt: ibanChanged ? null : (input.verifiedAt ?? null),
+    },
+    select: { id: true, bankName: true, iban: true, verifiedAt: true },
+  });
+
+  return { before, after, employee, ibanChanged };
+}
+
+export async function deleteBankDetail(ctx: ActorContext, employeeId: string) {
+  const employee = await getEmployee(ctx, employeeId);
+
+  if (!ctx.permissions.has("employees.bank.manage")) {
+    throw new ForbiddenError("You do not have permission to edit bank details.");
+  }
+
+  const existing = await prisma.employeeBankDetail.findUnique({
+    where: { employeeId },
+    select: { id: true, bankName: true },
+  });
+  if (!existing) throw new NotFoundError("No bank details to remove.");
+
+  await prisma.employeeBankDetail.delete({ where: { employeeId } });
+  return { employee, bankName: existing.bankName };
 }

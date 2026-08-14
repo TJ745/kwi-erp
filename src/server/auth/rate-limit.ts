@@ -27,6 +27,12 @@ export const RATE_LIMITS = {
   vaultReveal: { limit: 10, windowSeconds: 5 * 60 },
   fileDownload: { limit: 120, windowSeconds: 60 },
   reportExport: { limit: 10, windowSeconds: 60 * 60 },
+  /**
+   * Tighter than a report export. The audit log is the record of everything
+   * anyone has done, so a bulk copy of it is the single most useful artefact
+   * an attacker with a session could take.
+   */
+  auditExport: { limit: 5, windowSeconds: 60 * 60 },
   globalSearch: { limit: 60, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 

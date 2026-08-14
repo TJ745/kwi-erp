@@ -29,12 +29,17 @@ import { accommodationForEmployee } from "@/server/services/accommodation";
 import { checklistsForEmployee } from "@/server/services/checklists";
 import { tasksForEntity } from "@/server/services/tasks";
 import { listAuditEntries } from "@/server/services/platform";
-import { iqamaRenewals, listEmergencyContacts } from "@/server/services/employees";
+import {
+  bankDetailFor,
+  iqamaRenewals,
+  listEmergencyContacts,
+} from "@/server/services/employees";
 import { AuditChanges } from "@/app/(app)/audit/audit-changes";
 import { DocumentList } from "./document-list";
 import { IdentityDocuments } from "./identity-documents";
 import { IqamaRenewals } from "./iqama-renewals";
 import { EmergencyContacts } from "./emergency-contacts";
+import { BankDetails } from "./bank-details";
 
 export const metadata: Metadata = { title: "Employee" };
 
@@ -47,8 +52,9 @@ export const metadata: Metadata = { title: "Employee" };
  * additionally nulls the figures without `employees.salary.view`: an actor may
  * legitimately see that a rise happened without seeing its amount.
  *
- * Bank details are deliberately absent — they are their own sensitive surface
- * and do not belong behind a general `employees.view` page load.
+ * Bank details are the same shape of problem: the query does not run at all
+ * without `employees.bank.view`, so an IBAN never reaches the payload of
+ * someone who happens to hold `employees.view`.
  */
 export default async function EmployeeDetailPage({
   params,
@@ -80,6 +86,10 @@ export default async function EmployeeDetailPage({
   const canViewCorrespondence = ctx.permissions.has("hr.correspondence.view");
   const canViewAudit = ctx.permissions.has("audit.view");
   const canSeeSalaryFigures = ctx.permissions.has("employees.salary.view");
+  // Bank details are their own sensitive surface: the query does not run at all
+  // without the permission, so an IBAN never reaches the payload uninvited.
+  const canViewBank = ctx.permissions.has("employees.bank.view");
+  const canManageBank = ctx.permissions.has("employees.bank.manage");
 
   const [
     documents,
@@ -98,6 +108,7 @@ export default async function EmployeeDetailPage({
     auditHistory,
     renewals,
     emergencyContacts,
+    bankDetail,
   ] = await Promise.all([
     canViewDocuments
       ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
@@ -129,6 +140,7 @@ export default async function EmployeeDetailPage({
       : Promise.resolve(null),
     iqamaRenewals(ctx, employee.id),
     listEmergencyContacts(ctx, employee.id),
+    canViewBank ? bankDetailFor(ctx, employee.id) : Promise.resolve(null),
   ]);
 
   const onboarding = checklists.filter((c) => c.type === "ONBOARDING");
@@ -307,6 +319,26 @@ export default async function EmployeeDetailPage({
             canEdit={canEdit}
             contacts={emergencyContacts}
           />
+
+          {canViewBank ? (
+            <BankDetails
+              employeeId={employee.id}
+              canManage={canManageBank}
+              detail={
+                bankDetail
+                  ? {
+                      bankName: bankDetail.bankName,
+                      iban: bankDetail.iban,
+                      accountNo: bankDetail.accountNo,
+                      swift: bankDetail.swift,
+                      verifiedAt: bankDetail.verifiedAt
+                        ? bankDetail.verifiedAt.toISOString().slice(0, 10)
+                        : null,
+                    }
+                  : null
+              }
+            />
+          ) : null}
 
           {employee.notes ? (
             <Card>

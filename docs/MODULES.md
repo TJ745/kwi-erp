@@ -177,7 +177,7 @@ The 18 tabs from §8 of the brief map to modules as follows.
 | Tasks | `Task` (entityType=EMPLOYEE) | `tasks.view` |
 | Correspondence | `Correspondence` | `hr.view` |
 | Audit History | `AuditLog` | `audit.view` |
-| *(Bank details)* | `EmployeeBankDetail` | `employees.bank.view` — **separate, sensitive** |
+| Bank details | `EmployeeBankDetail` | `employees.bank.view` to see it, `employees.bank.manage` to edit — **separate, sensitive**. The query does not run without the view permission, so an IBAN never reaches the payload of someone holding only `employees.view`. The IBAN is checksum-validated (ISO 13616) before storage and masked on screen until revealed |
 
 Tabs the actor cannot see are not rendered at all — no empty tab, no "access denied" panel.
 

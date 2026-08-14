@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { describeIbanProblem, validateIban } from "@/lib/bank";
 
 const optionalText = (max: number) =>
   z
@@ -249,3 +250,34 @@ export const updateEmergencyContactSchema = emergencyContactSchema
 export const emergencyContactIdSchema = z
   .object({ id: z.string().min(1), employeeId: z.string().min(1) })
   .strict();
+
+/**
+ * Bank details.
+ *
+ * The IBAN is checksum-validated here rather than only in the service, so the
+ * form can point at the field and say what is wrong with it.
+ */
+export const bankDetailSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    bankName: z.string().trim().min(2, "Bank name is required").max(150),
+    iban: z.string().trim().min(1, "An IBAN is required").max(40),
+    accountNo: optionalText(50),
+    swift: optionalText(20),
+    verifiedAt: optionalDate,
+  })
+  .strict()
+  .superRefine((d, ctx) => {
+    const result = validateIban(d.iban);
+    if (!result.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: describeIbanProblem(result.problem),
+        path: ["iban"],
+      });
+    }
+  });
+
+export type BankDetailInput = z.infer<typeof bankDetailSchema>;
+
+export const bankDetailIdSchema = z.object({ employeeId: z.string().min(1) }).strict();

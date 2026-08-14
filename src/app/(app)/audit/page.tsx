@@ -4,6 +4,8 @@ import { ScrollText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Download } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,15 @@ export default async function AuditPage({
     ...(params.to ? { to: new Date(`${params.to}T23:59:59.999Z`) } : {}),
   };
 
+  // The export link carries the same filters, so what downloads is what the
+  // screen shows rather than the whole log.
+  const canExport = ctx.permissions.has("audit.export");
+  const exportQuery = new URLSearchParams(
+    Object.entries(params).filter(
+      (entry): entry is [string, string] => entry[0] !== "page" && Boolean(entry[1]),
+    ),
+  ).toString();
+
   const [result, actors, counts] = await Promise.all([
     listAuditEntries(ctx, filters, Number.isFinite(page) ? page : 1),
     auditActors(ctx),
@@ -77,6 +88,19 @@ export default async function AuditPage({
       <PageHeader
         title="Audit Log"
         description="Who did what, and when. Entries are written by the system and can never be edited or deleted from here — that is what makes the trail worth having."
+        action={
+          canExport ? (
+            <a
+              // A link, not an action: the response is a file. It carries the
+              // current filters so the export matches what is on screen.
+              href={`/api/audit/export${exportQuery ? `?${exportQuery}` : ""}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <Download />
+              Export CSV
+            </a>
+          ) : null
+        }
       />
 
       {/* Passwords, keys, and IBANs are masked at write time. Salary figures
