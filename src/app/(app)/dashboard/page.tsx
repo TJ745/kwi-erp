@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, ListChecks, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, ListChecks, UserPlus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpiryAlert } from "@/components/shared/expiry-alert";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { CardLoadingState, EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { dashboardKpis } from "@/server/services/dashboard";
+import { dashboardKpis, pendingWork } from "@/server/services/dashboard";
 import { listExpiring } from "@/server/services/expiry";
 import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
@@ -47,6 +47,10 @@ export default async function DashboardPage() {
         <KpiRow ctx={ctx} />
       </Suspense>
 
+      <Suspense fallback={<CardLoadingState count={1} />}>
+        <NeedsAttention ctx={ctx} />
+      </Suspense>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Suspense fallback={<CardLoadingState count={1} />}>
           <ExpiringSoon ctx={ctx} />
@@ -59,6 +63,66 @@ export default async function DashboardPage() {
         ) : null}
       </div>
     </PageShell>
+  );
+}
+
+/**
+ * What is waiting on the actor, across every module with a queue.
+ *
+ * Each row is gated on the permission that lets the actor clear it, so this is
+ * a to-do list rather than a status board — and the whole card disappears when
+ * there is nothing to do, instead of showing seven zeroes.
+ */
+async function NeedsAttention({ ctx }: { ctx: ActorContext }) {
+  const work = await pendingWork(ctx);
+
+  const rows = ([
+    { label: "Petty cash awaiting approval", count: work.pettyCash, href: "/admin/petty-cash", tone: "warning" },
+    { label: "Leave requests awaiting approval", count: work.leave, href: "/people/leave", tone: "warning" },
+    { label: "Increments awaiting approval", count: work.increments, href: "/hr/increments", tone: "warning" },
+    { label: "Open IT tickets", count: work.openTickets, href: "/it/helpdesk", tone: "neutral" },
+    { label: "Vehicle services due", count: work.maintenanceDue, href: "/vehicles/maintenance", tone: "neutral" },
+    { label: "Onboarding in progress", count: work.onboarding, href: "/people/onboarding", tone: "neutral" },
+    { label: "Offboarding in progress", count: work.offboarding, href: "/people/offboarding", tone: "neutral" },
+  ] as const).filter((row) => row.count > 0);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ListChecks className="size-4" />
+          Needs attention
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y">
+          {rows.map((row) => (
+            <li key={row.href + row.label}>
+              <Link
+                href={row.href}
+                className="group flex items-center justify-between gap-4 py-2 text-sm"
+              >
+                <span className="group-hover:underline">{row.label}</span>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={
+                      row.tone === "warning"
+                        ? "text-status-warning font-semibold tabular-nums"
+                        : "font-semibold tabular-nums"
+                    }
+                  >
+                    {row.count}
+                  </span>
+                  <ArrowRight className="text-muted-foreground size-3.5" />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

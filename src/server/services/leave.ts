@@ -2,6 +2,7 @@ import "server-only";
 import type { LeaveStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
+import { notifyApprovalRequired } from "./notifications";
 import { companyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
 import {
@@ -165,6 +166,17 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
       createdById: ctx.userId,
     },
     select: { id: true, days: true },
+  });
+
+  await notifyApprovalRequired({
+    permission: "hr.leave.approve",
+    companyId: employee.companyId,
+    title: `Leave request needs approval: ${employee.fullName}`,
+    body: `${leaveType.name} — ${input.startDate.toISOString().slice(0, 10)} to ${input.endDate.toISOString().slice(0, 10)} (${String(days)} day${days === 1 ? "" : "s"})`,
+    entityType: "LEAVE_REQUEST",
+    entityId: created.id,
+    dedupeKeyPrefix: `APPROVAL_REQUIRED:LEAVE:${created.id}`,
+    requestedById: ctx.userId,
   });
 
   return {

@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma, TicketStatus } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
+import { notifyUsers } from "./notifications";
 import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
 import { ForbiddenError, NotFoundError } from "@/lib/result";
 import {
@@ -235,6 +236,23 @@ export async function assignTicket(
   });
 
   const names = await resolveUserNames([ticket.assignedToId, input.assignedToId ?? null]);
+
+  // Only on a change of hands, and never to the person doing the assigning.
+  if (input.assignedToId && input.assignedToId !== ticket.assignedToId) {
+    await notifyUsers({
+      userIds: [input.assignedToId],
+      kind: "TICKET_ASSIGNED",
+      severity: "INFO",
+      title: `${ticket.ticketNo} was assigned to you`,
+      body: null,
+      entityType: "IT_TICKET",
+      entityId: ticket.id,
+      // Keyed on the assignee, so a ticket bounced back to someone later
+      // notifies them again rather than being swallowed as a duplicate.
+      dedupeKeyPrefix: `TICKET_ASSIGNED:${ticket.id}:${input.assignedToId}`,
+      excludeUserId: ctx.userId,
+    });
+  }
 
   return {
     ticketNo: ticket.ticketNo,

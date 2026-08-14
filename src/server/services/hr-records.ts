@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
+import { notifyApprovalRequired } from "./notifications";
 import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
 import {
@@ -500,6 +501,20 @@ export async function createIncrement(ctx: ActorContext, input: IncrementInput) 
       currency: true,
       effectiveDate: true,
     },
+  });
+
+  // Approvers hear about it; the figures are deliberately not in the title,
+  // because a notification is readable by anyone holding the recipient's
+  // screen and hr.increments.approve does not imply employees.salary.view.
+  await notifyApprovalRequired({
+    permission: "hr.increments.approve",
+    companyId: employee.companyId,
+    title: `Salary increment needs approval: ${employee.fullName}`,
+    body: `Effective ${input.effectiveDate.toISOString().slice(0, 10)}.`,
+    entityType: "INCREMENT",
+    entityId: increment.id,
+    dedupeKeyPrefix: `APPROVAL_REQUIRED:INCREMENT:${increment.id}`,
+    requestedById: ctx.userId,
   });
 
   return { ...increment, employeeName: employee.fullName, companyId: employee.companyId };

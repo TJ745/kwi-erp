@@ -50,3 +50,87 @@ export async function dashboardKpis(ctx: ActorContext): Promise<DashboardKpis> {
 
   return { totalEmployees, activeEmployees, expiredDocuments, expiringIn30Days };
 }
+
+/**
+ * What is waiting on somebody, across the modules that have an approval step.
+ *
+ * Each count is gated on the permission that would let the actor act on it: a
+ * queue you cannot clear is not a call to action, it is noise. Counts only —
+ * the rows live on their own pages, and fetching them here would duplicate
+ * five services' scoping rules on the dashboard.
+ */
+export type PendingWork = {
+  pettyCash: number;
+  leave: number;
+  increments: number;
+  openTickets: number;
+  maintenanceDue: number;
+  onboarding: number;
+  offboarding: number;
+};
+
+export async function pendingWork(ctx: ActorContext): Promise<PendingWork> {
+  const now = new Date();
+  const scope = companyScopeWhere(ctx);
+  const has = (key: Parameters<typeof ctx.permissions.has>[0]) => ctx.permissions.has(key);
+
+  const [pettyCash, leave, increments, openTickets, maintenanceDue, onboarding, offboarding] =
+    await Promise.all([
+      has("pettycash.approve")
+        ? prisma.pettyCashTransaction.count({ where: { status: "PENDING", ...scope } })
+        : Promise.resolve(0),
+
+      has("hr.leave.approve")
+        ? prisma.leaveRequest.count({
+            where: { status: "PENDING", employee: { ...scope, deletedAt: null } },
+          })
+        : Promise.resolve(0),
+
+      has("hr.increments.approve")
+        ? prisma.increment.count({
+            where: { status: "PENDING", employee: { ...scope, deletedAt: null } },
+          })
+        : Promise.resolve(0),
+
+      has("it.tickets.view")
+        ? prisma.iTTicket.count({
+            where: { status: { notIn: ["RESOLVED", "CLOSED"] }, ...scope },
+          })
+        : Promise.resolve(0),
+
+      // Maintenance has no "scheduled" state — its status is an approval
+      // status. What matters operationally is the next service falling due,
+      // so that is what is counted: due within 30 days, or already past.
+      has("vehicles.maintenance.view")
+        ? prisma.vehicleMaintenance.count({
+            where: {
+              status: { not: "CANCELLED" },
+              nextDueDate: { not: null, lte: expiryCutoff(30, now) },
+              vehicle: scope,
+            },
+          })
+        : Promise.resolve(0),
+
+      has("hr.onboarding.view")
+        ? prisma.checklistInstance.count({
+            where: { type: "ONBOARDING", status: "IN_PROGRESS", ...scope },
+          })
+        : Promise.resolve(0),
+
+      has("hr.offboarding.view")
+        ? prisma.checklistInstance.count({
+            where: { type: { not: "ONBOARDING" }, status: "IN_PROGRESS", ...scope },
+          })
+        : Promise.resolve(0),
+    ]);
+
+  return {
+    pettyCash,
+    leave,
+    increments,
+    openTickets,
+    maintenanceDue,
+    onboarding,
+    offboarding,
+  };
+}

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
+import { notifyApprovalRequired } from "./notifications";
 import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
 import { calculateBalance, wouldOverdraw, type LedgerEntry } from "@/lib/petty-cash";
@@ -262,6 +263,19 @@ export async function createTransaction(ctx: ActorContext, input: TransactionInp
       status: true,
       companyId: true,
     },
+  });
+
+  // The approver is told, rather than the request waiting for someone to open
+  // the page. Never throws — a notification failure must not undo a ledger row.
+  await notifyApprovalRequired({
+    permission: "pettycash.approve",
+    companyId: account.companyId,
+    title: `Petty cash ${transaction.type.toLowerCase()} needs approval: ${transaction.amount.toString()} ${account.currency}`,
+    body: `${account.name} — ${transaction.description}`,
+    entityType: "PETTY_CASH_TRANSACTION",
+    entityId: transaction.id,
+    dedupeKeyPrefix: `APPROVAL_REQUIRED:PETTY_CASH:${transaction.id}`,
+    requestedById: ctx.userId,
   });
 
   return { ...transaction, accountName: account.name, categoryName: category.name };

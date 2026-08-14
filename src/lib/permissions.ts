@@ -173,6 +173,10 @@ export function isSensitive(key: PermissionKey): boolean {
 
 // --- Roles -------------------------------------------------------------------
 
+/** The one role that bypasses the permission set entirely. Defined here so the
+ *  request context and the notification recipient resolver agree on it. */
+export const SUPER_ADMIN_ROLE_KEY = "SUPER_ADMIN";
+
 export const ROLE_KEYS = [
   "SUPER_ADMIN",
   "ADMIN",

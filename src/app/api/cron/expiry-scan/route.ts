@@ -8,6 +8,7 @@ import {
   pruneNotifications,
   runExpiryScan,
   runOverdueTaskScan,
+  runTaskDueScan,
 } from "@/server/services/notifications";
 
 // Prisma and the reconciliation pass need the Node.js runtime.
@@ -37,6 +38,10 @@ export async function GET(request: NextRequest) {
     // first, and the task scan should see that settled state.
     const expiry = await runExpiryScan();
     const tasks = await runOverdueTaskScan();
+    // Due today, so the assignee hears before the task is late rather than
+    // after. The two scans cannot collide: their dedupe keys differ by kind,
+    // and a task is either due today or already overdue, never both.
+    const dueToday = await runTaskDueScan();
     const prunedNotifications = await pruneNotifications();
     const prunedRateLimits = await pruneRateLimits();
 
@@ -52,6 +57,8 @@ export async function GET(request: NextRequest) {
       reconciledDeactivated: expiry.reconciled.deactivated,
       overdueTasks: tasks.scanned,
       taskNotificationsCreated: tasks.created,
+      tasksDueToday: dueToday.scanned,
+      dueTodayNotificationsCreated: dueToday.created,
       prunedNotifications,
       prunedRateLimits,
     };
@@ -68,6 +75,7 @@ export async function GET(request: NextRequest) {
       summary:
         `Expiry scan: ${String(expiry.created)} reminder(s), ` +
         `${String(tasks.created)} overdue task alert(s), ` +
+        `${String(dueToday.created)} due-today alert(s), ` +
         `${String(durationMs)}ms`,
     });
 

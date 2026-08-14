@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma } from "@/generated/prisma/client";
+import type { EntityType, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { NotFoundError } from "@/lib/result";
@@ -11,6 +11,11 @@ import {
   severityForThreshold,
 } from "@/lib/notification-rules";
 import { logger } from "@/server/logger";
+import {
+  resolvePermissions,
+  SUPER_ADMIN_ROLE_KEY,
+  type PermissionKey,
+} from "@/lib/permissions";
 import { CLOSED_STATUSES } from "./tasks";
 import { reconcileExpiryIndex } from "./expiry";
 
@@ -241,4 +246,205 @@ export async function pruneNotifications(): Promise<number> {
     where: { readAt: { not: null, lt: cutoff } },
   });
   return count;
+}
+
+// --- Event-driven notifications ----------------------------------------------
+
+/**
+ * The users who effectively hold a permission, optionally narrowed to those
+ * who can see a given company.
+ *
+ * Effective, not nominal: role grants are combined with per-user overrides
+ * through the same `resolvePermissions` the request context uses, so a DENY
+ * override removes someone from the list and an ALLOW override adds them. A
+ * notification sent to someone who cannot open the record is worse than none —
+ * they get an alert and then a 404.
+ *
+ * The user table is small (tens of rows), so this is one query rather than a
+ * cached projection. If it ever stops being small, this is the place to cache.
+ */
+export async function usersWithPermission(
+  permission: PermissionKey,
+  options: { companyId?: string | null } = {},
+): Promise<string[]> {
+  const users = await prisma.user.findMany({
+    where: { status: "ACTIVE", deletedAt: null },
+    select: {
+      id: true,
+      role: {
+        select: {
+          key: true,
+          permissions: { select: { permission: { select: { key: true } } } },
+        },
+      },
+      overrides: {
+        select: {
+          effect: true,
+          expiresAt: true,
+          permission: { select: { key: true } },
+        },
+      },
+      companyAccess: { select: { companyId: true } },
+    },
+  });
+
+  const recipients: string[] = [];
+
+  for (const user of users) {
+    const permissions = resolvePermissions({
+      rolePermissions: user.role.permissions.map((rp) => rp.permission.key),
+      overrides: user.overrides.map((o) => ({
+        key: o.permission.key,
+        effect: o.effect,
+        expiresAt: o.expiresAt,
+      })),
+      isSuperAdmin: user.role.key === SUPER_ADMIN_ROLE_KEY,
+    });
+
+    if (!permissions.has(permission)) continue;
+
+    // Company scope, mirroring `ActorContext`: companies.viewAll sees
+    // everything, otherwise the explicit access list decides.
+    if (options.companyId) {
+      const seesAll = permissions.has("companies.viewAll");
+      const inScope = user.companyAccess.some((a) => a.companyId === options.companyId);
+      if (!seesAll && !inScope) continue;
+    }
+
+    recipients.push(user.id);
+  }
+
+  return recipients;
+}
+
+/**
+ * Raises a notification for everyone who can act on something.
+ *
+ * Never throws. A notification is a courtesy on top of a record that has
+ * already been written — failing to send one must not roll back a petty cash
+ * transaction or a leave request, so every failure is logged and swallowed.
+ * The record is still visible on its own page either way.
+ */
+export async function notifyUsers(input: {
+  userIds: readonly string[];
+  kind: "APPROVAL_REQUIRED" | "TICKET_ASSIGNED" | "TASK_DUE" | "MENTION" | "SYSTEM";
+  severity?: "INFO" | "WARNING" | "CRITICAL";
+  title: string;
+  body?: string | null;
+  entityType?: EntityType | null;
+  entityId?: string | null;
+  /** Stable per (event, user), so a retry cannot double-notify. */
+  dedupeKeyPrefix: string;
+  /** Usually the actor: nobody needs telling about their own action. */
+  excludeUserId?: string | undefined;
+}): Promise<number> {
+  try {
+    const targets = [...new Set(input.userIds)].filter((id) => id !== input.excludeUserId);
+    if (targets.length === 0) return 0;
+
+    const rows: Prisma.NotificationCreateManyInput[] = targets.map((userId) => ({
+      userId,
+      kind: input.kind,
+      severity: input.severity ?? "INFO",
+      title: input.title,
+      body: input.body ?? null,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+      dedupeKey: `${input.dedupeKeyPrefix}:${userId}`,
+    }));
+
+    const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
+    return result.count;
+  } catch (error) {
+    logger.error("Failed to raise notifications", {
+      kind: input.kind,
+      dedupeKeyPrefix: input.dedupeKeyPrefix,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
+/**
+ * Someone raised something that needs a decision.
+ *
+ * Approvals were the largest gap in the reminder engine: petty cash, leave, and
+ * increments all had an approval step and none of them told the approver, so
+ * the queue only moved when somebody happened to open the page.
+ */
+export async function notifyApprovalRequired(input: {
+  permission: PermissionKey;
+  companyId: string | null;
+  title: string;
+  body?: string | null;
+  entityType?: EntityType | null;
+  entityId: string;
+  dedupeKeyPrefix: string;
+  requestedById: string;
+}): Promise<number> {
+  try {
+    const userIds = await usersWithPermission(input.permission, {
+      companyId: input.companyId,
+    });
+
+    return await notifyUsers({
+      userIds,
+      kind: "APPROVAL_REQUIRED",
+      severity: "INFO",
+      title: input.title,
+      body: input.body ?? null,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId,
+      dedupeKeyPrefix: input.dedupeKeyPrefix,
+      // Self-approval is refused by the services anyway, so telling the
+      // requester their own request needs approval would be pure noise.
+      excludeUserId: input.requestedById,
+    });
+  } catch (error) {
+    logger.error("Failed to raise approval notifications", {
+      entityId: input.entityId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
+/** Tasks falling due today, so the assignee hears before they are overdue. */
+export async function runTaskDueScan(options: { now?: Date } = {}): Promise<{
+  scanned: number;
+  created: number;
+}> {
+  const now = options.now ?? new Date();
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const due = await prisma.task.findMany({
+    where: {
+      status: { notIn: CLOSED_STATUSES },
+      dueDate: { gte: dayStart, lt: dayEnd },
+      assignedToId: { not: null },
+    },
+    select: { id: true, taskNo: true, title: true, assignedToId: true },
+  });
+
+  const rows: Prisma.NotificationCreateManyInput[] = due
+    .filter((t): t is typeof t & { assignedToId: string } => t.assignedToId !== null)
+    .map((task) => ({
+      userId: task.assignedToId,
+      kind: "TASK_DUE" as const,
+      severity: "INFO" as const,
+      title: `${task.taskNo} is due today: ${task.title}`,
+      body: null,
+      entityType: "TASK" as const,
+      entityId: task.id,
+      // Once per task per day. The overdue scan takes over from tomorrow.
+      dedupeKey: `TASK_DUE:${task.id}:${dayStart.toISOString().slice(0, 10)}:${task.assignedToId}`,
+    }));
+
+  if (rows.length === 0) return { scanned: 0, created: 0 };
+
+  const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
+  return { scanned: due.length, created: result.count };
 }

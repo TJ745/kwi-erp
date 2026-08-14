@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { resolvePermissions, type PermissionKey } from "@/lib/permissions";
+import { resolvePermissions, type PermissionKey,
+  SUPER_ADMIN_ROLE_KEY,
+} from "@/lib/permissions";
 import { prisma } from "@/server/db/client";
 import { auth } from "./auth";
 
@@ -31,7 +33,6 @@ export type ActorContext = {
 };
 
 /** SUPER_ADMIN short-circuits every permission check. */
-const SUPER_ADMIN_ROLE_KEY = "SUPER_ADMIN";
 
 /**
  * Resolves the current actor, or null when unauthenticated.
