@@ -269,7 +269,10 @@ export const upsertBankDetailAction = defineAction({
   schema: bankDetailSchema,
   audit: { action: "UPDATE", entity: "EMPLOYEE" },
   handler: async ({ input, ctx, audit }) => {
-    const { before, after, employee, ibanChanged } = await upsertBankDetail(ctx, input);
+    const { before, after, employee, ibanChanged, blindWrite } = await upsertBankDetail(
+      ctx,
+      input,
+    );
     audit.record({
       entityId: input.employeeId,
       companyId: employee.companyId,
@@ -277,7 +280,7 @@ export const upsertBankDetailAction = defineAction({
       // holding audit.view, which does not imply employees.bank.view.
       summary: `${before ? "Updated" : "Added"} bank details for ${employee.fullName} — ${after.bankName} ${maskIban(after.iban)}${
         ibanChanged ? " (IBAN changed; verification cleared)" : ""
-      }`,
+      }${blindWrite ? " — written by someone without permission to read it" : ""}`,
       // `iban` is on the audit redaction list, so the diff records that it
       // changed without recording the value.
       ...(before ? { before: { bankName: before.bankName, iban: before.iban } } : {}),

@@ -2,6 +2,11 @@ import "server-only";
 import type { EmployeeStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { describeIbanProblem, validateIban } from "@/lib/bank";
+import {
+  decideBankRead,
+  decideBankWrite,
+  describeBankDenial,
+} from "@/lib/bank-access";
 import type { ActorContext } from "@/server/auth/context";
 import {
   companyScopeWhere,
@@ -791,9 +796,8 @@ export async function deleteEmergencyContact(
 export async function bankDetailFor(ctx: ActorContext, employeeId: string) {
   await getEmployee(ctx, employeeId);
 
-  if (!ctx.permissions.has("employees.bank.view")) {
-    throw new ForbiddenError("You do not have permission to view bank details.");
-  }
+  const decision = decideBankRead(ctx.permissions);
+  if (!decision.allowed) throw new ForbiddenError(describeBankDenial(decision.reason));
 
   return prisma.employeeBankDetail.findUnique({
     where: { employeeId },
@@ -819,9 +823,8 @@ export async function bankDetailFor(ctx: ActorContext, employeeId: string) {
 export async function upsertBankDetail(ctx: ActorContext, input: BankDetailInput) {
   const employee = await getEmployee(ctx, input.employeeId);
 
-  if (!ctx.permissions.has("employees.bank.manage")) {
-    throw new ForbiddenError("You do not have permission to edit bank details.");
-  }
+  const decision = decideBankWrite(ctx.permissions);
+  if (!decision.allowed) throw new ForbiddenError(describeBankDenial(decision.reason));
 
   const check = validateIban(input.iban);
   if (!check.ok) {
@@ -856,15 +859,16 @@ export async function upsertBankDetail(ctx: ActorContext, input: BankDetailInput
     select: { id: true, bankName: true, iban: true, verifiedAt: true },
   });
 
-  return { before, after, employee, ibanChanged };
+  // Reported so the audit entry can say the actor overwrote an IBAN they were
+  // not permitted to read — allowed, but worth recording.
+  return { before, after, employee, ibanChanged, blindWrite: decision.blindWrite };
 }
 
 export async function deleteBankDetail(ctx: ActorContext, employeeId: string) {
   const employee = await getEmployee(ctx, employeeId);
 
-  if (!ctx.permissions.has("employees.bank.manage")) {
-    throw new ForbiddenError("You do not have permission to edit bank details.");
-  }
+  const deletion = decideBankWrite(ctx.permissions);
+  if (!deletion.allowed) throw new ForbiddenError(describeBankDenial(deletion.reason));
 
   const existing = await prisma.employeeBankDetail.findUnique({
     where: { employeeId },

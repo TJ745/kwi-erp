@@ -527,6 +527,24 @@ Response headers: `X-Content-Type-Options: nosniff`, `Cache-Control: private, no
 
 ---
 
+### 5a. Bank details — the two permissions are independent
+
+`employees.bank.manage` does **not** require `employees.bank.view`. Deliberate,
+and worth stating because it looks like an oversight: somebody keying in a bank
+letter can correct an IBAN without being allowed to read the one already stored,
+and that is also how a DENY override on `bank.view` behaves for a role holding
+`bank.manage`.
+
+The consequence is a blind write — the actor overwrites a value they cannot see.
+That is permitted, but never silent: the audit summary ends "written by someone
+without permission to read it". Verified with `hr-nosalary`, which is HR carrying
+exactly that override.
+
+The rules live in `lib/bank-access.ts` with 14 tests, including the full matrix
+of the two permissions held independently.
+
+---
+
 ## 6a. Email
 
 > `/api/health` reports whether email is configured, but only to a caller
