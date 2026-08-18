@@ -11,6 +11,8 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { setPolicyWorkingAction } from "@/server/actions/insurance";
 import { PolicyDialog } from "./policy-dialog";
 
+import { EnrolmentsDialog, type EnrolmentRow } from "./enrolments-dialog";
+
 export type PolicyRow = {
   id: string;
   policyNumber: string;
@@ -31,11 +33,15 @@ export type PolicyRow = {
 export function PolicyTable({
   policies,
   canManage,
+  enrolments,
+  employees,
   companies,
   providers,
 }: {
   policies: PolicyRow[];
   canManage: boolean;
+  enrolments: { policyId: string; rows: EnrolmentRow[] }[];
+  employees: { id: string; fullName: string; employeeNo: string; companyId: string }[];
   companies: { id: string; code: string; name: string }[];
   providers: { id: string; name: string }[];
 }) {
@@ -77,7 +83,31 @@ export function PolicyTable({
               <td className="px-4 py-2">
                 <WorkingToggle policy={policy} canManage={canManage} />
               </td>
-              <td className="px-4 py-2 tabular-nums">{policy.memberCount}</td>
+              <td className="px-4 py-2">
+                <span className="inline-flex items-center gap-1">
+                  <span className="tabular-nums">{policy.memberCount}</span>
+                  <EnrolmentsDialog
+                    policy={{
+                      id: policy.id,
+                      policyNumber: policy.policyNumber,
+                      className: policy.className,
+                    }}
+                    enrolments={
+                      enrolments.find((e) => e.policyId === policy.id)?.rows ?? []
+                    }
+                    // Only this policy's company: the server refuses anyone
+                    // else, so offering them would be offering a failure.
+                    employees={employees
+                      .filter((e) => e.companyId === policy.companyId)
+                      .map((e) => ({
+                        id: e.id,
+                        fullName: e.fullName,
+                        employeeNo: e.employeeNo,
+                      }))}
+                    canManage={canManage}
+                  />
+                </span>
+              </td>
               {canManage ? (
                 <td className="px-4 py-2 text-right">
                   <PolicyDialog

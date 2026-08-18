@@ -8,6 +8,12 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v === "" ? undefined : v));
 
+const optionalDate = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : new Date(v)))
+  .refine((v) => v === undefined || !Number.isNaN(v.getTime()), "Enter a valid date");
+
 const requiredDate = z
   .string()
   .min(1, "Date is required")
@@ -90,3 +96,28 @@ export const policySchema = policySchemaObject.superRefine(checkPolicyDates);
 export type PolicyInput = z.infer<typeof policySchema>;
 
 export const updatePolicySchema = policySchemaObject.extend({ id: z.string().min(1) }).superRefine(checkPolicyDates);
+
+/** Putting an employee on a policy. */
+export const enrolmentSchema = z
+  .object({
+    policyId: z.string().min(1),
+    employeeId: z.string().min(1, "Select an employee"),
+    memberNumber: optionalText(50),
+    className: optionalText(50),
+    startDate: requiredDate,
+    endDate: optionalDate,
+  })
+  .strict()
+  .superRefine((d, ctx) => {
+    if (d.endDate && d.endDate.getTime() < d.startDate.getTime()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Cover cannot end before it starts",
+        path: ["endDate"],
+      });
+    }
+  });
+
+export const endEnrolmentSchema = z
+  .object({ id: z.string().min(1), policyId: z.string().min(1), endDate: requiredDate })
+  .strict();

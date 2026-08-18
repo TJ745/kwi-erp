@@ -2,12 +2,17 @@
 
 import { z } from "zod";
 import { defineAction } from "./define-action";
-import { policySchema, providerSchema, updatePolicySchema } from "@/lib/schemas/insurance";
+import { policySchema, providerSchema, updatePolicySchema,
+  endEnrolmentSchema,
+  enrolmentSchema,
+} from "@/lib/schemas/insurance";
 import {
   createPolicy,
   createProvider,
   setPolicyWorking,
   updatePolicy,
+  endEnrolment,
+  enrolEmployee,
 } from "@/server/services/insurance";
 
 export const createPolicyAction = defineAction({
@@ -94,6 +99,47 @@ export const createProviderAction = defineAction({
       summary: `Added insurance provider "${provider.name}"`,
     });
     return { id: provider.id };
+  },
+  revalidate: () => ["/insurance"],
+});
+
+// --- Employee enrolment ------------------------------------------------------
+
+export const enrolEmployeeAction = defineAction({
+  permission: "insurance.manage",
+  schema: enrolmentSchema,
+  audit: { action: "CREATE", entity: "MEDICAL_INSURANCE_POLICY" },
+  handler: async ({ input, ctx, audit }) => {
+    const { enrolment, employee, policy } = await enrolEmployee(ctx, input);
+    audit.record({
+      entityId: policy.id,
+      companyId: policy.companyId,
+      // The member number is a claims identifier, so it stays out of a summary
+      // that anyone holding audit.view can read.
+      summary: `Enrolled ${employee.fullName} on policy ${policy.policyNumber}${
+        enrolment.className ? ` (class ${enrolment.className})` : ""
+      }`,
+      after: { employee: employee.fullName, className: enrolment.className },
+    });
+    return { id: enrolment.id };
+  },
+  revalidate: (input) => ["/insurance", `/people/employees/${input.employeeId}`],
+});
+
+export const endEnrolmentAction = defineAction({
+  permission: "insurance.manage",
+  schema: endEnrolmentSchema,
+  audit: { action: "UPDATE", entity: "MEDICAL_INSURANCE_POLICY" },
+  handler: async ({ input, ctx, audit }) => {
+    const enrolment = await endEnrolment(ctx, input);
+    audit.record({
+      entityId: enrolment.policy.id,
+      companyId: enrolment.policy.companyId,
+      summary: `Ended cover for ${enrolment.employee.fullName} on policy ${enrolment.policy.policyNumber} from ${input.endDate.toISOString().slice(0, 10)}`,
+      before: { status: enrolment.status },
+      after: { status: "EXPIRED", endDate: input.endDate },
+    });
+    return { ok: true as const };
   },
   revalidate: () => ["/insurance"],
 });

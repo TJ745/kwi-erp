@@ -338,3 +338,144 @@ export async function insuranceCounts(ctx: ActorContext): Promise<InsuranceCount
 
   return { active, expiringIn60Days, expired, notWorking };
 }
+
+// --- Employee enrolment ------------------------------------------------------
+
+/**
+ * Who is actually covered by a policy.
+ *
+ * `EmployeeInsurance` has existed since the first migration and was never
+ * written to, which left the module able to say what cover the company buys but
+ * not who is on it — the question it exists to answer.
+ */
+export async function enrolmentsForPolicy(ctx: ActorContext, policyId: string) {
+  // Scope is enforced through the policy, which carries the company.
+  await getPolicy(ctx, policyId);
+
+  return prisma.employeeInsurance.findMany({
+    where: { policyId },
+    orderBy: { employee: { fullName: "asc" } },
+    select: {
+      id: true,
+      memberNumber: true,
+      className: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      employee: {
+        select: { id: true, fullName: true, employeeNo: true, status: true },
+      },
+    },
+  });
+}
+
+/** Cover for one employee, for their profile. */
+export async function enrolmentsForEmployee(ctx: ActorContext, employeeId: string) {
+  return prisma.employeeInsurance.findMany({
+    where: { employeeId, policy: companyScopeWhere(ctx) },
+    orderBy: { startDate: "desc" },
+    select: {
+      id: true,
+      memberNumber: true,
+      className: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      policy: {
+        select: {
+          id: true,
+          policyNumber: true,
+          expiryDate: true,
+          provider: { select: { name: true } },
+        },
+      },
+    },
+  });
+}
+
+export async function enrolEmployee(
+  ctx: ActorContext,
+  input: {
+    policyId: string;
+    employeeId: string;
+    memberNumber?: string | undefined;
+    className?: string | undefined;
+    startDate: Date;
+    endDate?: Date | undefined;
+  },
+) {
+  const policy = await getPolicy(ctx, input.policyId);
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: { id: true, fullName: true, companyId: true, status: true },
+  });
+  if (!employee) throw new NotFoundError("Employee not found.");
+
+  // The policy is bought by one company; enrolling another company's employee
+  // on it would put the wrong entity's people on the wrong bill.
+  if (employee.companyId !== policy.companyId) {
+    throw new ConflictError(
+      "That employee belongs to a different company from this policy.",
+    );
+  }
+
+  if (input.endDate && input.endDate.getTime() < input.startDate.getTime()) {
+    throw new ConflictError("Cover cannot end before it starts.");
+  }
+
+  const existing = await prisma.employeeInsurance.findUnique({
+    where: {
+      employeeId_policyId: { employeeId: input.employeeId, policyId: input.policyId },
+    },
+    select: { id: true },
+  });
+  if (existing) throw new ConflictError("That employee is already on this policy.");
+
+  const enrolment = await prisma.employeeInsurance.create({
+    data: {
+      employeeId: input.employeeId,
+      policyId: input.policyId,
+      memberNumber: input.memberNumber ?? null,
+      // Falls back to the policy's class, which is the common case: most people
+      // are on the policy's default and only a few differ.
+      className: input.className ?? policy.className,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+      status: "ACTIVE",
+    },
+    select: { id: true, className: true },
+  });
+
+  return { enrolment, employee, policy };
+}
+
+export async function endEnrolment(
+  ctx: ActorContext,
+  input: { id: string; endDate: Date },
+) {
+  const enrolment = await prisma.employeeInsurance.findFirst({
+    where: { id: input.id, policy: companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      startDate: true,
+      status: true,
+      employee: { select: { fullName: true } },
+      policy: { select: { id: true, policyNumber: true, companyId: true } },
+    },
+  });
+  if (!enrolment) throw new NotFoundError("Enrolment not found.");
+
+  if (input.endDate.getTime() < enrolment.startDate.getTime()) {
+    throw new ConflictError("Cover cannot end before it starts.");
+  }
+
+  // Ended rather than deleted: who was covered when a claim was made is a
+  // question that gets asked long afterwards.
+  await prisma.employeeInsurance.update({
+    where: { id: input.id },
+    data: { endDate: input.endDate, status: "EXPIRED" },
+  });
+
+  return enrolment;
+}

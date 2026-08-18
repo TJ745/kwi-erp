@@ -429,7 +429,6 @@ Recorded here so they are decisions rather than omissions:
 | MFA / TOTP | Not in v1 scope; schema leaves room | Immediately post-launch for `SUPER_ADMIN` + vault holders |
 | SSO / directory sync | No requirement stated | If the company adopts Microsoft Entra |
 | Full-text search (`tsvector`) | Trigram covers actual usage | If search latency degrades past ~50k employees |
-| Employee-level medical insurance UI | Table exists from day one; screens deferred per brief §31 | On request |
 | Leave accrual engine | Brief specifies request/approval only | On request |
 | Audit log partitioning | Only needed at high volume | When `AuditLog` passes ~10M rows |
 | Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file. **No longer blocked** now that uploads work (2026-08-12) | On request — it is now buildable |

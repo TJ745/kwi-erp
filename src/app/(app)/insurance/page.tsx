@@ -14,6 +14,8 @@ import {
 } from "@/server/services/insurance";
 import { orgOptions } from "@/server/services/org";
 import { PolicyDialog } from "./policy-dialog";
+import { enrolmentsForPolicy } from "@/server/services/insurance";
+import { employeeOptions } from "@/server/services/hr-records";
 import { PolicyTable } from "./policy-table";
 import { ProviderDialog } from "./provider-dialog";
 
@@ -35,6 +37,18 @@ export default async function InsurancePage({
     listProviders(),
     canManage ? orgOptions(ctx) : Promise.resolve(null),
   ]);
+
+  // Members are fetched per policy, and the employee list only for actors who
+  // can actually enrol somebody — it is a list of people, not a lookup table.
+  const [enrolmentsByPolicy, employees] = await Promise.all([
+    Promise.all(
+      policies.map(async (p) => [p.id, await enrolmentsForPolicy(ctx, p.id)] as const),
+    ),
+    canManage && ctx.permissions.has("employees.view")
+      ? employeeOptions(ctx)
+      : Promise.resolve([]),
+  ]);
+  const enrolments = new Map(enrolmentsByPolicy);
 
   return (
     <PageShell>
@@ -87,6 +101,28 @@ export default async function InsurancePage({
       ) : (
         <PolicyTable
           canManage={canManage}
+          enrolments={policies.map((p) => ({
+            policyId: p.id,
+            rows: (enrolments.get(p.id) ?? []).map((e) => ({
+              id: e.id,
+              memberNumber: e.memberNumber,
+              className: e.className,
+              startDate: e.startDate.toISOString().slice(0, 10),
+              endDate: e.endDate ? e.endDate.toISOString().slice(0, 10) : null,
+              status: e.status,
+              employee: {
+                id: e.employee.id,
+                fullName: e.employee.fullName,
+                employeeNo: e.employee.employeeNo,
+              },
+            })),
+          }))}
+          employees={employees.map((e) => ({
+            id: e.id,
+            fullName: e.fullName,
+            employeeNo: e.employeeNo,
+            companyId: e.companyId,
+          }))}
           companies={options?.companies ?? []}
           providers={providers.map((p) => ({ id: p.id, name: p.name }))}
           policies={policies.map((p) => ({

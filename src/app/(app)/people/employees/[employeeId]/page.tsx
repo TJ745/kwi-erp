@@ -29,6 +29,7 @@ import { accommodationForEmployee } from "@/server/services/accommodation";
 import { checklistsForEmployee } from "@/server/services/checklists";
 import { tasksForEntity } from "@/server/services/tasks";
 import { listAuditEntries } from "@/server/services/platform";
+import { enrolmentsForEmployee } from "@/server/services/insurance";
 import {
   bankDetailFor,
   iqamaRenewals,
@@ -89,6 +90,7 @@ export default async function EmployeeDetailPage({
   // Bank details are their own sensitive surface: the query does not run at all
   // without the permission, so an IBAN never reaches the payload uninvited.
   const canViewBank = ctx.permissions.has("employees.bank.view");
+  const canViewInsurance = ctx.permissions.has("insurance.view");
   const canManageBank = ctx.permissions.has("employees.bank.manage");
 
   const [
@@ -109,6 +111,7 @@ export default async function EmployeeDetailPage({
     renewals,
     emergencyContacts,
     bankDetail,
+    insurance,
   ] = await Promise.all([
     canViewDocuments
       ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
@@ -141,6 +144,7 @@ export default async function EmployeeDetailPage({
     iqamaRenewals(ctx, employee.id),
     listEmergencyContacts(ctx, employee.id),
     canViewBank ? bankDetailFor(ctx, employee.id) : Promise.resolve(null),
+    canViewInsurance ? enrolmentsForEmployee(ctx, employee.id) : Promise.resolve([]),
   ]);
 
   const onboarding = checklists.filter((c) => c.type === "ONBOARDING");
@@ -319,6 +323,42 @@ export default async function EmployeeDetailPage({
             canEdit={canEdit}
             contacts={emergencyContacts}
           />
+
+          {canViewInsurance && insurance.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Medical insurance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {insurance.map((cover) => (
+                    <li
+                      key={cover.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{cover.policy.provider.name}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {cover.policy.policyNumber}
+                          {cover.className ? ` · class ${cover.className}` : ""}
+                          {cover.memberNumber ? ` · member ${cover.memberNumber}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <StatusBadge status={cover.status} />
+                        <p className="text-muted-foreground text-xs">
+                          {cover.startDate.toISOString().slice(0, 10)} →{" "}
+                          {cover.endDate
+                            ? cover.endDate.toISOString().slice(0, 10)
+                            : cover.policy.expiryDate.toISOString().slice(0, 10)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {canViewBank ? (
             <BankDetails
