@@ -11,6 +11,9 @@ import {
 } from "@/server/services/vault/credentials";
 import { isVaultUnlocked, VAULT_IDLE_MINUTES } from "@/server/services/vault/session";
 import { orgOptions } from "@/server/services/org";
+import { listCredentialGrants } from "@/server/services/vault/grants";
+import { assignableUsers } from "@/server/services/tasks";
+import { listRolesForAssignment } from "@/server/services/users";
 import { CredentialDialog } from "./credential-dialog";
 import { CredentialList } from "./credential-list";
 import { VaultLock } from "./vault-lock";
@@ -46,6 +49,23 @@ export default async function VaultPage({
   const canReveal = ctx.permissions.has("vault.reveal");
   const canCreate = ctx.permissions.has("vault.create");
   const canUpdate = ctx.permissions.has("vault.update");
+  // Managing who can reach a credential is its own permission, held by no
+  // seeded role but SUPER_ADMIN.
+  const canGrant = ctx.permissions.has("vault.grant");
+
+  // Only fetched for actors who can act on it — this is a list of people and
+  // an access-control map, not something to hand out with the page.
+  const [grantSubjects, grantsByCredential] = await Promise.all([
+    canGrant
+      ? Promise.all([assignableUsers(ctx), listRolesForAssignment(ctx)])
+      : Promise.resolve([[], []] as const),
+    canGrant
+      ? Promise.all(
+          credentials.map(async (c) => [c.id, await listCredentialGrants(ctx, c.id)] as const),
+        )
+      : Promise.resolve([]),
+  ]);
+  const grantMap = new Map(grantsByCredential);
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
 
   return (
@@ -116,6 +136,28 @@ export default async function VaultPage({
             categories={categoryOptions}
             companies={options.companies}
             canUpdate={canUpdate}
+            canGrant={canGrant}
+            grants={credentials.map((c) => {
+              const entry = grantMap.get(c.id);
+              return {
+                credentialId: c.id,
+                isRestricted: entry?.isRestricted ?? false,
+                rows: (entry?.grants ?? []).map((g) => ({
+                  id: g.id,
+                  level: g.level,
+                  expiresAt: g.expiresAt ? g.expiresAt.toISOString().slice(0, 10) : null,
+                  scope: g.scope,
+                  categoryName: g.categoryName,
+                  subject: g.subject,
+                })),
+              };
+            })}
+            grantUsers={grantSubjects[0].map((u) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+            }))}
+            grantRoles={grantSubjects[1].map((r) => ({ id: r.id, name: r.name }))}
             canReveal={canReveal}
             isUnlocked={unlocked}
             idleMinutes={VAULT_IDLE_MINUTES}

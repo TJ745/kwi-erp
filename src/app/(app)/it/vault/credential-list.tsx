@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Eye, EyeOff, Star } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Lock, Star, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   toggleFavoriteAction,
 } from "@/server/actions/vault";
 import { CredentialDialog } from "./credential-dialog";
+import { GrantsDialog, type GrantRow } from "./grants-dialog";
 
 type Credential = {
   id: string;
@@ -39,6 +40,12 @@ type Credential = {
 
 type Company = { id: string; code: string; name: string };
 
+export type CredentialGrants = {
+  credentialId: string;
+  isRestricted: boolean;
+  rows: GrantRow[];
+};
+
 /**
  * Credential list with per-row reveal.
  *
@@ -52,6 +59,10 @@ export function CredentialList({
   companies,
   canReveal,
   canUpdate,
+  canGrant,
+  grants,
+  grantUsers,
+  grantRoles,
   isUnlocked,
   idleMinutes,
 }: {
@@ -60,9 +71,14 @@ export function CredentialList({
   companies: Company[];
   canReveal: boolean;
   canUpdate: boolean;
+  canGrant: boolean;
+  grants: CredentialGrants[];
+  grantUsers: { id: string; name: string; email: string }[];
+  grantRoles: { id: string; name: string }[];
   isUnlocked: boolean;
   idleMinutes: number;
 }) {
+  const grantsById = new Map(grants.map((g) => [g.credentialId, g]));
   const [revealed, setRevealed] = React.useState<Map<string, string>>(new Map());
 
   const clearRevealed = React.useCallback(() => {
@@ -104,6 +120,10 @@ export function CredentialList({
           companies={companies}
           canReveal={canReveal}
           canUpdate={canUpdate}
+          canGrant={canGrant}
+          grants={grantsById.get(credential.id) ?? null}
+          grantUsers={grantUsers}
+          grantRoles={grantRoles}
           isUnlocked={isUnlocked}
           secret={revealed.get(credential.id) ?? null}
           onRevealed={(secret) => {
@@ -128,6 +148,10 @@ function CredentialCard({
   companies,
   canReveal,
   canUpdate,
+  canGrant,
+  grants,
+  grantUsers,
+  grantRoles,
   isUnlocked,
   secret,
   onRevealed,
@@ -138,6 +162,10 @@ function CredentialCard({
   companies: Company[];
   canReveal: boolean;
   canUpdate: boolean;
+  canGrant: boolean;
+  grants: CredentialGrants | null;
+  grantUsers: { id: string; name: string; email: string }[];
+  grantRoles: { id: string; name: string }[];
   isUnlocked: boolean;
   secret: string | null;
   onRevealed: (secret: string) => void;
@@ -147,6 +175,7 @@ function CredentialCard({
   const [pending, startTransition] = React.useTransition();
   const [copied, setCopied] = React.useState<"user" | "secret" | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [grantsOpen, setGrantsOpen] = React.useState(false);
 
   function reveal() {
     startTransition(async () => {
@@ -183,6 +212,19 @@ function CredentialCard({
             </p>
           </div>
           <div className="flex shrink-0 items-center">
+          {canGrant ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Manage access to ${credential.name}`}
+              title={grants?.isRestricted ? "Restricted to named grantees" : "Open to everyone with vault access"}
+              onClick={() => {
+                setGrantsOpen(true);
+              }}
+            >
+              {grants?.isRestricted ? <Lock className="text-status-warning" /> : <Users />}
+            </Button>
+          ) : null}
           {canUpdate ? (
             <CredentialDialog
               mode="edit"
@@ -308,6 +350,18 @@ function CredentialCard({
           ) : null}
         </div>
       </CardContent>
+
+      {canGrant ? (
+        <GrantsDialog
+          open={grantsOpen}
+          onOpenChange={setGrantsOpen}
+          credential={{ id: credential.id, name: credential.name }}
+          grants={grants?.rows ?? []}
+          isRestricted={grants?.isRestricted ?? false}
+          users={grantUsers}
+          roles={grantRoles}
+        />
+      ) : null}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>

@@ -316,7 +316,6 @@ Recorded here so they are decisions rather than omissions:
 | Audit log partitioning | Only needed at high volume | When `AuditLog` passes ~10M rows |
 | Email notification channel | Interface built in Phase 10; provider not wired | When an SMTP/Resend account is available |
 | Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file. **No longer blocked** now that uploads work (2026-08-12) | On request — it is now buildable |
-| Vault per-credential grants (`vault.grant`) | `CredentialGrant` rows are read and enforced — they narrow access to sensitive categories — but nothing can create one, so the ACL can only ever be empty. The same shape as the `UserPermission` gap fixed in commit 892e599, and the most substantive of the remaining unused permissions. **On request** |
 | Vault export (`vault.export`) | Deliberately not built. An export of the vault is a plaintext copy of every credential in one file; if it is ever needed it should be a re-authenticated, single-use, audited flow rather than a button | Only with a stated requirement |
 | `employees.export` | The report layer gates on `reports.export`; this key never had a distinct meaning. Candidate for removal from the catalogue rather than for wiring | Housekeeping |
 | `it.view` | Superseded by the granular `it.tickets.*` / `it.assets.*` / `it.infrastructure.*` keys. Candidate for removal | Housekeeping |

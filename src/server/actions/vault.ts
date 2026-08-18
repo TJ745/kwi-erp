@@ -13,6 +13,10 @@ import {
   toggleFavorite,
   updateCredential,
 } from "@/server/services/vault/credentials";
+import {
+  createCredentialGrant,
+  revokeCredentialGrant,
+} from "@/server/services/vault/grants";
 import { lockVault, unlockVault } from "@/server/services/vault/session";
 import { generateSecret } from "@/server/services/vault/generator";
 
@@ -217,3 +221,63 @@ export async function generatePasswordAction(rawInput: unknown): Promise<
 
   return ok({ password: generateSecret(parsed.data) });
 }
+
+// --- Per-credential grants ---------------------------------------------------
+
+/**
+ * Grants narrow access rather than widening it, and there is no administrator
+ * override, so the service refuses any change that would leave nobody able to
+ * manage the credential. Both actions require `vault.grant`, which no seeded
+ * role except SUPER_ADMIN holds.
+ */
+export const createCredentialGrantAction = defineAction({
+  permission: "vault.grant",
+  schema: z
+    .object({
+      credentialId: z.string().min(1),
+      subjectKind: z.enum(["USER", "ROLE"]),
+      subjectId: z.string().min(1),
+      level: z.enum(["READ", "REVEAL", "MANAGE"]),
+      expiresAt: z
+        .string()
+        .optional()
+        .transform((v) => (v === "" || v === undefined ? undefined : new Date(v)))
+        .refine((v) => v === undefined || !Number.isNaN(v.getTime()), "Enter a valid date"),
+    })
+    .strict(),
+  audit: { action: "PERMISSION_CHANGE", entity: "CREDENTIAL" },
+  handler: async ({ input, ctx, audit }) => {
+    const result = await createCredentialGrant(ctx, input);
+    audit.record({
+      entityId: input.credentialId,
+      ...(result.credential.companyId ? { companyId: result.credential.companyId } : {}),
+      summary:
+        `Granted ${input.level} on "${result.credential.name}" to ${result.subjectLabel}` +
+        (input.expiresAt ? ` until ${input.expiresAt.toISOString().slice(0, 10)}` : "") +
+        (result.nowRestricted ? " — this credential is now restricted to named grantees" : ""),
+      after: { level: input.level, subject: result.subjectLabel, kind: input.subjectKind },
+    });
+    return { id: result.grant.id };
+  },
+  revalidate: () => ["/it/vault"],
+});
+
+export const revokeCredentialGrantAction = defineAction({
+  permission: "vault.grant",
+  schema: z.object({ id: z.string().min(1), credentialId: z.string().min(1) }).strict(),
+  audit: { action: "PERMISSION_CHANGE", entity: "CREDENTIAL" },
+  handler: async ({ input, ctx, audit }) => {
+    const result = await revokeCredentialGrant(ctx, input);
+    audit.record({
+      entityId: input.credentialId,
+      ...(result.credential.companyId ? { companyId: result.credential.companyId } : {}),
+      summary:
+        `Revoked a grant on "${result.credential.name}"` +
+        (result.nowOpen
+          ? " — with no grants left it is open to everyone holding the vault permission again"
+          : ""),
+    });
+    return { ok: true as const };
+  },
+  revalidate: () => ["/it/vault"],
+});

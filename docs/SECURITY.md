@@ -340,7 +340,38 @@ Per §27 of the brief, HR/Admin must not reach IT credentials. Two independent l
 
 Effective access = global permission **AND** grant. Both must pass.
 
-### 5.7 Vault audit
+### 5.7 Per-credential grants
+
+`CredentialGrant` narrows access; it does not widen it. A credential with no
+grants is reachable by anyone holding the global vault permission. The moment
+one grant exists, only the people and roles named by a grant can reach it —
+**and there is no administrator exemption**. That was established by experiment
+rather than assumed: a credential visible to a SUPER_ADMIN became invisible to
+them the instant a grant naming somebody else was added.
+
+Because of that, `createCredentialGrant` and `revokeCredentialGrant` both refuse
+any change that would leave nobody able to manage the credential. "Able" is
+effective, not nominal: a user needs the global `vault.update` permission *and*
+a matching MANAGE grant, so granting MANAGE to someone who lacks the permission
+is still refused. Without that guard, one careless grant would lock the
+organisation out of a credential permanently, recoverable only from the database.
+
+Verified live:
+
+| Attempt | Result |
+|---|---|
+| Grant READ to one user, leaving nobody with MANAGE | `CONFLICT` |
+| Grant MANAGE to a user lacking `vault.update` | `CONFLICT` — nominal access is not access |
+| Grant MANAGE to a user holding it | accepted |
+| Effect of that grant | granted user still sees it; a non-grantee no longer does |
+| Revoke the only grant | accepted; the credential returns to open |
+| Any of the above without `vault.grant` | `FORBIDDEN` |
+
+The UI states the direction before the first grant is added, because someone
+reading "grant" as "give one more person access" would quietly cut everyone else
+off.
+
+### 5.7a Vault audit
 
 `CredentialAccess` records `LIST | VIEW | REVEAL | COPY | CREATE | UPDATE | DELETE | ROTATE` with user, IP, user-agent, timestamp. It **never** stores the credential value, old or new. `CredentialVersion` retains previous ciphertexts for rollback, encrypted exactly like the current one — history is not a plaintext backdoor.
 
