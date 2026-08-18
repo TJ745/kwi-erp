@@ -2,8 +2,18 @@ import "server-only";
 import { z } from "zod";
 
 /**
- * Environment validation. A missing or malformed secret is a BOOT FAILURE,
- * not a runtime surprise on first use — see docs/SECURITY.md §9.
+ * Environment validation — see docs/SECURITY.md §9.
+ *
+ * Validation is LAZY, on the first `getEnv()` call, not at import. Eager
+ * validation was tried and reverted: it runs during `next build`, where
+ * production secrets are legitimately absent, so it failed the build rather
+ * than the deploy.
+ *
+ * The cost of laziness is that a deploy missing a secret still serves the pages
+ * that do not need it, and fails only when somebody reaches the part that does.
+ * `/api/health` exists to make that findable on purpose — hit it after every
+ * deploy (docs/DEVELOPMENT.md §5a). Do not "fix" this by validating at import
+ * without first checking what it does to the build.
  */
 
 /** A base64 value that decodes to exactly `bytes` bytes. */

@@ -152,6 +152,85 @@ Notes for anyone adding to it:
 - **Teardown deletes anything prefixed `E2E`**, reaching past the service layer
   because employees cannot be deleted through the application by design.
 
+## 5a. Deployment runbook
+
+Everything below was verified against a production build on 2026-08-18, not
+written from memory. Where a step exists because something surprised us, the
+surprise is recorded with it.
+
+### Required environment variables
+
+Seven have no default and no fallback. The app cannot work without them:
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | Pooled connection. `DIRECT_URL` is optional and used for migrations. |
+| `APP_URL` | Absolute, used in links that leave the app. |
+| `BETTER_AUTH_SECRET` | At least 32 characters. Rotating it invalidates every session. |
+| `BETTER_AUTH_URL` | Must match the deployed origin, or the CSRF origin check refuses sign-in. |
+| `VAULT_KEK_V1` | Base64, exactly 32 bytes. **Losing this makes every stored credential unrecoverable** — back it up somewhere that is not the database. |
+| `UPLOADTHING_TOKEN` | Server-only. |
+| `CRON_SECRET` | Compared in constant time by the nightly endpoint. |
+
+Optional but worth setting deliberately: `UPLOADTHING_TIER` (`free` by default —
+see SECURITY.md §6.0 before leaving it there), `ACCEPT_PUBLIC_FILE_STORAGE`,
+`VAULT_KEK_V2` (rotation slot), `VAULT_KEK_ACTIVE_VERSION`.
+
+`.env.example` lists every variable. The app refuses to start if the active KEK
+version names a key that is not set.
+
+### Deploy
+
+1. **Migrate first, deploy second.** `pnpm prisma migrate deploy` against
+   `DIRECT_URL`. Confirm with `npx prisma migrate status`, which must say the
+   schema is up to date; anything else means drift and should stop the deploy.
+2. **Deploy the build.** `pnpm build` runs `prisma generate` first, so a stale
+   client cannot ship.
+3. **Hit `/api/health`.** It returns `200 {"status":"ok"}` when configuration
+   and database both answer, and `503 {"status":"degraded"}` otherwise.
+
+   This step is not ceremony. Environment validation is **lazy** — on first
+   `getEnv()` call, not at import, because eager validation runs during
+   `next build` where production secrets are legitimately absent. A production
+   server with an invalid `BETTER_AUTH_SECRET` still serves `/login` with HTTP
+   200 while being unable to authenticate anyone. Verified deliberately, with an
+   invalid value rather than a missing one: `next start` loads `.env` files
+   itself, so unsetting a shell variable proves nothing.
+
+   The endpoint is public and says only *that* a check failed. The reason —
+   which variable, and why — goes to the server log.
+4. **Confirm the cron.** `vercel.json` schedules `/api/cron/expiry-scan` at
+   03:00 daily. It answers 401 without the bearer secret. A run returns counts
+   for expiry reminders, overdue tasks, and due-today tasks; a scan that never
+   runs means reminders silently stop, so check it once after the first night.
+
+### First-run only
+
+`pnpm db:seed` creates roles, permissions, categories, and letter templates. It
+**refuses to run with `NODE_ENV=production`** unless `ALLOW_PRODUCTION_SEED=true`
+is set explicitly. Seed the reference data, then create the first real
+administrator — do not leave a seeded development account on a live system.
+
+### Smoke checks after deploy
+
+Fast, and each one has failed at least once during development:
+
+- `/api/health` returns 200.
+- Sign in, then sign out. Sign-in failing with a 403 usually means
+  `BETTER_AUTH_URL` does not match the origin — that is the CSRF origin check,
+  and it is working.
+- Open `/dashboard`: the KPI row and the "needs attention" card both render.
+- Open a document from `/documents`. A 404 here means `documents.download` is
+  missing, not that the file is.
+- Run one report and export it. Exports are rate limited (10/hour, and 5/hour
+  for the audit log), so a 429 during testing is the limiter, not a fault.
+
+### Rollback
+
+Migrations are forward-only. Roll back the deploy, not the database: a
+migration that has run is part of the schema every earlier build must still
+tolerate. If a migration must be undone, write a new one that reverses it.
+
 ## 6. Conventions
 
 ### Files & naming
