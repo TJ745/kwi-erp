@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
+import { NextResponse, type NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,16 @@ export const dynamic = "force-dynamic";
  * something is wrong is the one route where that matters most.
  *
  * Unauthenticated by design — it is the check that runs before anyone can sign
- * in — so it reports only whether each dependency answered, never a value, a
- * connection string, or a version number.
+ * in — so the public answer is only whether each dependency answered, never a
+ * value, a connection string, or a version number.
+ *
+ * The configuration details (storage tier, whether email is on) are NOT public.
+ * Neither grants access, but both are gratuitous: "storage tier is free" tells
+ * an attacker that an object URL needs no session to use, and "email is off"
+ * tells them actions raise no outside alert. They are returned only to a caller
+ * presenting the cron secret, which is the credential an operator already has.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const checks: Record<string, "ok" | "failed"> = {};
   let healthy = true;
 
@@ -74,10 +81,40 @@ export async function GET() {
     emailConfigured = false;
   }
 
-  return NextResponse.json(
-    { status: healthy ? "ok" : "degraded", checks, storageTier, emailConfigured },
-    { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
-  );
+  const body = isOperator(request)
+    ? { status: healthy ? "ok" : "degraded", checks, storageTier, emailConfigured }
+    : { status: healthy ? "ok" : "degraded", checks };
+
+  return NextResponse.json(body, {
+    status: healthy ? 200 : 503,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+/**
+ * Whether the caller holds the operator secret.
+ *
+ * Compared in constant time, and returns false rather than throwing when the
+ * environment is the very thing that is broken — a health check that cannot
+ * answer because it could not read its own configuration is useless.
+ */
+function isOperator(request: NextRequest): boolean {
+  const header = request.headers.get("authorization") ?? "";
+  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (provided.length === 0) return false;
+
+  try {
+    // Read straight from the environment: getEnv() may be the failing check.
+    const expected = process.env.CRON_SECRET ?? "";
+    if (expected.length === 0) return false;
+
+    const a = Buffer.from(provided, "utf8");
+    const b = Buffer.from(expected, "utf8");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 /** Logging is itself best-effort: the logger may depend on the broken config. */

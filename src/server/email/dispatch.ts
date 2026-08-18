@@ -5,6 +5,7 @@ import { getEnv } from "@/lib/env";
 import { logger } from "@/server/logger";
 import { isEmailConfigured, sendEmail } from "./provider";
 import { renderNotificationEmail } from "./templates";
+import { decideEmail } from "@/lib/notification-routing";
 
 /**
  * Turns notifications into email.
@@ -107,14 +108,30 @@ export async function dispatchPendingEmails(
 
   for (const notification of pending) {
     const user = userById.get(notification.userId);
-    const rule = channelsByKind.get(notification.kind);
-    const wantsEmail = rule
-      ? rule.includes("EMAIL")
-      : DEFAULT_EMAIL_KINDS.has(notification.kind);
 
-    // A deactivated recipient is a decision too: their access is gone, so
-    // telling them about work they cannot open would be worse than silence.
-    if (!wantsEmail || !user || user.status !== "ACTIVE" || !user.email) {
+    // The decision is a pure function, tested in lib/notification-routing.
+    const decision = decideEmail({
+      kind: notification.kind,
+      ruleChannels: channelsByKind.get(notification.kind) ?? null,
+      defaultEmailKinds: DEFAULT_EMAIL_KINDS,
+      recipient: user ? { status: user.status, email: user.email } : null,
+      isConfigured: true,
+    });
+
+    if (!decision.email) {
+      await prisma.notification.update({
+        where: { id: notification.id },
+        data: { emailStatus: "SKIPPED", emailError: null },
+      });
+      result.skipped += 1;
+      continue;
+    }
+
+    // `decideEmail` already guarantees an active recipient with an address —
+    // it returns NO_RECIPIENT or RECIPIENT_HAS_NO_ADDRESS otherwise — but the
+    // compiler cannot see through the returned union, so the narrowing is
+    // restated rather than asserted away with a cast.
+    if (!user?.email) {
       await prisma.notification.update({
         where: { id: notification.id },
         data: { emailStatus: "SKIPPED", emailError: null },

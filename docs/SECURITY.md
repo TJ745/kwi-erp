@@ -356,7 +356,14 @@ a matching MANAGE grant, so granting MANAGE to someone who lacks the permission
 is still refused. Without that guard, one careless grant would lock the
 organisation out of a credential permanently, recoverable only from the database.
 
-Verified live:
+The predicate itself lives in `lib/vault-grants.ts` as a pure function with 18
+tests covering the combinations that matter — expiry exactly at now, a grant
+through a role, a grant naming nobody, a MANAGE grant held by somebody without
+`vault.update`. It was extracted precisely because it could not be tested any
+other way: the original version needed a database, four related tables, and a
+cron run to answer one boolean.
+
+Verified live, before and after that extraction:
 
 | Attempt | Result |
 |---|---|
@@ -521,6 +528,13 @@ Response headers: `X-Content-Type-Options: nosniff`, `Cache-Control: private, no
 ---
 
 ## 6a. Email
+
+> `/api/health` reports whether email is configured, but only to a caller
+> presenting the cron secret. Publicly it answers just the health verdict:
+> "storage tier is free" tells an attacker an object URL needs no session, and
+> "email is off" tells them actions raise no outside alert. Neither grants
+> access; both are gratuitous from an unauthenticated endpoint.
+
 
 Email is the one channel that copies system data to somewhere with no permission
 model. Three things follow from that, and all three are enforced rather than

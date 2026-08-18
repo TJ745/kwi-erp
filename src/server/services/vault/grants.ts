@@ -4,6 +4,7 @@ import type { ActorContext } from "@/server/auth/context";
 import { optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
 import { resolvePermissions, SUPER_ADMIN_ROLE_KEY } from "@/lib/permissions";
+import { manageHolders, type CandidateUser } from "@/lib/vault-grants";
 
 /**
  * Per-credential access control — the `vault.grant` permission.
@@ -35,28 +36,18 @@ type GrantRow = {
   expiresAt: Date | null;
 };
 
-const RANK = { READ: 0, REVEAL: 1, MANAGE: 2 } as const;
-
 /**
  * The users who would still hold MANAGE on a credential, given a set of grants.
  *
- * Effective, not nominal: a user needs the global `vault.update` permission AND
- * a matching grant. Holding one without the other is not access.
+ * The decision itself lives in `lib/vault-grants.ts` as a pure function, tested
+ * exhaustively there. This function's only job is to gather the two inputs it
+ * needs: the grants, and which users effectively hold `vault.update`.
  */
 async function manageHoldersFor(
   credential: { id: string; categoryId: string },
   grants: readonly GrantRow[],
   now: Date,
 ): Promise<string[]> {
-  const relevant = grants.filter(
-    (g) =>
-      (g.credentialId === credential.id || g.categoryId === credential.categoryId) &&
-      (g.expiresAt === null || g.expiresAt > now) &&
-      RANK[g.level] >= RANK.MANAGE,
-  );
-
-  if (relevant.length === 0) return [];
-
   const users = await prisma.user.findMany({
     where: { status: "ACTIVE", deletedAt: null },
     select: {
@@ -74,24 +65,25 @@ async function manageHoldersFor(
     },
   });
 
-  return users
-    .filter((user) => {
-      const permissions = resolvePermissions({
-        rolePermissions: user.role.permissions.map((rp) => rp.permission.key),
-        overrides: user.overrides.map((o) => ({
-          key: o.permission.key,
-          effect: o.effect,
-          expiresAt: o.expiresAt,
-        })),
-        isSuperAdmin: user.role.key === SUPER_ADMIN_ROLE_KEY,
-      });
-      if (!permissions.has("vault.update")) return false;
+  const candidates: CandidateUser[] = users.map((user) => {
+    const permissions = resolvePermissions({
+      rolePermissions: user.role.permissions.map((rp) => rp.permission.key),
+      overrides: user.overrides.map((o) => ({
+        key: o.permission.key,
+        effect: o.effect,
+        expiresAt: o.expiresAt,
+      })),
+      isSuperAdmin: user.role.key === SUPER_ADMIN_ROLE_KEY,
+    });
 
-      return relevant.some(
-        (g) => g.userId === user.id || (g.roleId !== null && g.roleId === user.roleId),
-      );
-    })
-    .map((user) => user.id);
+    return {
+      id: user.id,
+      roleId: user.roleId,
+      holdsVaultUpdate: permissions.has("vault.update"),
+    };
+  });
+
+  return manageHolders(grants, credential, candidates, now);
 }
 
 async function assertSomeoneKeepsManage(
