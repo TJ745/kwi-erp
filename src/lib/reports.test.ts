@@ -101,6 +101,52 @@ describe("visibleColumns", () => {
       }
     }
   });
+
+  /**
+   * A money column that names a person's pay must never be ungated, whatever
+   * the report is called. Keyed on the column name rather than the report so a
+   * new report cannot quietly introduce an unguarded one.
+   */
+  it("gates every column that carries a salary figure, on any report", () => {
+    const PAY_COLUMNS = new Set([
+      "basicSalary",
+      "currentSalary",
+      "newSalary",
+      "percentage",
+    ]);
+
+    for (const report of REPORT_LIST) {
+      for (const column of report.columns) {
+        if (!PAY_COLUMNS.has(column.key)) continue;
+        expect(column.permission, `${report.id}.${column.key} is ungated`).toBe(
+          "employees.salary.view",
+        );
+      }
+    }
+  });
+
+  it("hides the increment figures but keeps the rest of the report usable", () => {
+    const report = REPORTS["increment-register"];
+
+    const withoutSalary = visibleColumns(report, perms("hr.increments.view")).map((c) => c.key);
+    // Seeing that a rise happened is a different question from seeing its size.
+    expect(withoutSalary).toContain("employeeNo");
+    expect(withoutSalary).toContain("effectiveDate");
+    expect(withoutSalary).toContain("status");
+    expect(withoutSalary).not.toContain("currentSalary");
+    expect(withoutSalary).not.toContain("newSalary");
+    expect(withoutSalary).not.toContain("amount");
+    expect(withoutSalary).not.toContain("percentage");
+
+    // The control: with the permission the figures come back, so the absence
+    // above is the gate and not a missing column.
+    const withSalary = visibleColumns(
+      report,
+      perms("hr.increments.view", "employees.salary.view"),
+    ).map((c) => c.key);
+    expect(withSalary).toContain("currentSalary");
+    expect(withSalary).toContain("newSalary");
+  });
 });
 
 describe("visibleReports", () => {

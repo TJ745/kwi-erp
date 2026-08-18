@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere } from "@/server/auth/guards";
+import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ForbiddenError } from "@/lib/result";
 import { daysUntilExpiry } from "@/lib/expiry";
 import {
@@ -745,6 +745,417 @@ const letterRegister: QueryFn = async (ctx, filters) => {
   }));
 };
 
+// --- Administration ----------------------------------------------------------
+
+const pettyCashLedger: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.pettyCashTransaction.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
+      ...dateWindowOn("date", filters),
+    },
+    orderBy: [{ date: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      date: true,
+      type: true,
+      description: true,
+      amount: true,
+      currency: true,
+      paymentMethod: true,
+      status: true,
+      account: { select: { name: true } },
+      category: { select: { name: true } },
+      company: { select: { code: true } },
+    },
+  });
+
+  return rows.map((t) => ({
+    date: t.date,
+    account: t.account.name,
+    company: t.company.code,
+    type: t.type,
+    category: t.category.name,
+    description: t.description,
+    amount: t.amount.toString(),
+    currency: t.currency,
+    paymentMethod: t.paymentMethod,
+    status: t.status,
+  }));
+};
+
+const accommodationOccupancy: QueryFn = async (ctx, filters) => {
+  // Driven from the bed, not the assignment, so empty beds appear too — the
+  // question this report answers is usually "where is there room?".
+  const beds = await prisma.accommodationBed.findMany({
+    where: {
+      room: { accommodation: { ...scopeWhere(ctx, filters) } },
+      ...(filters.status ? { status: filters.status as "AVAILABLE" } : {}),
+    },
+    orderBy: [{ room: { accommodation: { name: "asc" } } }, { bedLabel: "asc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      bedLabel: true,
+      status: true,
+      room: {
+        select: {
+          roomNumber: true,
+          accommodation: { select: { name: true, city: true, company: { select: { code: true } } } },
+        },
+      },
+      assignments: {
+        where: { checkOutDate: null },
+        select: {
+          checkInDate: true,
+          employee: { select: { employeeNo: true, fullName: true } },
+        },
+      },
+    },
+  });
+
+  return beds.map((b) => {
+    const current = b.assignments[0] ?? null;
+    return {
+      accommodation: b.room.accommodation.name,
+      company: b.room.accommodation.company.code,
+      city: b.room.accommodation.city,
+      room: b.room.roomNumber,
+      bed: b.bedLabel,
+      bedStatus: b.status,
+      employeeNo: current?.employee.employeeNo ?? null,
+      occupant: current?.employee.fullName ?? null,
+      checkInDate: current?.checkInDate ?? null,
+    };
+  });
+};
+
+const supplierRegister: QueryFn = async (ctx, filters) => {
+  const suppliers = await prisma.supplier.findMany({
+    where: {
+      deletedAt: null,
+      // Suppliers may be shared across companies, so the nullable-aware helper
+      // applies rather than the strict one.
+      ...(filters.companyId
+        ? scopeWhere(ctx, filters)
+        : optionalCompanyScopeWhere(ctx)),
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { name: { contains: filters.q, mode: "insensitive" as const } },
+              { code: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { code: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      code: true,
+      name: true,
+      contactPerson: true,
+      phone: true,
+      email: true,
+      creditDays: true,
+      status: true,
+      company: { select: { code: true } },
+      category: { select: { name: true } },
+    },
+  });
+
+  return suppliers.map((v) => ({
+    code: v.code,
+    name: v.name,
+    company: v.company?.code ?? null,
+    category: v.category?.name ?? null,
+    contactPerson: v.contactPerson,
+    phone: v.phone,
+    email: v.email,
+    creditDays: v.creditDays,
+    status: v.status,
+  }));
+};
+
+const subcontractorRegister: QueryFn = async (ctx, filters) => {
+  // Subcontractors carry no company column; their contracts do, so scope is
+  // applied to the counted contracts rather than to the subcontractor.
+  const subs = await prisma.subcontractor.findMany({
+    where: {
+      deletedAt: null,
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { name: { contains: filters.q, mode: "insensitive" as const } },
+              { code: { contains: filters.q, mode: "insensitive" as const } },
+              { crNumber: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { code: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      code: true,
+      name: true,
+      crNumber: true,
+      contactPerson: true,
+      phone: true,
+      status: true,
+      _count: { select: { contracts: { where: companyScopeWhere(ctx) } } },
+    },
+  });
+
+  return subs.map((v) => ({
+    code: v.code,
+    name: v.name,
+    crNumber: v.crNumber,
+    contactPerson: v.contactPerson,
+    phone: v.phone,
+    contracts: v._count.contracts,
+    status: v.status,
+  }));
+};
+
+const electricityBills: QueryFn = async (ctx, filters) => {
+  const bills = await prisma.electricityBill.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
+      ...dateWindowOn("dueDate", filters),
+    },
+    orderBy: [{ dueDate: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      location: true,
+      meterNumber: true,
+      billingPeriodStart: true,
+      billingPeriodEnd: true,
+      amount: true,
+      currency: true,
+      dueDate: true,
+      paidDate: true,
+      status: true,
+      company: { select: { code: true } },
+    },
+  });
+
+  return bills.map((b) => ({
+    location: b.location,
+    company: b.company.code,
+    meterNumber: b.meterNumber,
+    periodStart: b.billingPeriodStart,
+    periodEnd: b.billingPeriodEnd,
+    amount: b.amount.toString(),
+    currency: b.currency,
+    dueDate: b.dueDate,
+    paidDate: b.paidDate,
+    status: b.status,
+  }));
+};
+
+const certificateRegister: QueryFn = async (ctx, filters) => {
+  const certificates = await prisma.companyCertificate.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...dateWindowOn("expiryDate", filters),
+    },
+    orderBy: [{ expiryDate: "asc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      certificateNo: true,
+      issuingAuthority: true,
+      issueDate: true,
+      expiryDate: true,
+      status: true,
+      company: { select: { code: true } },
+      certificateType: { select: { name: true } },
+    },
+  });
+
+  return certificates.map((c) => ({
+    certificateNo: c.certificateNo,
+    type: c.certificateType.name,
+    company: c.company.code,
+    issuingAuthority: c.issuingAuthority,
+    issueDate: c.issueDate,
+    expiryDate: c.expiryDate,
+    status: c.status,
+  }));
+};
+
+// --- HR ----------------------------------------------------------------------
+
+/** Employee-owned records reach their company through the employee. */
+function employeeScopeWhere(ctx: ActorContext, filters: ReportFilters) {
+  return {
+    employee: {
+      deletedAt: null,
+      ...scopeWhere(ctx, filters),
+      ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+    },
+  };
+}
+
+const timesheetSummary: QueryFn = async (ctx, filters) => {
+  const entries = await prisma.timesheetEntry.findMany({
+    where: {
+      ...employeeScopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
+      ...dateWindowOn("date", filters),
+    },
+    orderBy: [{ date: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      date: true,
+      normalHours: true,
+      overtimeHours: true,
+      delayedHours: true,
+      absent: true,
+      status: true,
+      employee: {
+        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
+      },
+    },
+  });
+
+  return entries.map((e) => ({
+    employeeNo: e.employee.employeeNo,
+    fullName: e.employee.fullName,
+    company: e.employee.company.code,
+    date: e.date,
+    normalHours: e.normalHours.toString(),
+    overtimeHours: e.overtimeHours.toString(),
+    delayedHours: e.delayedHours.toString(),
+    absent: e.absent ? "Yes" : "No",
+    status: e.status,
+  }));
+};
+
+const evaluationRegister: QueryFn = async (ctx, filters) => {
+  const evaluations = await prisma.evaluation.findMany({
+    where: {
+      ...employeeScopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
+      ...dateWindowOn("periodEnd", filters),
+    },
+    orderBy: [{ periodEnd: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      periodStart: true,
+      periodEnd: true,
+      overallScore: true,
+      status: true,
+      employee: {
+        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
+      },
+    },
+  });
+
+  return evaluations.map((e) => ({
+    employeeNo: e.employee.employeeNo,
+    fullName: e.employee.fullName,
+    company: e.employee.company.code,
+    periodStart: e.periodStart,
+    periodEnd: e.periodEnd,
+    overallScore: e.overallScore?.toString() ?? null,
+    status: e.status,
+  }));
+};
+
+const incrementRegister: QueryFn = async (ctx, filters) => {
+  const canSeeSalary = ctx.permissions.has("employees.salary.view");
+
+  const increments = await prisma.increment.findMany({
+    where: {
+      ...employeeScopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
+      ...dateWindowOn("effectiveDate", filters),
+    },
+    orderBy: [{ effectiveDate: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      id: true,
+      effectiveDate: true,
+      currency: true,
+      status: true,
+      employee: {
+        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
+      },
+    },
+  });
+
+  // The figures are a second, separately-gated query rather than a conditional
+  // key on the first: an ungated select is one careless edit away from a leak.
+  const figures = canSeeSalary
+    ? new Map(
+        (
+          await prisma.increment.findMany({
+            where: { id: { in: increments.map((i) => i.id) } },
+            select: {
+              id: true,
+              currentSalary: true,
+              newSalary: true,
+              amount: true,
+              percentage: true,
+            },
+          })
+        ).map((i) => [i.id, i]),
+      )
+    : null;
+
+  return increments.map((i) => {
+    const f = figures?.get(i.id);
+    return {
+      employeeNo: i.employee.employeeNo,
+      fullName: i.employee.fullName,
+      company: i.employee.company.code,
+      effectiveDate: i.effectiveDate,
+      ...(figures
+        ? {
+            currentSalary: f?.currentSalary.toString() ?? null,
+            newSalary: f?.newSalary.toString() ?? null,
+            amount: f?.amount.toString() ?? null,
+            percentage: f?.percentage.toString() ?? null,
+          }
+        : {}),
+      currency: i.currency,
+      status: i.status,
+    };
+  });
+};
+
+const warningRegister: QueryFn = async (ctx, filters) => {
+  const warnings = await prisma.warningLetter.findMany({
+    where: {
+      ...employeeScopeWhere(ctx, filters),
+      ...dateWindowOn("issuedDate", filters),
+    },
+    orderBy: [{ issuedDate: "desc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      level: true,
+      reason: true,
+      issuedDate: true,
+      acknowledgedAt: true,
+      employee: {
+        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
+      },
+    },
+  });
+
+  return warnings.map((w) => ({
+    employeeNo: w.employee.employeeNo,
+    fullName: w.employee.fullName,
+    company: w.employee.company.code,
+    level: w.level,
+    reason: w.reason,
+    issuedDate: w.issuedDate,
+    acknowledgedAt: w.acknowledgedAt,
+  }));
+};
+
 const QUERIES: Record<ReportId, QueryFn> = {
   "employee-directory": employeeDirectory,
   "employee-headcount": employeeHeadcount,
@@ -758,4 +1169,14 @@ const QUERIES: Record<ReportId, QueryFn> = {
   "insurance-register": insuranceRegister,
   "task-register": taskRegister,
   "letter-register": letterRegister,
+  "petty-cash-ledger": pettyCashLedger,
+  "accommodation-occupancy": accommodationOccupancy,
+  "supplier-register": supplierRegister,
+  "subcontractor-register": subcontractorRegister,
+  "electricity-bills": electricityBills,
+  "certificate-register": certificateRegister,
+  "timesheet-summary": timesheetSummary,
+  "evaluation-register": evaluationRegister,
+  "increment-register": incrementRegister,
+  "warning-register": warningRegister,
 };
