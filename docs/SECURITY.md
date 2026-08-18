@@ -390,10 +390,18 @@ The UploadThing free tier does not support private files. Measured, not assumed:
 - `acl: "private"` → **HTTP 400**, *"Private files are not allowed for free apps."*
 - default ACL → accepted, and the **unsigned URL returns HTTP 200** (world-readable)
 
-**The product owner has chosen to run the free tier for now**, accepting that
-stored documents are readable by anyone who obtains the object URL, with an
-upgrade to the pro tier to follow. Uploads previously failed rather than
-published; they now work.
+**The product owner has chosen to run the free tier** (confirmed 2026-08-18),
+accepting that stored documents are readable by anyone who obtains the object
+URL. This is no longer a temporary state pending an upgrade; it is the chosen
+configuration.
+
+What that means in practice, stated once so nobody has to infer it later: an
+Iqama or passport scan needs **no session** to read, only the URL. The
+application never discloses one — downloads stream through `/api/files/[id]`,
+no storage URL is stored or rendered, and the CSP does not allow the storage
+host — so a URL escapes only through a server compromise, a database dump, or
+someone deliberately copying it out. Setting `UPLOADTHING_TIER=pro` remains a
+one-variable change if that trade stops being acceptable.
 
 `UPLOADTHING_TIER` is the whole switch:
 
@@ -505,10 +513,41 @@ Response headers: `X-Content-Type-Options: nosniff`, `Cache-Control: private, no
 
 | Risk | Assessment |
 |---|---|
-| **Cross-border data residency** | Files rest on third-party infrastructure outside Saudi Arabia. Iqama/passport scans are personal data under PDPL, which restricts transfer. **A business decision for the product owner**, flagged before go-live. The `StorageProvider` interface keeps a move to a regional bucket contained. |
+| **Cross-border data residency** | Files rest on third-party infrastructure outside Saudi Arabia. Iqama/passport scans are personal data under PDPL, which restricts transfer. **Decided 2026-08-18: the product owner accepts UploadThing and non-KSA storage.** Recorded here as an accepted risk rather than an open question. If it is revisited, the storage module is the contained change — four files import UploadThing directly and no domain code knows who stores the bytes. |
 | **Malicious bytes exist in storage briefly** | Between steps ② and ③ an invalid file is stored. It is private, unreferenced, and deleted within the same request. No user can reach it — no `FileObject` row means no route resolves it. |
 | **No antivirus scanning** | Magic-byte validation catches type confusion, not malware. `scanStatus` exists precisely so an AV step can be inserted later without a schema change. |
 | **Vendor availability** | An UploadThing outage stops uploads and downloads. Acceptable for an internal tool; noted so it is a known dependency rather than a surprise. |
+
+---
+
+## 6a. Email
+
+Email is the one channel that copies system data to somewhere with no permission
+model. Three things follow from that, and all three are enforced rather than
+intended:
+
+**The message carries a link, not the record.** It reproduces the notification's
+own title and body — which are written for an in-app list and are already
+conservative — and then links into the app. The increment notification is the
+worked example: it says a rise needs approval and names nobody's salary, because
+`hr.increments.approve` does not imply `employees.salary.view`.
+
+**No deep link to anything sensitive.** `targetPath` maps only known entity types
+and falls back to `/notifications`. A vault credential notification gets the
+fallback, never a link naming the credential.
+
+**Titles are escaped.** They are assembled from record names, which are
+user-supplied; an apostrophe in a surname would break the markup and a tag in one
+would be worse. Ten template tests cover this, including a name containing a
+script tag.
+
+Provider errors are stored on the notification row, where administrators can read
+them, so they are redacted before storage: anything shaped like an address or an
+API key is replaced. Verified — a 401 from the provider recorded the status and
+message with neither the key nor the recipient in it.
+
+A recipient who is no longer `ACTIVE` is skipped rather than emailed: their access
+is gone, so telling them about work they cannot open would be worse than silence.
 
 ---
 

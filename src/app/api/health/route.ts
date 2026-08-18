@@ -63,8 +63,19 @@ export async function GET() {
     storageTier = null;
   }
 
+  // 4. Likewise email: unconfigured means notifications stay in-app, which is
+  //    supported. Reported so a deploy that expected to send can tell that it
+  //    will not, rather than discovering it when nobody gets an approval.
+  let emailConfigured = false;
+  try {
+    const email = await import("@/server/email/provider");
+    emailConfigured = email.isEmailConfigured();
+  } catch {
+    emailConfigured = false;
+  }
+
   return NextResponse.json(
-    { status: healthy ? "ok" : "degraded", checks, storageTier },
+    { status: healthy ? "ok" : "degraded", checks, storageTier, emailConfigured },
     { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

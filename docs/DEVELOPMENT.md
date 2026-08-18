@@ -152,6 +152,44 @@ Notes for anyone adding to it:
 - **Teardown deletes anything prefixed `E2E`**, reaching past the service layer
   because employees cannot be deleted through the application by design.
 
+### Email notifications
+
+Optional. With no provider configured, notifications stay in-app and every row
+is marked `SKIPPED` — a supported state, not a broken one. `/api/health` reports
+`emailConfigured` so a deploy that expected to send can tell that it will not.
+
+To switch it on, set `RESEND_API_KEY` and `EMAIL_FROM` (a verified sender on the
+provider). Resend is called over its HTTP API rather than through an SDK: one
+`fetch`, no dependency to keep in step.
+
+**What gets emailed is decided by data, not code.** A `NotificationRule` for the
+kind is authoritative — its `channels` field already existed for this purpose.
+Only when no rule exists does the dispatcher fall back to its defaults
+(`APPROVAL_REQUIRED`, `TICKET_ASSIGNED`). The seed sets `EXPIRY` rules to
+`IN_APP, EMAIL` and leaves task reminders in-app, because one message per task
+per day is how people learn to filter the sender. Re-running the seed repairs
+rules that predate the channel.
+
+Delivery is recorded on the notification itself — status, attempts, provider
+message id, and the last error — so "did they actually get told?" is answerable
+per row. Sending happens twice: fire-and-forget when the notification is created
+(so an approval does not wait for the nightly run) and again in the cron, which
+retries failures up to three attempts and then leaves the row `FAILED` with its
+reason.
+
+Verified end to end with a deliberately invalid API key, which exercises
+everything except the provider accepting the message:
+
+| Kind | Rule | Outcome |
+|---|---|---|
+| `EXPIRY` | `IN_APP, EMAIL` | attempted, failure recorded |
+| `TASK_DUE` | `IN_APP` | `SKIPPED`, zero attempts |
+| `APPROVAL_REQUIRED` | none — default applies | attempted, failure recorded |
+
+Retries stopped after the third attempt, and the stored error contained neither
+the API key nor a recipient address. The one hop not exercised is a real
+provider accepting a real message; that needs a real key.
+
 ## 5a. Deployment runbook
 
 Everything below was verified against a production build on 2026-08-18, not
@@ -224,6 +262,9 @@ Fast, and each one has failed at least once during development:
   missing, not that the file is.
 - Run one report and export it. Exports are rate limited (10/hour, and 5/hour
   for the audit log), so a 429 during testing is the limiter, not a fault.
+- If email is meant to be on, confirm `"emailConfigured": true` in the health
+  response. It being `false` is silent by design — notifications simply stay
+  in-app.
 
 ### Rollback
 
@@ -384,8 +425,6 @@ Recorded here so they are decisions rather than omissions:
 | TypeScript 7 | `typescript-eslint` peer range excludes it (ADR-001) | When typescript-eslint ships support |
 | ESLint 10 | `eslint-plugin-react` (via `eslint-config-next`) crashes on it (ADR-009) | When eslint-plugin-react supports ESLint 10 |
 | Full Arabic UI / RTL | Decision D: Arabic data + bilingual letters only; UI stays English | Only as a scoped follow-up project, not a toggle |
-| PDPL data residency for uploads | UploadThing stores files outside Saudi Arabia (ADR-008). Unchanged by the tier decision — pro storage is still non-KSA | **Product-owner decision before go-live** |
-| Upgrade to UploadThing pro tier | The free tier cannot store private files. Accepted 2026-08-12 with the URL-non-disclosure mitigations in SECURITY §6.0; objects remain world-readable to anyone holding the URL until then | Set `UPLOADTHING_TIER=pro` — one variable, no code change |
 | Antivirus scanning of uploads | `FileObject.scanStatus` exists so a scanner can be inserted with no schema change | If policy requires it |
 | MFA / TOTP | Not in v1 scope; schema leaves room | Immediately post-launch for `SUPER_ADMIN` + vault holders |
 | SSO / directory sync | No requirement stated | If the company adopts Microsoft Entra |
@@ -393,7 +432,6 @@ Recorded here so they are decisions rather than omissions:
 | Employee-level medical insurance UI | Table exists from day one; screens deferred per brief §31 | On request |
 | Leave accrual engine | Brief specifies request/approval only | On request |
 | Audit log partitioning | Only needed at high volume | When `AuditLog` passes ~10M rows |
-| Email notification channel | Interface built in Phase 10; provider not wired | When an SMTP/Resend account is available |
 | Server-side PDF (`puppeteer-core` + `@sparticuz/chromium`) | ADR-004 makes browser print the primary path — it renders Arabic perfectly and costs nothing. Chromium is only needed to *store* a PDF file. **No longer blocked** now that uploads work (2026-08-12) | On request — it is now buildable |
 | Vault export (`vault.export`) | Deliberately not built. An export of the vault is a plaintext copy of every credential in one file; if it is ever needed it should be a re-authenticated, single-use, audited flow rather than a button | Only with a stated requirement |
 | `employees.export` | The report layer gates on `reports.export`; this key never had a distinct meaning. Candidate for removal from the catalogue rather than for wiring | Housekeeping |
@@ -404,4 +442,4 @@ Recorded here so they are decisions rather than omissions:
 | WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
 | Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |
 | Charted reports (Recharts) | `recharts` is installed and used on the dashboard. Report families are tabular by design: they exist to be filtered, printed, and exported, and a chart is not exportable to CSV | If a specific report is asked for as a chart |
-| Scheduled / emailed reports | Needs the email channel, which is itself deferred | With the email notification channel |
+| Scheduled / emailed reports | The email channel now exists, so this is buildable: a cron that runs a report and attaches the CSV. Not built — nobody has asked for a specific schedule | On request |

@@ -183,7 +183,7 @@ Two things about it directly conflict with `SECURITY.md` unless handled explicit
 > would break every upload, a missing one on the pro tier would publish identity
 > documents.
 
-**Data-residency flag for the product owner:** UploadThing stores files on third-party infrastructure outside Saudi Arabia. Iqama and passport scans are personal data under the Saudi PDPL, which restricts cross-border transfer. This is a business/legal decision, not a technical one — flagging it now rather than after go-live. If it becomes a problem, the storage adapter is deliberately kept behind a `StorageProvider` interface so swapping to a regional S3 bucket is a contained change.
+**Data residency — decided 2026-08-18:** the product owner accepts UploadThing and non-KSA storage. The original flag, kept for the reasoning behind it: UploadThing stores files on third-party infrastructure outside Saudi Arabia. Iqama and passport scans are personal data under the Saudi PDPL, which restricts cross-border transfer. This is a business/legal decision, not a technical one — flagging it now rather than after go-live. If it becomes a problem, the storage adapter is deliberately kept behind a `StorageProvider` interface so swapping to a regional S3 bucket is a contained change.
 
 ### ADR-005 — One `ExpiryIndex` projection instead of ten expiry queries
 

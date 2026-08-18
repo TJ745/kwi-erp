@@ -448,6 +448,19 @@ async function main() {
     { name: "Task overdue", kind: "TASK_OVERDUE", source: null, roles: [] },
   ] as const;
 
+  /**
+   * Which kinds are worth an email as well as an in-app entry.
+   *
+   * Expiry is the whole reason the reminder engine exists — an Iqama lapsing is
+   * not something to discover by opening the app. Task reminders stay in-app:
+   * one message per task per day is how people learn to filter the sender.
+   *
+   * A rule's channels are authoritative, so a kind listed here that is NOT in
+   * this set will never be emailed however the provider is configured. That is
+   * deliberate — it is the setting, and it is visible in the data.
+   */
+  const EMAIL_KINDS = new Set(["EXPIRY"]);
+
   for (const rule of notificationRules) {
     const existing = await prisma.notificationRule.findFirst({ where: { name: rule.name } });
 
@@ -461,6 +474,11 @@ async function main() {
       kind: rule.kind,
       source: rule.source,
       roleIds,
+      // Set on update as well as create, so re-seeding an existing install
+      // repairs rules that predate the email channel.
+      channels: EMAIL_KINDS.has(rule.kind)
+        ? ["IN_APP" as const, "EMAIL" as const]
+        : ["IN_APP" as const],
     };
     if (existing) {
       await prisma.notificationRule.update({ where: { id: existing.id }, data });

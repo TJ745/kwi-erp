@@ -10,6 +10,7 @@ import {
   runOverdueTaskScan,
   runTaskDueScan,
 } from "@/server/services/notifications";
+import { dispatchPendingEmails } from "@/server/email/dispatch";
 
 // Prisma and the reconciliation pass need the Node.js runtime.
 export const runtime = "nodejs";
@@ -42,6 +43,11 @@ export async function GET(request: NextRequest) {
     // after. The two scans cannot collide: their dedupe keys differ by kind,
     // and a task is either due today or already overdue, never both.
     const dueToday = await runTaskDueScan();
+    // After the scans, so tonight's reminders go out in the same run rather
+    // than waiting for tomorrow. Also the retry path for anything that failed
+    // during the day.
+    const email = await dispatchPendingEmails({ limit: 500 });
+
     const prunedNotifications = await pruneNotifications();
     const prunedRateLimits = await pruneRateLimits();
 
@@ -59,6 +65,10 @@ export async function GET(request: NextRequest) {
       taskNotificationsCreated: tasks.created,
       tasksDueToday: dueToday.scanned,
       dueTodayNotificationsCreated: dueToday.created,
+      emailConsidered: email.considered,
+      emailSent: email.sent,
+      emailSkipped: email.skipped,
+      emailFailed: email.failed,
       prunedNotifications,
       prunedRateLimits,
     };
@@ -76,6 +86,7 @@ export async function GET(request: NextRequest) {
         `Expiry scan: ${String(expiry.created)} reminder(s), ` +
         `${String(tasks.created)} overdue task alert(s), ` +
         `${String(dueToday.created)} due-today alert(s), ` +
+        `${String(email.sent)} email(s) sent, ` +
         `${String(durationMs)}ms`,
     });
 

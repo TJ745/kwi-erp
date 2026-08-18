@@ -89,6 +89,14 @@ const serverSchema = z
       .default("false")
       .transform((v) => v === "true"),
 
+    // --- Email (optional) ---
+    // Absent means notifications stay in-app. That is a supported
+    // configuration, not a broken one, so none of these are required.
+    RESEND_API_KEY: z.string().min(1).optional(),
+    /// Must be a verified sender on the provider, e.g. "OMS <oms@example.com>".
+    EMAIL_FROM: z.string().min(1).optional(),
+    EMAIL_REPLY_TO: z.string().email().optional(),
+
     CRON_SECRET: z
       .string()
       .min(16, "must be at least 16 characters")

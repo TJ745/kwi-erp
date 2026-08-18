@@ -18,6 +18,7 @@ import {
 } from "@/lib/permissions";
 import { CLOSED_STATUSES } from "./tasks";
 import { reconcileExpiryIndex } from "./expiry";
+import { dispatchEmailsInBackground } from "@/server/email/dispatch";
 
 /**
  * Reminder engine — brief §33.
@@ -354,6 +355,12 @@ export async function notifyUsers(input: {
     }));
 
     const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
+
+    // Emailed out of band. The notification row is already committed, so a
+    // provider outage delays the message rather than failing the action that
+    // caused it; the nightly sweep retries whatever did not go.
+    if (result.count > 0) dispatchEmailsInBackground();
+
     return result.count;
   } catch (error) {
     logger.error("Failed to raise notifications", {

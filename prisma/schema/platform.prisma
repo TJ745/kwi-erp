@@ -206,8 +206,31 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
+  /// Email delivery, tracked on the notification itself rather than in a
+  /// separate outbox: there is exactly one email per notification, and a
+  /// second table would need its own reconciliation to stay truthful.
+  emailStatus   EmailStatus @default(PENDING)
+  emailAttempts Int         @default(0)
+  emailSentAt   DateTime?
+  /// Provider message id, for tracing a delivery complaint back to a send.
+  emailMessageId String?
+  /// Why the last attempt failed. Never contains the recipient's address or
+  /// any credential — see docs/SECURITY.md §6a.
+  emailError     String?
+
   @@index([userId, readAt, createdAt])
   @@index([createdAt])
+  /// Drives the retry sweep: pending and failed rows, oldest first.
+  @@index([emailStatus, emailAttempts])
+}
+
+/// SKIPPED is a decision, not a failure: the kind is in-app only, the
+/// recipient has no address, or email is not configured at all.
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 /// Append-only. The application has no update or delete path for this table;
