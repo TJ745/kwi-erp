@@ -176,9 +176,15 @@ export const setChecklistItemStatusAction = defineAction({
     audit.record({
       entityId: input.itemId,
       companyId: result.instance.companyId,
-      summary: `Checklist step "${result.label}": ${result.before.status} → ${result.after.status}`,
+      // An override means a departmental step was signed off from outside the
+      // department that owns it. That is allowed, so that a system whose
+      // administrators have no employee record is not deadlocked — but it is
+      // never silent.
+      summary:
+        `Checklist step "${result.label}": ${result.before.status} → ${result.after.status}` +
+        (result.viaOverride ? " (administrative override — not the responsible department)" : ""),
       before: result.before,
-      after: result.after,
+      after: { ...result.after, viaOverride: result.viaOverride },
     });
     return { ok: true as const };
   },

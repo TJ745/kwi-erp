@@ -3,7 +3,11 @@ import type { ChecklistItemStatus, ChecklistType } from "@/generated/prisma/clie
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere } from "@/server/auth/guards";
-import { ConflictError, NotFoundError } from "@/lib/result";
+import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
+import {
+  decideClearance,
+  describeClearanceDenial,
+} from "@/lib/clearance";
 
 /**
  * Checklist engine — ADR-006.
@@ -102,6 +106,8 @@ export async function getChecklist(ctx: ActorContext, id: string) {
           order: true,
           label: true,
           category: true,
+          responsibleDepartmentId: true,
+          responsibleRoleId: true,
           status: true,
           dueDate: true,
           completedAt: true,
@@ -143,6 +149,8 @@ export async function startChecklist(
           order: true,
           label: true,
           category: true,
+          responsibleDepartmentId: true,
+          responsibleRoleId: true,
           defaultDueDays: true,
         },
       },
@@ -186,6 +194,10 @@ export async function startChecklist(
         order: item.order,
         label: item.label,
         category: item.category,
+        // Snapshotted, not read through the template: editing a template must
+        // not change who may sign off an exit that is already running.
+        responsibleDepartmentId: item.responsibleDepartmentId,
+        responsibleRoleId: item.responsibleRoleId,
         dueDate:
           item.defaultDueDays === null
             ? null
@@ -208,6 +220,8 @@ export async function setChecklistItemStatus(
       label: true,
       status: true,
       instanceId: true,
+      responsibleDepartmentId: true,
+      responsibleRoleId: true,
       instance: {
         select: { id: true, type: true, status: true, companyId: true, employeeId: true },
       },
@@ -220,6 +234,17 @@ export async function setChecklistItemStatus(
   }
 
   const isDone = TERMINAL_ITEM_STATUSES.includes(input.status);
+
+  // Departmental sign-off. Only checked when the step is actually being closed:
+  // moving one back to PENDING is a correction, not a confirmation.
+  let viaOverride = false;
+  if (isDone) {
+    const decision = decideClearance(item, await clearanceActorFor(ctx));
+    if (!decision.allowed) {
+      throw new ForbiddenError(describeClearanceDenial(decision.reason));
+    }
+    viaOverride = decision.viaOverride;
+  }
 
   await prisma.checklistItem.update({
     where: { id: input.itemId },
@@ -236,6 +261,38 @@ export async function setChecklistItemStatus(
     after: { status: input.status },
     label: item.label,
     instance: item.instance,
+    // Surfaced so the audit entry can record that a departmental step was
+    // signed off from outside the department that owns it.
+    viaOverride,
+  };
+}
+
+/**
+ * Gathers what the clearance rule needs about the actor.
+ *
+ * The decision itself is a pure function in `lib/clearance.ts`; this only
+ * resolves the actor's employee record and the departments they head.
+ */
+async function clearanceActorFor(ctx: ActorContext) {
+  const employee = ctx.employeeId
+    ? await prisma.employee.findUnique({
+        where: { id: ctx.employeeId },
+        select: { departmentId: true, headedDepartments: { select: { id: true } } },
+      })
+    : null;
+
+  return {
+    canConfirm: ctx.permissions.has("hr.clearance.confirm"),
+    // The deadlock escape: without it, a system whose administrators have no
+    // employee record could never close a departmental step at all.
+    canOverride: ctx.permissions.has("companies.viewAll"),
+    employee: employee
+      ? {
+          departmentId: employee.departmentId,
+          headsDepartmentIds: employee.headedDepartments.map((d) => d.id),
+        }
+      : null,
+    roleId: ctx.roleId,
   };
 }
 

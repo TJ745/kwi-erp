@@ -401,6 +401,7 @@ Rules that span modules, owned by services rather than any single screen:
 | Bed holds one occupant | Partial unique index + `accommodationService.assign()` |
 | Employee cannot be hard-deleted | Service rejects; status transitions only |
 | Offboarding blocks completion while assets are unreturned | `checklistService.complete()` queries open `ITAssetAssignment`, `BedAssignment`, open `Task` |
+| A departmental clearance step is signed off by that department | `lib/clearance.ts` — an item carrying a responsible department or role may only be completed by a member or head of it, with `hr.clearance.confirm`. Administrators may override so a system whose admins have no employee record is not deadlocked; the audit entry says when they did |
 | Rejected leave can never display as approved | Status is a single enum on one row; transitions validated by a state machine |
 | Expired items always surface in reports | Reports read `ExpiryIndex`, never a cached status |
 | Task overdue is derived | `dueDate < now() AND status NOT IN (COMPLETED, CANCELLED)` |

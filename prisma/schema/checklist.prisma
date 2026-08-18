@@ -120,6 +120,12 @@ model ChecklistItem {
   status        ChecklistItemStatus @default(PENDING)
   assignedToId  String?
   dueDate       DateTime?
+
+  /// Copied from the template at instantiation, not read through it (ADR-006):
+  /// a checklist in progress keeps its own copy, so editing a template cannot
+  /// change who is allowed to sign off an exit that is already running.
+  responsibleDepartmentId String?
+  responsibleRoleId       String?
   completedAt   DateTime?
   completedById String?
   attachmentId  String?
