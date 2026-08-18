@@ -126,6 +126,32 @@ Tests run against a disposable database, not the development one.
 
 ---
 
+### End-to-end tests
+
+`pnpm test:e2e` runs Playwright against a dev server it starts itself (or reuses
+one already running). Browsers install once with `npx playwright install chromium`.
+
+The suite is deliberately small and covers seams, not features:
+
+| Spec | What it proves |
+|---|---|
+| `access-control` | Unauthenticated redirects, per-role page refusals, that a control the actor cannot use is not rendered, and that the auth endpoint refuses a foreign `Origin` |
+| `employee-lifecycle` | An employee can be created and read back through seventeen permission-gated queries, and that a leaving status without a last working date is refused |
+| `petty-cash-approval` | The rule the module exists for: a pending entry does not move the balance, a raiser cannot approve their own request, and a second approver clearing it does move it |
+
+Notes for anyone adding to it:
+
+- **One worker, serial.** The specs share a database and some assert on counts.
+- **Locators use accessible names**, not label text: required fields render an
+  `aria-hidden` asterisk, so `getByLabel("First name", { exact: true })` does not
+  match while `getByRole("textbox", { name: "First name" })` does.
+- **Never wait on text that also appears as a static label.** An early version
+  waited for `/approved/i` after clicking Approve; the page has a heading reading
+  "Total in (approved)", so the wait passed instantly and the test navigated away
+  mid-action. Wait for a state change — the row leaving the queue.
+- **Teardown deletes anything prefixed `E2E`**, reaching past the service layer
+  because employees cannot be deleted through the application by design.
+
 ## 6. Conventions
 
 ### Files & naming

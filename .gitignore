@@ -53,3 +53,8 @@ pnpm-debug.log*
 # local scratch
 /tmp/
 /scratch/
+
+# Playwright
+/test-results/
+/playwright-report/
+/tests/e2e/.auth/
