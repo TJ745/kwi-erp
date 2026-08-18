@@ -13,9 +13,14 @@ import {
   TextField,
   type SelectOption,
 } from "@/components/forms/field";
+import { EntitySelect } from "@/components/forms/entity-select";
 import { readString } from "@/lib/form-data";
 import { EMPLOYEE_STATUSES } from "@/lib/schemas/employee";
-import { createEmployeeAction, updateEmployeeAction } from "@/server/actions/employees";
+import {
+  createEmployeeAction,
+  managerOptionsAction,
+  updateEmployeeAction,
+} from "@/server/actions/employees";
 
 type Options = {
   companies: { id: string; code: string; name: string }[];
@@ -235,20 +240,38 @@ export function EmployeeForm({
               options={[NONE, ...toOptions(positions.map((p) => ({ id: p.id, label: p.title })))]}
               errors={errors.positionId}
             />
-            <SelectField
+            {/*
+              Searched server-side rather than preloaded. The candidate list is
+              every active employee of the selected company, which is fine to
+              ship at thirty people and not at three thousand.
+            */}
+            <EntitySelect
               name="managerId"
               label="Reports to"
-              defaultValue={values.managerId ?? "none"}
-              options={[
-                NONE,
-                ...toOptions(
-                  options.managers.map((m) => ({
-                    id: m.id,
-                    label: `${m.fullName} (${m.employeeNo})`,
-                  })),
-                ),
-              ]}
+              placeholder="Search by name or number…"
+              emptyLabel="No matching employee"
+              clearLabel="— No manager —"
+              hint="Only active employees of the selected company."
+              defaultValue={values.managerId ?? undefined}
+              defaultLabel={
+                options.managers.find((m) => m.id === values.managerId)?.fullName ?? undefined
+              }
               errors={errors.managerId}
+              search={async (query) => {
+                const result = await managerOptionsAction({
+                  companyId,
+                  // Never offer the employee themselves: the service refuses
+                  // a self-reporting loop anyway.
+                  ...(values.id ? { excludeId: values.id } : {}),
+                  ...(query ? { q: query } : {}),
+                });
+                if (!result.success) return [];
+                return result.data.map((m) => ({
+                  value: m.id,
+                  label: m.fullName,
+                  hint: m.employeeNo,
+                }));
+              }}
             />
             <SelectField
               name="employmentType"

@@ -147,10 +147,16 @@ export const upsertPassportAction = defineAction({
 /** Manager options for the employee form; scoped to the selected company. */
 export const managerOptionsAction = defineAction({
   permission: "employees.view",
-  schema: z.object({ companyId: z.string().min(1), excludeId: z.string().optional() }).strict(),
+  schema: z
+    .object({
+      companyId: z.string().min(1),
+      excludeId: z.string().optional(),
+      q: z.string().max(100).optional(),
+    })
+    .strict(),
   handler: async ({ input, ctx }) => {
     const { managerOptions } = await import("@/server/services/employees");
-    return managerOptions(ctx, input.companyId, input.excludeId);
+    return managerOptions(ctx, input.companyId, input.excludeId, input.q);
   },
 });
 

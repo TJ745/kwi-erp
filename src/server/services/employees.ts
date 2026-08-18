@@ -499,7 +499,20 @@ async function assertNotInReportingChain(employeeId: string, candidateManagerId:
 }
 
 /** Candidate managers for the employee form, scoped and excluding self. */
-export async function managerOptions(ctx: ActorContext, companyId: string, excludeId?: string) {
+/**
+ * Candidate managers, searched server-side.
+ *
+ * `q` exists so the picker can query as the user types instead of shipping
+ * every employee to the browser. The cap is 20 rather than 500 for the same
+ * reason: a list nobody can scan is not more useful for being longer, and the
+ * search is what narrows it.
+ */
+export async function managerOptions(
+  ctx: ActorContext,
+  companyId: string,
+  excludeId?: string,
+  q?: string,
+) {
   if (!ctx.companyScope.includes?.(companyId) && ctx.companyScope !== "ALL") {
     throw new ForbiddenError("Record not found.");
   }
@@ -507,11 +520,20 @@ export async function managerOptions(ctx: ActorContext, companyId: string, exclu
   return prisma.employee.findMany({
     where: {
       companyId,
+      deletedAt: null,
       status: { in: ["ACTIVE", "ON_LEAVE"] },
       ...(excludeId ? { id: { not: excludeId } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { fullName: { contains: q, mode: "insensitive" as const } },
+              { employeeNo: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
     },
     orderBy: { fullName: "asc" },
-    take: 500,
+    take: 20,
     select: { id: true, fullName: true, employeeNo: true },
   });
 }

@@ -376,7 +376,7 @@ Built once in Phase 4, consumed everywhere. Duplicating any of these is a review
 | `ConfirmDialog` / `DeleteDialog` | Typed-confirmation for destructive actions |
 | `FileUpload` | Client-side MIME/size pre-check + server validation; progress; multi-file |
 | `DocumentViewer` | PDF/image preview via the authorised `/api/files/[id]` proxy |
-| `EntitySelect` | Async, paginated, permission-filtered combobox |
+| `EntitySelect` | Async, permission-filtered combobox. Queries the server as the user types (200ms debounce, out-of-order responses discarded) and caps results at 20, so the payload is bounded by what the actor can read rather than by how many records exist. Posts through a hidden input like `SelectField`, so `FormData` handling is unchanged |
 | `EmployeeSelect` / `CompanySelect` | Thin wrappers over `EntitySelect` |
 | `DatePicker` / `DateRangePicker` | date-fns backed, consistent parsing, timezone-safe |
 | `EmptyState` / `LoadingState` / `ErrorState` | Every list and tab uses these — no ad-hoc "No data" strings |
