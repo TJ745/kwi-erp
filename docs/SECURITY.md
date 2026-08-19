@@ -500,7 +500,7 @@ The application treats a file as non-existent until step ④. A file that fails 
 
 ### 6.4 Download authorisation
 
-Files are **never** linked directly. All access goes through `GET /api/files/[id]`:
+Files are **never** linked directly. Document access goes through `GET /api/files/[id]`:
 
 ```
 1. requireAuth
@@ -515,6 +515,28 @@ Files are **never** linked directly. All access goes through `GET /api/files/[id
 `generateSignedURL()` signs locally with no API round-trip. Expiry is **60 seconds** — long enough to fetch, too short to share. UploadThing permits up to 7 days; we deliberately do not use that.
 
 Response headers: `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer` (so a signed URL cannot leak through a referrer header).
+
+#### The one other route that serves bytes: company letterhead
+
+`GET /api/companies/[id]/branding/[header|footer]` streams a company's letterhead
+artwork. It exists because letterhead has to render for **anyone who can read a
+letter**, and `/api/files/[id]` requires `documents.download`, which most such
+people do not hold. Loosening that permission would have opened every stored
+document to make a logo appear.
+
+What keeps it from becoming a bypass of the route above:
+
+| Property | Why it matters |
+|---|---|
+| Keyed by **company id + slot**, never by file id | A caller cannot name the file they want. The only reachable bytes are the two images an administrator explicitly designated for a company. |
+| Company scope checked before anything is read | An out-of-scope company is indistinguishable from one with no letterhead — both 404. Verified live: a KWI-scoped viewer gets 200 for KWI and 404 for ICC on the same route. |
+| Eligibility re-checked on the way out | `isLetterheadEligible` runs when the slot is set **and** again when it is served, so a row that stops being eligible stops serving. The `Content-Type` therefore can only ever be a verified image type. |
+| PNG / JPEG / WebP only — never SVG | This is the one upload the application renders inline into an authenticated page, and an SVG is a document that can carry script. Stated in `src/lib/letterhead.ts` rather than inherited from the upload allowlist, so widening uploads later cannot widen this. |
+| Bytes streamed, never redirected | Same as `/api/files/[id]`: the storage URL never reaches the browser. |
+| Not audited per request | A letterhead loads on every render of every letter. An audit row each time would bury the log without recording anything the reader did not already have; the underlying file, reached through `/api/files/[id]`, is still audited normally. **Accepted trade-off, not an oversight.** |
+
+Unauthenticated callers get 401; unknown companies, unset slots, and unrecognised
+slot names all get 404 with no body. Verified live.
 
 ### 6.5 Residual risks — stated, not hidden
 

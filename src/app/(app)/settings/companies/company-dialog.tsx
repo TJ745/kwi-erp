@@ -24,6 +24,13 @@ type Company = {
   shortName: string;
   city: string | null;
   crNumber: string | null;
+  registrationNo: string | null;
+  vatNumber: string | null;
+  addressLine: string | null;
+  country: string;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
   status: string;
 };
 
@@ -50,6 +57,12 @@ export function CompanyDialog({
       shortName: readString(fd, "shortName"),
       city: readString(fd, "city"),
       crNumber: readString(fd, "crNumber"),
+      registrationNo: readString(fd, "registrationNo"),
+      vatNumber: readString(fd, "vatNumber"),
+      addressLine: readString(fd, "addressLine"),
+      phone: readString(fd, "phone"),
+      email: readString(fd, "email"),
+      website: readString(fd, "website"),
       country: readString(fd, "country") || "SA",
       status: readString(fd, "status") || "ACTIVE",
     };
@@ -122,12 +135,55 @@ export function CompanyDialog({
               errors={errors.name}
             />
 
+            <TextField
+              name="addressLine"
+              label="Address"
+              hint="Street address as it should appear on documents."
+              defaultValue={company?.addressLine ?? ""}
+              errors={errors.addressLine}
+            />
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <TextField
+                name="phone"
+                label="Phone"
+                defaultValue={company?.phone ?? ""}
+                errors={errors.phone}
+              />
+              <TextField
+                name="email"
+                label="Email"
+                type="email"
+                defaultValue={company?.email ?? ""}
+                errors={errors.email}
+              />
+              <TextField
+                name="website"
+                label="Website"
+                defaultValue={company?.website ?? ""}
+                errors={errors.website}
+              />
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 name="crNumber"
                 label="CR number"
                 defaultValue={company?.crNumber ?? ""}
                 errors={errors.crNumber}
+              />
+              <TextField
+                name="vatNumber"
+                label="VAT number"
+                hint="Printed on letters and invoices."
+                defaultValue={company?.vatNumber ?? ""}
+                errors={errors.vatNumber}
+              />
+              <TextField
+                name="registrationNo"
+                label="Registration number"
+                defaultValue={company?.registrationNo ?? ""}
+                errors={errors.registrationNo}
               />
               <TextField
                 name="city"
@@ -139,7 +195,7 @@ export function CompanyDialog({
                 name="country"
                 label="Country"
                 hint="Two-letter code."
-                defaultValue="SA"
+                defaultValue={company?.country ?? "SA"}
                 errors={errors.country}
               />
               <SelectField

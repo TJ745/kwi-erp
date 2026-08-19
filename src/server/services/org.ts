@@ -2,8 +2,17 @@ import "server-only";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, optionalCompanyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
 import { prisma } from "@/server/db/client";
-import { ConflictError, NotFoundError } from "@/lib/result";
-import type { CompanyInput, DepartmentInput, PositionInput } from "@/lib/schemas/org";
+import {
+  isLetterheadEligible,
+  slotColumn,
+  type LetterheadSlot,
+} from "@/lib/letterhead";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/result";
+import type {
+  CompanyInput,
+  DepartmentInput,
+  PositionInput,
+} from "@/lib/schemas/org";
 
 /** Companies, departments, and positions. */
 
@@ -23,6 +32,17 @@ export async function listCompanies(ctx: ActorContext) {
       city: true,
       status: true,
       crNumber: true,
+      registrationNo: true,
+      vatNumber: true,
+      addressLine: true,
+      country: true,
+      phone: true,
+      email: true,
+      website: true,
+      // Presence only — the page renders an <img> at the branding route and
+      // never needs the file id itself.
+      headerImageFileId: true,
+      footerImageFileId: true,
       _count: { select: { employees: true, departments: true } },
     },
   });
@@ -87,6 +107,81 @@ export async function updateCompany(
   });
 
   return { before, after };
+}
+
+// --- Company letterhead ------------------------------------------------------
+
+/**
+ * Points a company's header or footer artwork at an uploaded file, or clears it.
+ *
+ * The file is re-checked here rather than trusted from the upload round-trip:
+ * the client supplies the id, so "an image, verified, that exists" has to be
+ * established server-side or the field becomes a way to point letterhead at any
+ * file id in the system.
+ */
+export async function setCompanyBranding(
+  ctx: ActorContext,
+  input: { companyId: string; slot: LetterheadSlot; fileId: string | null },
+) {
+  // Throws NotFoundError for a company outside the caller's scope.
+  const company = await getCompany(ctx, input.companyId);
+
+  if (input.fileId !== null) {
+    const file = await prisma.fileObject.findFirst({
+      where: { id: input.fileId },
+      select: { id: true, mimeType: true, detectedType: true, scanStatus: true },
+    });
+    if (!file) throw new NotFoundError("File not found.");
+
+    if (!isLetterheadEligible(file)) {
+      throw new ValidationError("Letterhead artwork must be a PNG, JPEG, or WebP image.");
+    }
+  }
+
+  const after = await prisma.company.update({
+    where: { id: company.id },
+    data: { [slotColumn(input.slot)]: input.fileId },
+    select: { id: true, code: true, headerImageFileId: true, footerImageFileId: true },
+  });
+
+  return {
+    company: after,
+    before: input.slot === "HEADER" ? company.headerImageFileId : company.footerImageFileId,
+  };
+}
+
+/**
+ * The stored file behind one letterhead slot, for the branding route to stream.
+ *
+ * Takes no ActorContext: the route establishes the session and checks company
+ * scope before calling. "Which company" is the thing being authorised, and once
+ * that is settled this only has to resolve a file — so leaving the check out
+ * here keeps it in one obvious place instead of two half-places.
+ */
+export async function resolveCompanyBrandingFile(
+  companyId: string,
+  slot: LetterheadSlot,
+) {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      headerImage: {
+        select: { fileKey: true, mimeType: true, detectedType: true, scanStatus: true },
+      },
+      footerImage: {
+        select: { fileKey: true, mimeType: true, detectedType: true, scanStatus: true },
+      },
+    },
+  });
+
+  const file = slot === "HEADER" ? company?.headerImage : company?.footerImage;
+
+  // Re-checked on the way out, not just on the way in. This route sets a
+  // Content-Type from stored data, so a row that stopped being eligible after
+  // it was set — a failed rescan, a hand-edited record — must stop serving.
+  // An unset slot, an unknown company, and an ineligible file are one outcome.
+  if (!file || !isLetterheadEligible(file)) return null;
+  return { fileKey: file.fileKey, mimeType: file.mimeType };
 }
 
 // --- Departments -------------------------------------------------------------

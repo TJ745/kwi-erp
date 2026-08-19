@@ -18,6 +18,11 @@ model Company {
   email          String?
   website        String?
   logoFileId     String?
+  /// Letterhead artwork, shown as page chrome on generated documents. Held as
+  /// file references rather than inside a template body: the letter sanitiser
+  /// forbids <img> on purpose, and letterhead is layout, not content.
+  headerImageFileId String?
+  footerImageFileId String?
 
   status RecordStatus @default(ACTIVE)
   notes  String?
@@ -26,7 +31,9 @@ model Company {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  logo FileObject? @relation("CompanyLogo", fields: [logoFileId], references: [id])
+  logo        FileObject? @relation("CompanyLogo", fields: [logoFileId], references: [id])
+  headerImage FileObject? @relation("CompanyHeaderImage", fields: [headerImageFileId], references: [id])
+  footerImage FileObject? @relation("CompanyFooterImage", fields: [footerImageFileId], references: [id])
 
   departments      Department[]
   positions        Position[]

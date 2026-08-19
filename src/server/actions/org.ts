@@ -2,6 +2,7 @@
 
 import { defineAction } from "./define-action";
 import {
+  companyBrandingSchema,
   companySchema,
   departmentSchema,
   positionSchema,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/schemas/org";
 import {
   createCompany,
+  setCompanyBranding,
   createDepartment,
   createPosition,
   updateCompany,
@@ -49,6 +51,28 @@ export const updateCompanyAction = defineAction({
       after: { code: after.code, name: after.name, status: after.status },
     });
     return { id: after.id };
+  },
+  revalidate: () => ["/settings/companies"],
+});
+
+export const setCompanyBrandingAction = defineAction({
+  permission: "companies.manage",
+  schema: companyBrandingSchema,
+  audit: { action: "UPDATE", entity: "COMPANY" },
+  handler: async ({ input, ctx, audit }) => {
+    const { company, before } = await setCompanyBranding(ctx, input);
+    const slot = input.slot === "HEADER" ? "header" : "footer";
+    audit.record({
+      entityId: company.id,
+      companyId: company.id,
+      summary:
+        input.fileId === null
+          ? `Removed the document ${slot} image for ${company.code}`
+          : `Set the document ${slot} image for ${company.code}`,
+      before: { [`${slot}ImageFileId`]: before },
+      after: { [`${slot}ImageFileId`]: input.fileId },
+    });
+    return { ok: true };
   },
   revalidate: () => ["/settings/companies"],
 });

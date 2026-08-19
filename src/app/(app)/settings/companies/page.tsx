@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listCompanies } from "@/server/services/org";
 import { CompanyDialog } from "./company-dialog";
+import { Letterhead } from "./letterhead";
 
 export const metadata: Metadata = { title: "Companies" };
 
@@ -56,19 +57,45 @@ export default async function CompaniesPage() {
                   </div>
                 </dl>
 
+                <dl className="space-y-1 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground text-xs">VAT number</dt>
+                    <dd className="truncate font-mono text-xs">{company.vatNumber ?? "—"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground text-xs">Address</dt>
+                    <dd className="truncate text-xs">{company.addressLine ?? "—"}</dd>
+                  </div>
+                </dl>
+
                 {canManage ? (
-                  <CompanyDialog
-                    mode="edit"
-                    company={{
-                      id: company.id,
-                      code: company.code,
-                      name: company.name,
-                      shortName: company.shortName,
-                      city: company.city,
-                      crNumber: company.crNumber,
-                      status: company.status,
-                    }}
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <CompanyDialog
+                      mode="edit"
+                      company={{
+                        id: company.id,
+                        code: company.code,
+                        name: company.name,
+                        shortName: company.shortName,
+                        city: company.city,
+                        crNumber: company.crNumber,
+                        registrationNo: company.registrationNo,
+                        vatNumber: company.vatNumber,
+                        addressLine: company.addressLine,
+                        country: company.country,
+                        phone: company.phone,
+                        email: company.email,
+                        website: company.website,
+                        status: company.status,
+                      }}
+                    />
+                    <Letterhead
+                      companyId={company.id}
+                      companyCode={company.code}
+                      hasHeader={company.headerImageFileId !== null}
+                      hasFooter={company.footerImageFileId !== null}
+                    />
+                  </div>
                 ) : null}
               </CardContent>
             </Card>

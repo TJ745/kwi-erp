@@ -67,7 +67,7 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 |---|---|---|
 | Authentication | `/login` | Better Auth email+password, Argon2id, session management, lockout |
 | Users & Roles | `/settings/users`, `/settings/roles` | User CRUD, role assignment, per-user permission overrides, company access |
-| Companies | `/settings/companies` | KWI/ICC + extensible; logo, registration, contacts, status |
+| Companies | `/settings/companies` | KWI/ICC + extensible; CR/VAT/registration numbers, address, contacts, status, and per-company letterhead (header + footer artwork) rendered on generated letters |
 | Departments & Positions | `/settings/departments` | Hierarchical departments with a head, and positions (job titles, optionally shared across companies). A head must be an employee of the same company. The org chart is built from manager relationships, not heads |
 | App Shell | — | Sidebar, header, breadcrumbs, command menu (`⌘K`), theme, user menu |
 

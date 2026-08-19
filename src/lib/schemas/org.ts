@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LETTERHEAD_SLOTS } from "@/lib/letterhead";
 
 /** Shared by forms and server actions. Always `.strict()` — an unknown key is
  *  a validation error, not a silent mass-assignment (docs/SECURITY.md §4). */
@@ -40,6 +41,23 @@ export type CompanyInput = z.infer<typeof companySchema>;
 
 export const updateCompanySchema = companySchema
   .extend({ id: z.string().min(1) })
+  .strict();
+
+/** Which piece of letterhead is being set. Mirrors LETTERHEAD_SLOTS, which is
+ *  where the slot's meaning lives. */
+export const brandingSlotSchema = z.enum(LETTERHEAD_SLOTS);
+
+/**
+ * Letterhead artwork. A null fileId clears the slot — the same action both
+ * sets and removes, so there is one permission check and one audit shape
+ * rather than two of each.
+ */
+export const companyBrandingSchema = z
+  .object({
+    companyId: z.string().min(1),
+    slot: brandingSlotSchema,
+    fileId: z.string().min(1).nullable(),
+  })
   .strict();
 
 export const departmentSchema = z

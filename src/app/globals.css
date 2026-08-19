@@ -246,6 +246,19 @@
   opacity: 0.25;
 }
 
+/* Letterhead artwork.
+   The height cap lives here rather than in the print block on purpose: capped
+   only when printing, a tall header renders full-bleed on screen and then
+   letterboxes on paper, so the preview stops predicting the printout. 35mm
+   also leaves the body room — an oversized upload cannot push a one-page
+   letter onto a second page. */
+.letter-head img,
+.letter-foot img {
+  max-height: 35mm;
+  object-fit: contain;
+  object-position: center;
+}
+
 /* Letters render to PDF through the browser print dialog (ADR-004). */
 @media print {
   .no-print {
@@ -266,6 +279,22 @@
     box-shadow: none;
   }
   .letter-body {
+    color: black;
+  }
+  /* Letterhead artwork. Browsers drop images and backgrounds from print by
+     default to save ink; a letter without its letterhead is not the document
+     the user asked to print, so this opts back in. */
+  .letter-head,
+  .letter-foot {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Letterhead splitting across a page break reads as a printing fault. */
+  .letter-head,
+  .letter-foot {
+    break-inside: avoid;
+  }
+  .letter-foot {
     color: black;
   }
   /* A letter split mid-signature reads as tampered-with. */

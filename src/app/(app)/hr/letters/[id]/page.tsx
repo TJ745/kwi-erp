@@ -67,12 +67,35 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
       </div>
 
       <article className="letter-sheet bg-background rounded-lg border p-10 print:rounded-none print:border-0 print:p-0">
-        <header className="mb-8 border-b pb-6">
-          <p className="text-lg font-semibold">{letter.company.name}</p>
-          <p className="text-muted-foreground text-xs">
-            {[letter.company.addressLine, letter.company.city].filter(Boolean).join(", ")}
-          </p>
-          <div className="text-muted-foreground mt-4 flex justify-between text-xs">
+        {/*
+          Letterhead is page chrome, not letter content. It lives here rather
+          than inside the template body on purpose: the body is sanitised and
+          the sanitiser forbids <img> (src/lib/templates.ts), and it should stay
+          that way. Artwork set once in company settings also means a template
+          does not carry a copy of the branding that goes stale when it changes.
+        */}
+        <header className="letter-head mb-8">
+          {letter.company.headerImageFileId !== null ? (
+            // Served from a session-gated route that streams the bytes, so
+            // next/image's optimiser cannot reach it.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/companies/${letter.company.id}/branding/header`}
+              alt={`${letter.company.name} letterhead`}
+              className="mb-6 w-full object-contain"
+            />
+          ) : (
+            <div className="mb-6">
+              <p className="text-lg font-semibold">{letter.company.name}</p>
+              <p className="text-muted-foreground text-xs">
+                {[letter.company.addressLine, letter.company.city]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
+          )}
+
+          <div className="text-muted-foreground flex justify-between border-t pt-3 text-xs">
             <span className="font-mono">{letter.letterNo}</span>
             <span>{letter.generatedAt.toISOString().slice(0, 10)}</span>
           </div>
@@ -87,7 +110,62 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
           className="letter-body"
           dangerouslySetInnerHTML={{ __html: letter.renderedHtml }}
         />
+
+        <footer className="letter-foot mt-10">
+          {letter.company.footerImageFileId !== null ? (
+            // As above.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/companies/${letter.company.id}/branding/footer`}
+              alt=""
+              className="w-full object-contain"
+            />
+          ) : (
+            <CompanyFootline company={letter.company} />
+          )}
+        </footer>
       </article>
+    </div>
+  );
+}
+
+/**
+ * The typed footer used when a company has no footer artwork.
+ *
+ * Registration and VAT numbers belong on an issued letter — a Saudi recipient
+ * checks them — so the absence of an image should not mean the absence of the
+ * details.
+ */
+function CompanyFootline({
+  company,
+}: {
+  company: {
+    addressLine: string | null;
+    city: string | null;
+    country: string;
+    crNumber: string | null;
+    vatNumber: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+  };
+}) {
+  const address = [company.addressLine, company.city, company.country]
+    .filter(Boolean)
+    .join(", ");
+  const registrations = [
+    company.crNumber ? `CR ${company.crNumber}` : null,
+    company.vatNumber ? `VAT ${company.vatNumber}` : null,
+  ].filter(Boolean);
+  const contact = [company.phone, company.email, company.website].filter(Boolean);
+
+  if (!address && registrations.length === 0 && contact.length === 0) return null;
+
+  return (
+    <div className="text-muted-foreground border-t pt-3 text-center text-[11px] leading-relaxed">
+      {address ? <p>{address}</p> : null}
+      {registrations.length > 0 ? <p>{registrations.join(" · ")}</p> : null}
+      {contact.length > 0 ? <p>{contact.join(" · ")}</p> : null}
     </div>
   );
 }

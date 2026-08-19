@@ -401,7 +401,25 @@ export async function getGeneratedLetter(ctx: ActorContext, id: string) {
       generatedAt: true,
       template: { select: { name: true, type: true } },
       employee: { select: { id: true, fullName: true, employeeNo: true } },
-      company: { select: { code: true, name: true, addressLine: true, city: true } },
+      company: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          addressLine: true,
+          city: true,
+          country: true,
+          crNumber: true,
+          vatNumber: true,
+          phone: true,
+          email: true,
+          website: true,
+          // Presence only. The page renders these through the branding route,
+          // which resolves the file itself from the company id.
+          headerImageFileId: true,
+          footerImageFileId: true,
+        },
+      },
     },
   });
   if (!letter) throw new NotFoundError("Letter not found.");

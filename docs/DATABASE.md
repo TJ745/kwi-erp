@@ -157,6 +157,11 @@ model Company {
   email          String?
   website        String?
   logoFileId     String?
+  // Letterhead artwork, rendered as page chrome on generated letters. Held as
+  // file references, not inside a template body: the letter sanitiser forbids
+  // <img> on purpose, and letterhead is layout rather than content.
+  headerImageFileId String?
+  footerImageFileId String?
   status         RecordStatus @default(ACTIVE)
   notes          String?
   deletedAt      DateTime?

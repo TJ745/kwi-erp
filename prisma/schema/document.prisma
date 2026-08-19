@@ -26,6 +26,8 @@ model FileObject {
   documents        Document[]
   attachments      Attachment[]
   companyLogos     Company[]           @relation("CompanyLogo")
+  companyHeaders   Company[]           @relation("CompanyHeaderImage")
+  companyFooters   Company[]           @relation("CompanyFooterImage")
   employeePhotos   Employee[]          @relation("EmployeePhoto")
   contracts        Contract[]
   warningLetters   WarningLetter[]
