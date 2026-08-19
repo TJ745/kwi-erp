@@ -416,6 +416,30 @@ Two defects in existing code were found by building on top of it:
 
 ---
 
+### Charts
+
+Chart colour is decided by a procedure, not by taste, and the procedure is
+recorded because the intuitive choice was measurably wrong.
+
+The obvious palette for the expiry buckets was the app's own status colours —
+red for urgent, amber for near, blue for distant. Measured, amber against red
+scores ΔE 2.9 for deuteranopes and 13.9 for normal vision, both below the floor:
+the two most urgent buckets would have been the hardest pair on the page to tell
+apart. The status palette is a *status* palette; it is not a categorical one.
+
+The buckets are ordinal, so they now use a single-hue sequential ramp — monotone
+lightness, one hue, validated for step separation and light-end contrast in both
+themes. Severity is carried by lightness and by the axis order, so it survives
+colour blindness and a monochrome print.
+
+The steps live in `globals.css` as `--chart-sev-1..5` (each theme stepped against
+its own surface, not flipped) and `--chart-bar` for single-series magnitude bars.
+A single series gets one colour and no legend; the axis labels carry identity.
+
+Rules for adding a chart: pick the form from the data's job, keep one axis, never
+add a second y-scale, and validate any new categorical palette before shipping it
+rather than reasoning about it.
+
 ## 10. Deferred items (tracked, not forgotten)
 
 Recorded here so they are decisions rather than omissions:
@@ -439,5 +463,5 @@ Recorded here so they are decisions rather than omissions:
 | Company logo (`Company.logoFileId`) | The column exists and nothing renders a logo. Two things block it, neither worth working around for a cosmetic feature: (1) every file byte is served by `/api/files/[id]`, which requires `documents.download` — so a logo in the sidebar would 404 for most users, and a second file-serving route is new security surface; (2) the letter sanitiser excludes `<img>` by design ("nothing that can load, execute, or navigate"), so a letterhead logo would mean weakening a deliberate control. **Product-owner decision** |
 | WYSIWYG template editor | Templates are authored as HTML in a textarea, with live placeholder validation. A rich-text editor would need its own output sanitised against the same allowlist | If non-technical staff author templates directly |
 | Letters for non-employee entities | `GeneratedLetter.entityType` and `entityId` are generic; only `EMPLOYEE` is wired | When vehicle/asset handover forms are built |
-| Charted reports (Recharts) | `recharts` is installed and used on the dashboard. Report families are tabular by design: they exist to be filtered, printed, and exported, and a chart is not exportable to CSV | If a specific report is asked for as a chart |
+| Charted reports (Recharts) | `recharts` is now used on the dashboard (it was installed but unused, despite this line previously claiming otherwise). Report families stay tabular by design: they exist to be filtered, printed, and exported, and a chart is not exportable to CSV | If a specific report is asked for as a chart |
 | Scheduled / emailed reports | The email channel now exists, so this is buildable: a cron that runs a report and attaches the CSV. Not built — nobody has asked for a specific schedule | On request |

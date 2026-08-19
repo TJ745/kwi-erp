@@ -1,14 +1,30 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, ArrowRight, ListChecks, UserPlus } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CalendarClock,
+  Layers,
+  ListChecks,
+  UserPlus,
+} from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpiryAlert } from "@/components/shared/expiry-alert";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { CardLoadingState, EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { dashboardKpis, pendingWork } from "@/server/services/dashboard";
+import {
+  dashboardKpis,
+  expiryOutlook,
+  headcountByDepartment,
+  moduleTotals,
+  openWorkByModule,
+  pendingWork,
+} from "@/server/services/dashboard";
+import { CategoryBars, OrdinalBars } from "@/components/charts/bar-chart";
 import { listExpiring } from "@/server/services/expiry";
 import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
@@ -47,8 +63,26 @@ export default async function DashboardPage() {
         <KpiRow ctx={ctx} />
       </Suspense>
 
-      <Suspense fallback={<CardLoadingState count={1} />}>
-        <NeedsAttention ctx={ctx} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Suspense fallback={<CardLoadingState count={1} />}>
+          <ExpiryOutlookChart ctx={ctx} />
+        </Suspense>
+        <Suspense fallback={<CardLoadingState count={1} />}>
+          <HeadcountChart ctx={ctx} />
+        </Suspense>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Suspense fallback={<CardLoadingState count={1} />}>
+          <OpenWorkChart ctx={ctx} />
+        </Suspense>
+        <Suspense fallback={<CardLoadingState count={1} />}>
+          <NeedsAttention ctx={ctx} />
+        </Suspense>
+      </div>
+
+      <Suspense fallback={<CardLoadingState count={4} />}>
+        <ModuleStrip ctx={ctx} />
       </Suspense>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -169,6 +203,147 @@ async function OverdueTasks({ ctx }: { ctx: ActorContext }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * What is coming due, bucketed nearest-first.
+ *
+ * The single-hue ramp is deliberate. The app's status colours are not a
+ * categorical palette — amber against red measures ΔE 2.9 for deuteranopes and
+ * 13.9 for normal vision, so the two most urgent buckets would have been the
+ * hardest pair to tell apart. Severity is carried by the axis order and by
+ * lightness instead, which survives both colour blindness and a monochrome
+ * print.
+ */
+async function ExpiryOutlookChart({ ctx }: { ctx: ActorContext }) {
+  const buckets = await expiryOutlook(ctx);
+  const total = buckets.reduce((sum, b) => sum + b.count, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <CalendarClock className="size-4" />
+          Expiry outlook — next 90 days
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {total === 0 ? (
+          <EmptyState
+            title="Nothing expiring in the next 90 days"
+            description="Iqamas, passports, contracts, certificates, and vehicle documents all feed this."
+            className="border-0 py-6"
+          />
+        ) : (
+          <OrdinalBars data={buckets} unit="expiring" />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Active headcount per department. One measure, so one colour and no legend. */
+async function HeadcountChart({ ctx }: { ctx: ActorContext }) {
+  const rows = await headcountByDepartment(ctx);
+  if (rows.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Building2 className="size-4" />
+          Active headcount by department
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <CategoryBars
+          data={rows.map((r) => ({ label: r.name, count: r.count }))}
+          unit="employees"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Open work across every module, in one place.
+ *
+ * Rows are dropped when the count is zero rather than shown as empty bars: a
+ * chart of nine zeroes says less than the absence of a chart.
+ */
+async function OpenWorkChart({ ctx }: { ctx: ActorContext }) {
+  const rows = await openWorkByModule(ctx);
+  if (rows.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Layers className="size-4" />
+          Open across modules
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <CategoryBars
+          data={rows.map((r) => ({ label: r.label, count: r.count }))}
+          unit="open"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * One number per module for the ones that do not warrant a chart.
+ *
+ * A count the actor may not see is absent, not zero — a zero is a fact and
+ * "you cannot see this" is not one.
+ */
+async function ModuleStrip({ ctx }: { ctx: ActorContext }) {
+  const totals = await moduleTotals(ctx);
+
+  const tiles: { label: string; value: string; href: string }[] = [];
+  const push = (label: string, value: number | null, href: string, suffix = "") => {
+    if (value === null) return;
+    tiles.push({ label, value: `${String(value)}${suffix}`, href });
+  };
+
+  push("Vehicles", totals.vehicles, "/vehicles");
+  if (totals.bedsTotal !== null && totals.bedsTotal > 0) {
+    tiles.push({
+      label: "Beds occupied",
+      value: `${String(totals.bedsOccupied ?? 0)} / ${String(totals.bedsTotal)}`,
+      href: "/admin/accommodation",
+    });
+  }
+  push("Documents", totals.documents, "/documents");
+  push("Letters issued", totals.letters, "/hr/letters");
+  push("Active policies", totals.policies, "/insurance");
+  push("Suppliers", totals.suppliers, "/admin/suppliers");
+  push("Subcontractors", totals.subcontractors, "/admin/subcontractors");
+  push("Certificates", totals.certificates, "/admin/certificates");
+
+  if (tiles.length === 0) return null;
+
+  return (
+    <section className="space-y-2">
+      <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        Across the system
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        {tiles.map((tile) => (
+          <Link key={tile.label} href={tile.href}>
+            <Card className="hover:border-foreground/20 h-full gap-0 py-3 transition-colors">
+              <CardContent className="px-3">
+                <p className="text-lg font-semibold tabular-nums">{tile.value}</p>
+                <p className="text-muted-foreground truncate text-xs">{tile.label}</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

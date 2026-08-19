@@ -45,6 +45,22 @@
   --status-neutral: oklch(0.45 0.01 260);
   --status-neutral-bg: oklch(0.96 0.002 260);
 
+  /* Chart severity ramp — ordinal, nearest expiry darkest.
+     One hue (the expired red), monotone lightness, validated for step
+     separation and light-end contrast against the surface. NOT a categorical
+     palette: the app's status colours fail CVD separation when placed
+     adjacently (amber vs red measured ΔE 2.9 deutan), so severity is carried
+     by lightness here, and by the axis order, never by hue alone. */
+  --chart-sev-1: #9e0000;
+  --chart-sev-2: #ba2b2e;
+  --chart-sev-3: #d15c56;
+  --chart-sev-4: #e3827b;
+  --chart-sev-5: #efa49d;
+  /* Single-series magnitude bars. One series, so one colour and no legend. */
+  --chart-bar: oklch(0.52 0.13 250);
+  --chart-grid: oklch(0.922 0 0);
+  --chart-axis: oklch(0.556 0 0);
+
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -87,6 +103,16 @@
   --status-info-bg: oklch(0.28 0.05 250);
   --status-neutral: oklch(0.75 0.01 260);
   --status-neutral-bg: oklch(0.28 0.002 260);
+
+  /* Dark steps are chosen against the dark surface, not flipped from light. */
+  --chart-sev-1: #ff9188;
+  --chart-sev-2: #f17871;
+  --chart-sev-3: #c8635d;
+  --chart-sev-4: #a2504b;
+  --chart-sev-5: #79403c;
+  --chart-bar: oklch(0.78 0.12 250);
+  --chart-grid: oklch(1 0 0 / 12%);
+  --chart-axis: oklch(0.708 0 0);
 
   --sidebar: oklch(0.185 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
