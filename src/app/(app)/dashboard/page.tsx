@@ -25,6 +25,7 @@ import {
   pendingWork,
 } from "@/server/services/dashboard";
 import { CategoryBars, OrdinalBars } from "@/components/charts/bar-chart";
+import { DonutChart } from "@/components/charts/donut-chart";
 import { listExpiring } from "@/server/services/expiry";
 import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
@@ -243,7 +244,14 @@ async function ExpiryOutlookChart({ ctx }: { ctx: ActorContext }) {
   );
 }
 
-/** Active headcount per department. One measure, so one colour and no legend. */
+/**
+ * Active headcount per department, as part-to-whole.
+ *
+ * A donut is only honest here because departments genuinely sum to the
+ * headcount and the chart is read at a glance. Anything past the top four folds
+ * into "Other", so it never becomes a ring of slivers — the failure mode a pie
+ * is notorious for.
+ */
 async function HeadcountChart({ ctx }: { ctx: ActorContext }) {
   const rows = await headcountByDepartment(ctx);
   if (rows.length === 0) return null;
@@ -257,9 +265,10 @@ async function HeadcountChart({ ctx }: { ctx: ActorContext }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <CategoryBars
+        <DonutChart
           data={rows.map((r) => ({ label: r.name, count: r.count }))}
           unit="employees"
+          centreLabel="Active"
         />
       </CardContent>
     </Card>

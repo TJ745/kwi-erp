@@ -93,7 +93,7 @@ Verified: attempts 1–5 return 401, the 6th returns 429.
 - Server-side sessions in Postgres (not stateless JWT) so revocation is immediate and real
 - Cookie: `HttpOnly`, `Secure`, `SameSite=Lax`, `__Host-` prefix in production
 - Absolute lifetime 7 days; rolling refresh on activity; idle expiry 8 hours
-- `ipAddress` and `userAgent` recorded per session; user-visible active-session list with "sign out everywhere"
+- `ipAddress` and `userAgent` recorded per session; user-visible active-session list with "sign out everywhere else" on `/profile` (the current session is kept deliberately — locking yourself out mid-panic is how people learn not to press the button). Revoking also clears vault sessions, so a revoked session cannot leave an unlocked vault behind
 - Sign-out and password change revoke server-side, not just the cookie
 
 ### Deferred (schema leaves room)

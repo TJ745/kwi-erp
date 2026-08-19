@@ -141,3 +141,16 @@ async function resolveDepartmentScope(
 
   return [...scope];
 }
+
+/**
+ * The caller's own session token.
+ *
+ * Lives here rather than in the profile action because this module already owns
+ * the Better Auth instance. Importing `auth` into a "use server" module instead
+ * broke the /api/auth/* handler outright — it began returning 404 — so the
+ * import edge is deliberate, not incidental.
+ */
+export async function getSessionToken(): Promise<string | null> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  return session?.session.token ?? null;
+}

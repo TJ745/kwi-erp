@@ -218,8 +218,10 @@ export async function headcountByDepartment(
       count: g._count._all,
     }))
     .filter((row) => row.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+    .sort((a, b) => b.count - a.count);
+  // Deliberately NOT truncated here. The donut folds everything past the top
+  // few into "Other", and its centre shows the total — truncating first made
+  // that total smaller than the headcount it claimed to be.
 }
 
 /**

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { LogOut, Menu, Moon, Search, Sun, User as UserIcon } from "lucide-react";
+import { NotificationBell } from "@/components/shell/notification-bell";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -83,6 +84,7 @@ export function Header({
       </Breadcrumb>
 
       <SearchHint />
+      <NotificationBell />
       <ThemeToggle />
 
       <DropdownMenu>
@@ -101,6 +103,9 @@ export function Header({
             </p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/profile">Profile & settings</Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/change-password">Change password</Link>
           </DropdownMenuItem>

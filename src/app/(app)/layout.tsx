@@ -26,19 +26,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : `${String(ctx.companyScope.length)} ${ctx.companyScope.length === 1 ? "company" : "companies"}`;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="bg-sidebar hidden w-64 shrink-0 border-r lg:block print:lg:hidden">
-        <div className="flex h-14 items-center border-b px-5">
+    /*
+      The shell is a fixed viewport with two independent scroll regions: the
+      sidebar's own nav, and the main content. Previously the whole page
+      scrolled, which carried the sidebar and header off the top — on a long
+      page like the dashboard the navigation disappeared exactly when it was
+      most useful.
+
+      Print is exempted: a clipped, fixed-height page prints one screenful.
+    */
+    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <aside className="bg-sidebar hidden w-64 shrink-0 flex-col border-r lg:flex print:lg:hidden">
+        <div className="flex h-14 shrink-0 items-center border-b px-5">
           <Link href="/dashboard" className="text-sm font-semibold tracking-tight">
             Operations
           </Link>
         </div>
-        <div className="h-[calc(100vh-3.5rem)] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <SidebarNav sections={sections} />
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
         <Header
           sections={sections}
           user={{
@@ -52,7 +61,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             await logoutAction();
           }}
         />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+          {children}
+        </main>
       </div>
 
       <CommandMenu sections={sections} />

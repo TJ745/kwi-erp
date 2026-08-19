@@ -144,6 +144,7 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 | Dashboard | `/dashboard` | KPI cards, a "needs attention" queue (approvals, open tickets, services due, onboarding/offboarding — each row gated on the permission that lets the actor clear it, and hidden entirely when the count is zero), expiring items, overdue tasks, quick actions |
 | Reports | `/reports` | Employee/HR/IT/Fleet/Insurance/Admin reports with filters + export |
 | Global Search | `⌘K` | Trigram search across 9 entity types (Employees, Documents, Tasks, Tickets, IT assets, Vehicles, Suppliers, Subcontractors, Vault names), permission-filtered per source |
+| Profile & settings | `/profile` | Own display name, read-only role and company access, active sessions with "sign out everywhere else" |
 | Notifications | `/notifications` | Rule-driven and deduplicated, in-app only (the email channel is deferred — DEVELOPMENT.md §10). Produced: EXPIRY and TASK_DUE/TASK_OVERDUE by the nightly cron; APPROVAL_REQUIRED and TICKET_ASSIGNED at the moment the event happens. MENTION is unused — task comments have no mention parsing |
 | Audit Log | `/audit` | Filterable by actor, entity, action, date |
 

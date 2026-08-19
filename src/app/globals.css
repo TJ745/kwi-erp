@@ -60,6 +60,16 @@
   --chart-bar: oklch(0.52 0.13 250);
   --chart-grid: oklch(0.922 0 0);
   --chart-axis: oklch(0.556 0 0);
+  /* Categorical, for part-to-whole only. Four slots, not more: six hues could
+     not clear the CVD floor at any lightness we tried, and the fifth slice is
+     always "Other" in muted ink. Hue AND lightness both vary, because lightness
+     is what survives colour blindness. Validated all-pairs — slices touch, so
+     adjacent-only is not enough. */
+  --chart-cat-1: #0054ae;
+  --chart-cat-2: #da942c;
+  --chart-cat-3: #009289;
+  --chart-cat-4: #981d76;
+  --chart-cat-other: oklch(0.72 0.01 260);
 
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -113,6 +123,11 @@
   --chart-bar: oklch(0.78 0.12 250);
   --chart-grid: oklch(1 0 0 / 12%);
   --chart-axis: oklch(0.708 0 0);
+  --chart-cat-1: #0077cd;
+  --chart-cat-2: #c17d00;
+  --chart-cat-3: #009b92;
+  --chart-cat-4: #a42b81;
+  --chart-cat-other: oklch(0.55 0.01 260);
 
   --sidebar: oklch(0.185 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
