@@ -27,19 +27,36 @@ export async function listSuppliers(
   return prisma.supplier.findMany({
     where: {
       deletedAt: null,
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      // Composed under AND, never spread side by side.
+      //
+      // Both halves emit `OR`, and two `OR` keys in one object literal do not
+      // merge — the second silently replaces the first. Spreading them left
+      // the company scope out of every searched query, so typing a name
+      // returned suppliers from companies the caller cannot otherwise see.
+      // Verified by reproduction before this was changed.
+      //
       // Suppliers may be shared across companies, so a null companyId is
       // visible to everyone — same rule as positions and letter templates.
-      ...optionalCompanyScopeWhere(ctx),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
-              { code: { contains: filters.q, mode: "insensitive" as const } },
-              { contactPerson: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
+      AND: [
+        optionalCompanyScopeWhere(ctx),
+        ...(filters.q
+          ? [
+              {
+                OR: [
+                  { name: { contains: filters.q, mode: "insensitive" as const } },
+                  { code: { contains: filters.q, mode: "insensitive" as const } },
+                  {
+                    contactPerson: {
+                      contains: filters.q,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: { name: "asc" },
     select: {

@@ -833,20 +833,27 @@ const supplierRegister: QueryFn = async (ctx, filters) => {
   const suppliers = await prisma.supplier.findMany({
     where: {
       deletedAt: null,
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      // Composed under AND for the same reason as listSuppliers in
+      // services/vendors.ts: the scope helper and the search filter both emit
+      // `OR`, and spreading both drops the scope entirely, so a searched
+      // report crossed company boundaries.
+      //
       // Suppliers may be shared across companies, so the nullable-aware helper
       // applies rather than the strict one.
-      ...(filters.companyId
-        ? scopeWhere(ctx, filters)
-        : optionalCompanyScopeWhere(ctx)),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
-              { code: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
+      AND: [
+        filters.companyId ? scopeWhere(ctx, filters) : optionalCompanyScopeWhere(ctx),
+        ...(filters.q
+          ? [
+              {
+                OR: [
+                  { name: { contains: filters.q, mode: "insensitive" as const } },
+                  { code: { contains: filters.q, mode: "insensitive" as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: { code: "asc" },
     take: MAX_ROWS + 1,

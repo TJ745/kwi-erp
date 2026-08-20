@@ -9,7 +9,7 @@ import { z } from "zod";
  * a malformed `?page=-5&pageSize=99999` cannot reach a query.
  */
 
-export const DEFAULT_PAGE_SIZE = 25;
+export const DEFAULT_PAGE_SIZE = 10;
 export const MAX_PAGE_SIZE = 100;
 
 export const listQuerySchema = z.object({

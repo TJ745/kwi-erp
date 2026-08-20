@@ -4,6 +4,7 @@ import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
+import { DEFAULT_PAGE_SIZE } from "@/lib/list-query";
 import type {
   ChecklistTemplateInput,
   DocumentTypeInput,
@@ -32,7 +33,7 @@ export type AuditFilters = {
   q?: string | undefined;
 };
 
-const AUDIT_PAGE_SIZE = 100;
+const AUDIT_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 /**
  * The single scoping derivation for the audit log.
@@ -42,9 +43,27 @@ const AUDIT_PAGE_SIZE = 100;
  */
 function auditWhere(ctx: ActorContext, filters: AuditFilters) {
   return {
+    // Scope and free-text search are composed under AND, never spread side by
+    // side. Both emit `OR`, and a second `OR` key replaces the first rather
+    // than merging — which left every *searched* audit query unscoped, showing
+    // entries from companies the reader cannot otherwise see. The export runs
+    // through this same function, so it leaked identically.
+    //
     // Entries with no company (platform-level actions) stay visible to
     // everyone who can read the log at all; company-owned ones are scoped.
-    ...optionalCompanyScopeWhere(ctx),
+    AND: [
+      optionalCompanyScopeWhere(ctx),
+      ...(filters.q
+        ? [
+            {
+              OR: [
+                { summary: { contains: filters.q, mode: "insensitive" as const } },
+                { actorLabel: { contains: filters.q, mode: "insensitive" as const } },
+              ],
+            },
+          ]
+        : []),
+    ],
     ...(filters.companyId ? { companyId: filters.companyId } : {}),
     ...(filters.action ? { action: filters.action as AuditAction } : {}),
     ...(filters.entityType ? { entityType: filters.entityType as EntityType } : {}),
@@ -56,14 +75,6 @@ function auditWhere(ctx: ActorContext, filters: AuditFilters) {
             ...(filters.from ? { gte: filters.from } : {}),
             ...(filters.to ? { lte: filters.to } : {}),
           },
-        }
-      : {}),
-    ...(filters.q
-      ? {
-          OR: [
-            { summary: { contains: filters.q, mode: "insensitive" as const } },
-            { actorLabel: { contains: filters.q, mode: "insensitive" as const } },
-          ],
         }
       : {}),
   };
