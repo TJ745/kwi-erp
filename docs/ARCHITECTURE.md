@@ -165,7 +165,25 @@ Verified against a real 11-page PDF: all 11 pages carried both images, ink
 measured 1.00–1.01in from every edge, and the footer sat 1.01in from the bottom
 on the short final page as well as the full ones.
 
-`@page { margin: 1in }` is global, so reports print with the same margins.
+**Margins, and why there is only one `@page`.** The page box is `0.45in` for
+every document. Letters do not print at 0.45in: they add a `0.55in` inset
+through the letter frame's cells, which reach `1in` and — crucially — are drawn
+on EVERY page, whereas a block's vertical padding applies only to its first and
+last fragment. Forms take the page margin as it stands, which is what the paper
+originals use and what lets a dense grid fit one sheet.
+
+A second, named `@page` is the obvious alternative and does not work: `page:`
+switches page context, and switching partway down the tree leaves `html`/`body`
+in the default context, so Chrome lays out both and emits a blank trailing
+sheet. Measured, after trying it.
+
+Two other things produced a blank trailing page and are worth not rediscovering:
+`min-height: 100vh` on `body` (in paged media `100vh` is the FULL page height
+while the content box is that minus margins, so body overruns its own page by
+exactly the margin box), and the wrapper's `p-6`/`space-y-6` surviving into
+print. Both are now reset in the print block.
+
+Reports print at the page box with no letterhead.
 Reports get **no letterhead**: they have no company context — a report can span
 every company the reader can see, so there is no single letterhead that would
 not be a lie.

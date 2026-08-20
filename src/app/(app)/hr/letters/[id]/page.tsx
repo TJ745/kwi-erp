@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppError } from "@/lib/result";
-import { LETTER_TYPE_LABELS } from "@/lib/schemas/letters";
+import { isFormLetter, LETTER_TYPE_LABELS } from "@/lib/schemas/letters";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { getGeneratedLetter } from "@/server/services/letters";
 import { PrintButton } from "./print-button";
@@ -26,8 +26,21 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
     throw error;
   });
 
+  // The named page goes on the OUTERMOST printable container, not on the sheet.
+  // `page:` switches page context, and a switch partway down the tree makes the
+  // browser lay out the ancestors on the default page and the sheet on the
+  // named one — which emitted two blank pages after the form.
+  const isForm = isFormLetter(letter.template.type);
+
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 p-6">
+    <div
+      // print:p-0 / print:space-y-0 matter: the wrapper's padding and the
+      // space-y gap above the sheet survive into print, and a quarter inch
+      // past the bottom of a full page emits an entirely blank extra sheet.
+      className={`mx-auto w-full max-w-4xl space-y-6 p-6 print:space-y-0 print:p-0${
+        isForm ? " letter-sheet--form" : ""
+      }`}
+    >
       {/* Screen-only chrome; the print stylesheet hides it. */}
       <div className="print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -66,6 +79,11 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
         ) : null}
       </div>
 
+      {/*
+        Forms print on their own page setup — tighter margins and a smaller
+        letterhead reserve, so a dense grid fits the single sheet it has to fit
+        (see isFormLetter). Letters keep the roomier default.
+      */}
       <article className="letter-sheet bg-background rounded-lg border p-10 print:rounded-none print:border-0 print:p-0">
         {/*
           A table, and not for layout fashion — it is the only construct

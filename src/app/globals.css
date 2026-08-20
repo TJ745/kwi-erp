@@ -313,14 +313,28 @@
   body {
     background: white;
     color: black;
+    /* `min-h-screen` on body is right for the app shell and wrong for paper:
+       in paged media 100vh resolves to the FULL page height, while the content
+       box is that minus the margins. Body then overruns its own page by
+       exactly the margin box and emits a blank trailing sheet — which is what
+       made a one-page form print as two. A viewport minimum means nothing once
+       the document is paginated. */
+    min-height: 0;
   }
   /* A4, 1 inch on every side. The margin box is what the letterhead sits
      inside: `thead` renders at the top of this area on each page and `tfoot` at
      the bottom, so the artwork is 1in from the paper edge on every page rather
      than only the first. */
+  /* ONE page box for every printed document, set to the tightest margin any
+     of them needs. Letters do not print at 0.45in: they restore a 1in inset
+     through the letter frame below, which is drawn on EVERY page, whereas a
+     block's vertical padding only applies to its first and last fragment.
+     A second, named @page was the obvious alternative and does not work here —
+     switching page context partway down the tree leaves html/body in the
+     default context and Chrome emits a blank trailing sheet. */
   @page {
     size: A4;
-    margin: 1in;
+    margin: 0.45in;
   }
 
   /* Repeat the letterhead on every page.
@@ -345,12 +359,42 @@
 
      The reserved band is a fixed height because CSS cannot ask how tall the
      rendered footer is; 1.35in covers the 30mm artwork cap plus its gap. */
+  .letter-frame > thead > tr > td,
+  .letter-frame > tbody > tr > td,
   .letter-frame > tfoot > tr > td {
-    height: 1.35in;
+    /* 0.45in page margin + 0.55in here = the 1in a letter is specified at. */
+    padding-inline: 0.55in;
+  }
+  .letter-frame > thead > tr > td {
+    padding-top: 0.55in;
+    padding-bottom: 2rem;
+  }
+  .letter-frame > tfoot > tr > td {
+    height: 1.9in;
     padding-top: 0;
   }
   .letter-foot {
     position: fixed;
+    right: 0.55in;
+    bottom: 0.55in;
+    left: 0.55in;
+  }
+
+  /* Forms use the page margin as it stands — 0.45in, which is what the paper
+     original uses and what lets a dense grid fit one sheet. */
+  .letter-sheet--form .letter-frame > thead > tr > td,
+  .letter-sheet--form .letter-frame > tbody > tr > td,
+  .letter-sheet--form .letter-frame > tfoot > tr > td {
+    padding-inline: 0;
+  }
+  .letter-sheet--form .letter-frame > thead > tr > td {
+    padding-top: 0;
+    padding-bottom: 0.5rem;
+  }
+  .letter-sheet--form .letter-frame > tfoot > tr > td {
+    height: 1in;
+  }
+  .letter-sheet--form .letter-foot {
     right: 0;
     bottom: 0;
     left: 0;

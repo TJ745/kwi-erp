@@ -52,11 +52,11 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
     bodyHtml: `
       <table class="form-grid" style="width: 100%; border: 0">
         <tr>
-          <td style="border: 0; width: 27%; text-align: left">Date: {{today}}</td>
-          <td style="border: 0; width: 46%; text-align: center; font-weight: 700; font-size: 1rem">
+          <td style="border: 0; width: 22%; text-align: left">Date: {{today}}</td>
+          <td style="border: 0; width: 56%; text-align: center; font-weight: 700; font-size: 1rem">
             EMPLOYEE CLEARANCE FORM <span dir="rtl" lang="ar">نموذج إخلاء طرف</span>
           </td>
-          <td style="border: 0; width: 27%; text-align: right" dir="rtl" lang="ar">
+          <td style="border: 0; width: 22%; text-align: right" dir="rtl" lang="ar">
             التاريخ: {{today_hijri}}
           </td>
         </tr>

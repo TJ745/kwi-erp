@@ -30,6 +30,27 @@ export const LETTER_TYPE_LABELS: Record<(typeof LETTER_TYPES)[number], string> =
   OTHER: "Other",
 };
 
+/**
+ * Types that print as FORMS rather than prose.
+ *
+ * The distinction is not cosmetic. A form is a dense grid of short labelled
+ * boxes, printed to be filled in and signed by hand, and it is expected to fit
+ * on a single sheet that routes between departments. A letter is prose, read
+ * once, and wants generous margins. Feeding both through the same page setup
+ * makes one of them wrong — at letter margins the clearance form runs onto a
+ * second page, and a two-page form is a second sheet to chase signatures on.
+ */
+export const FORM_LETTER_TYPES = [
+  "CLEARANCE_FORM",
+  "VEHICLE_HANDOVER",
+  "ASSET_HANDOVER",
+  "RETURN_CONFIRMATION",
+] as const;
+
+export function isFormLetter(type: string): boolean {
+  return (FORM_LETTER_TYPES as readonly string[]).includes(type);
+}
+
 /** "" is what an unselected <select> submits; it means "no company", not a blank id. */
 const optionalId = z
   .string()
