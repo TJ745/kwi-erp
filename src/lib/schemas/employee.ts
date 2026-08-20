@@ -38,6 +38,10 @@ const employeeSchemaObject = z
     managerId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
 
     firstName: z.string().trim().min(1, "First name is required").max(80),
+    // Optional: not every record has all four parts, but Saudi government
+    // forms print each in its own box (see the clearance form template).
+    middleName: optionalText(80),
+    familyName: optionalText(80),
     lastName: z.string().trim().min(1, "Last name is required").max(80),
     fullNameAr: optionalText(200),
 

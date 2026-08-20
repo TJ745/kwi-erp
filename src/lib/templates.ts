@@ -21,6 +21,13 @@
 export const TEMPLATE_VARIABLES = {
   employee_name: "Employee full name",
   employee_name_ar: "Employee name (Arabic)",
+  // The four parts separately, because Saudi government forms address a person
+  // by each one in its own box — printing the full name into a four-cell row
+  // is not the same document.
+  employee_first_name: "First name",
+  employee_middle_name: "Middle name (father's name)",
+  employee_last_name: "Last name (grandfather's name)",
+  employee_family_name: "Family name",
   employee_id: "Employee number",
   employee_nationality: "Nationality",
   iqama_number: "Iqama number",
@@ -28,8 +35,10 @@ export const TEMPLATE_VARIABLES = {
   company_name: "Company registered name",
   company_short_name: "Company short name",
   company_cr: "Commercial registration number",
+  company_city: "Company city",
   position: "Job title",
   department: "Department",
+  department_manager: "Head of the employee's department",
   joining_date: "Joining date",
   last_working_date: "Last working date",
   salary: "Basic salary",
@@ -38,6 +47,7 @@ export const TEMPLATE_VARIABLES = {
   contract_start: "Contract start date",
   contract_end: "Contract end date",
   today: "Today's date",
+  today_hijri: "Today's date (Hijri)",
   letter_no: "Generated letter number",
 } as const;
 
@@ -139,6 +149,7 @@ const ALLOWED_STYLE_PROPERTIES = new Set([
   "margin", "margin-top", "margin-bottom", "margin-left", "margin-right",
   "padding", "padding-top", "padding-bottom", "padding-left", "padding-right",
   "width", "border", "border-bottom", "border-top", "line-height", "direction",
+  "vertical-align",
 ]);
 
 /**
@@ -225,4 +236,28 @@ function sanitiseStyle(value: string): string {
   }
 
   return declarations.join("; ");
+}
+
+/**
+ * Gregorian date as Hijri (Umm al-Qura), formatted DD / MM / YYYY.
+ *
+ * Assembled from `formatToParts` rather than by formatting a string directly:
+ * the `en` locale orders Islamic dates month-first, so the obvious
+ * `format()` call yields 03/06/1448 where a Saudi form expects 06/03/1448.
+ * Umm al-Qura specifically — it is the civil calendar Saudi government
+ * paperwork is dated by, and it differs from the tabular reckoning other
+ * calendars use.
+ */
+export function toHijri(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).formatToParts(date);
+
+  const pick = (type: string): string =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  return `${pick("day")} / ${pick("month")} / ${pick("year")}`;
 }

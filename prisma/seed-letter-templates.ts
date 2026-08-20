@@ -15,6 +15,7 @@ export type SeedTemplate = {
     | "SALARY_LETTER"
     | "EXPERIENCE_LETTER"
     | "JOINING_LETTER"
+    | "CLEARANCE_FORM"
     | "MEMO";
   bodyHtml: string;
   bodyHtmlAr: string | null;
@@ -39,6 +40,225 @@ const SIGNATURE_AR = `
 `;
 
 export const SEED_TEMPLATES: SeedTemplate[] = [
+  {
+    key: "employee_clearance_form",
+    name: "Employee Clearance Form",
+    type: "CLEARANCE_FORM",
+    // A form, not a letter: it is printed to be signed by hand, so most cells
+    // are deliberately empty. Only what the system actually knows is filled —
+    // the four name parts, iqama, dates, company, department and its manager.
+    // The letterhead is NOT here; it comes from company settings and repeats
+    // on every page (docs/ARCHITECTURE.md, ADR-004).
+    bodyHtml: `
+      <table class="form-grid" style="width: 100%; border: 0">
+        <tr>
+          <td style="border: 0; width: 27%; text-align: left">Date: {{today}}</td>
+          <td style="border: 0; width: 46%; text-align: center; font-weight: 700; font-size: 1rem">
+            EMPLOYEE CLEARANCE FORM <span dir="rtl" lang="ar">نموذج إخلاء طرف</span>
+          </td>
+          <td style="border: 0; width: 27%; text-align: right" dir="rtl" lang="ar">
+            التاريخ: {{today_hijri}}
+          </td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td colspan="2" style="font-weight: 700">EMPLOYEE INFORMATION</td>
+          <td colspan="2" style="font-weight: 700; text-align: right" dir="rtl" lang="ar">معلومات الموظف</td>
+        </tr>
+        <tr>
+          <td style="width: 25%"><strong>Family Name</strong> <span dir="rtl" lang="ar">إسم العائلة</span></td>
+          <td style="width: 25%"><strong>Last Name</strong> <span dir="rtl" lang="ar">إسم الجد</span></td>
+          <td style="width: 25%"><strong>Middle Name</strong> <span dir="rtl" lang="ar">إسم الأب</span></td>
+          <td style="width: 25%"><strong>First Name</strong> <span dir="rtl" lang="ar">الاسم الأول</span></td>
+        </tr>
+        <tr>
+          <td>{{employee_family_name}}</td>
+          <td>{{employee_last_name}}</td>
+          <td>{{employee_middle_name}}</td>
+          <td>{{employee_first_name}}</td>
+        </tr>
+        <tr>
+          <td><strong>End Date</strong> <span dir="rtl" lang="ar">تاريخ الإنتهاء</span></td>
+          <td><strong>Join Date</strong> <span dir="rtl" lang="ar">تاريخ التعيين</span></td>
+          <td><strong>Employee ID#</strong> <span dir="rtl" lang="ar">الرقم الوظيفي</span></td>
+          <td><strong>ID / Iqama #:</strong> <span dir="rtl" lang="ar">رقم الإقامه</span></td>
+        </tr>
+        <tr>
+          <td>{{last_working_date}}</td>
+          <td>{{joining_date}}</td>
+          <td>{{employee_id}}</td>
+          <td>{{iqama_number}}</td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td style="width: 60%; font-weight: 700">LOCATION AND WORK</td>
+          <td style="width: 40%; font-weight: 700; text-align: right" dir="rtl" lang="ar">موقع وطبيعة العمل</td>
+        </tr>
+        <tr>
+          <td style="width: 60%"><strong>Company Name :</strong> {{company_name}}</td>
+          <td style="width: 40%; text-align: right" dir="rtl" lang="ar">اسم الشركة :</td>
+        </tr>
+        <tr>
+          <td><strong>Company Location :</strong> {{company_city}}</td>
+          <td style="text-align: right" dir="rtl" lang="ar">موقع الشركة :</td>
+        </tr>
+        <tr>
+          <td><strong>Department / Division :</strong> {{department}}</td>
+          <td style="text-align: right" dir="rtl" lang="ar">الدائره / القسم :</td>
+        </tr>
+        <tr>
+          <td><strong>Position :</strong> {{position}}</td>
+          <td style="text-align: right" dir="rtl" lang="ar">الوظيفة :</td>
+        </tr>
+        <tr>
+          <td><strong>Department Manager :</strong> {{department_manager}}</td>
+          <td style="text-align: right" dir="rtl" lang="ar">مدير القسم :</td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td style="width: 60%; font-weight: 700">IT DEPARTMENT</td>
+          <td style="width: 40%; font-weight: 700; text-align: right" dir="rtl" lang="ar">قسم تكنولوجيا المعلومات</td>
+        </tr>
+        <tr>
+          <td style="width: 60%"><strong>Server user name :</strong></td>
+          <td style="width: 40%; text-align: right" dir="rtl" lang="ar">اسم المستخدم على السيرفر :</td>
+        </tr>
+        <tr>
+          <td><strong>Email Account :</strong></td>
+          <td style="text-align: right" dir="rtl" lang="ar">البريد الإلكتروني :</td>
+        </tr>
+        <tr>
+          <td><strong>ERP Account :</strong></td>
+          <td style="text-align: right" dir="rtl" lang="ar">حساب ERP :</td>
+        </tr>
+        <tr>
+          <td><strong>Hardware and Devices :</strong></td>
+          <td style="text-align: right" dir="rtl" lang="ar">الكمبيوترات والأجهزه :</td>
+        </tr>
+        <tr>
+          <td><strong>Software :</strong></td>
+          <td style="text-align: right" dir="rtl" lang="ar">البرامج :</td>
+        </tr>
+      </table>
+
+      <table class="form-grid form-sign">
+        <tr>
+          <td style="width: 25%; padding-top: 1.4rem; vertical-align: bottom"><strong>Date:</strong> <span dir="rtl" lang="ar">التاريخ:</span></td>
+          <td style="width: 30%; padding-top: 1.4rem; vertical-align: bottom"><strong>Signature:</strong> <span dir="rtl" lang="ar">التوقيع:</span></td>
+          <td style="width: 45%; padding-top: 1.4rem; vertical-align: bottom"><strong>IT Manager:</strong> <span dir="rtl" lang="ar">مدير تقنية المعلومات:</span></td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td style="width: 40%; font-weight: 700">DIRECT DEPARTMENT</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">التوقيع</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">الاسم</td>
+          <td style="width: 20%; font-weight: 700; text-align: right" dir="rtl" lang="ar">القسم المباشر</td>
+        </tr>
+        <tr>
+          <td><strong>Aramco and Gov. Access Cards</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">بطاقة دخول أرامكو والشركات</td>
+        </tr>
+        <tr>
+          <td><strong>Warehouse</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">المستودع</td>
+        </tr>
+        <tr>
+          <td><strong>Direct Supervisor</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">المسؤول المباشر</td>
+        </tr>
+      </table>
+
+      <table class="form-grid form-sign">
+        <tr>
+          <td style="width: 25%; padding-top: 1.4rem; vertical-align: bottom"><strong>Date:</strong> <span dir="rtl" lang="ar">التاريخ:</span></td>
+          <td style="width: 30%; padding-top: 1.4rem; vertical-align: bottom"><strong>Signature:</strong> <span dir="rtl" lang="ar">التوقيع:</span></td>
+          <td style="width: 45%; padding-top: 1.4rem; vertical-align: bottom"><strong>Department Manager:</strong> {{department_manager}} <span dir="rtl" lang="ar">مدير القسم:</span></td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td style="width: 40%; font-weight: 700">HR DEPARTMENT</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">التوقيع</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">الاسم</td>
+          <td style="width: 20%; font-weight: 700; text-align: right" dir="rtl" lang="ar">قسم شؤون الموظفين</td>
+        </tr>
+        <tr>
+          <td><strong>ID Access Card</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">بطاقة الدخول</td>
+        </tr>
+        <tr>
+          <td><strong>Cars</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">السيارات</td>
+        </tr>
+        <tr>
+          <td><strong>Sim Card and Mobile</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">الشريحة و الجوال</td>
+        </tr>
+        <tr>
+          <td><strong>Accommodation Officer</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">مسؤول السكن</td>
+        </tr>
+      </table>
+
+      <table class="form-grid form-sign">
+        <tr>
+          <td style="width: 25%; padding-top: 1.4rem; vertical-align: bottom"><strong>Date:</strong> <span dir="rtl" lang="ar">التاريخ:</span></td>
+          <td style="width: 30%; padding-top: 1.4rem; vertical-align: bottom"><strong>Signature:</strong> <span dir="rtl" lang="ar">التوقيع:</span></td>
+          <td style="width: 45%; padding-top: 1.4rem; vertical-align: bottom"><strong>HR Manager:</strong> <span dir="rtl" lang="ar">مدير الموارد البشرية:</span></td>
+        </tr>
+      </table>
+
+      <table class="form-grid">
+        <tr style="background-color: #f2f2f2">
+          <td style="width: 40%; font-weight: 700">Finance &amp; Accounts Department</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">التوقيع</td>
+          <td style="width: 20%; font-weight: 700; text-align: center" dir="rtl" lang="ar">الاسم</td>
+          <td style="width: 20%; font-weight: 700; text-align: right" dir="rtl" lang="ar">قسم المالية و المحاسبة</td>
+        </tr>
+        <tr>
+          <td><strong>Finance &amp; Accounts</strong></td>
+          <td></td>
+          <td></td>
+          <td style="text-align: right" dir="rtl" lang="ar">المالية و الحسابات</td>
+        </tr>
+      </table>
+
+      <table class="form-grid form-sign">
+        <tr>
+          <td style="width: 25%; padding-top: 1.4rem; vertical-align: bottom"><strong>Date:</strong> <span dir="rtl" lang="ar">التاريخ:</span></td>
+          <td style="width: 30%; padding-top: 1.4rem; vertical-align: bottom"><strong>Signature:</strong> <span dir="rtl" lang="ar">التوقيع:</span></td>
+          <td style="width: 45%; padding-top: 1.4rem; vertical-align: bottom"><strong>Finance Manager:</strong> <span dir="rtl" lang="ar">مدير قسم المالية:</span></td>
+        </tr>
+      </table>
+    `,
+    // Bilingual inline rather than as a separate Arabic body: the original is
+    // one form with English and Arabic side by side in the same cells, and
+    // splitting it would produce two forms nobody uses.
+    bodyHtmlAr: null,
+  },
   {
     key: "employment_letter",
     name: "Employment Letter (To Whom It May Concern)",

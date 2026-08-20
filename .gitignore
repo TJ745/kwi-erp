@@ -58,3 +58,7 @@ pnpm-debug.log*
 /test-results/
 /playwright-report/
 /tests/e2e/.auth/
+
+# Source letter templates (real company documents; converted, never shipped)
+template-sources/
+!template-sources/README.md

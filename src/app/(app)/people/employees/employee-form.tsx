@@ -36,6 +36,8 @@ export type EmployeeFormValues = {
   positionId?: string | null;
   managerId?: string | null;
   firstName?: string;
+  middleName?: string;
+  familyName?: string;
   lastName?: string;
   fullNameAr?: string | null;
   gender?: string;
@@ -91,6 +93,8 @@ export function EmployeeForm({
       positionId: readString(fd, "positionId"),
       managerId: readString(fd, "managerId"),
       firstName: readString(fd, "firstName"),
+      middleName: readString(fd, "middleName"),
+      familyName: readString(fd, "familyName"),
       lastName: readString(fd, "lastName"),
       fullNameAr: readString(fd, "fullNameAr"),
       gender: readString(fd, "gender"),
@@ -149,11 +153,25 @@ export function EmployeeForm({
               errors={errors.firstName}
             />
             <TextField
+              name="middleName"
+              label="Middle name"
+              hint="Father's name, as printed on the Iqama."
+              defaultValue={values.middleName ?? ""}
+              errors={errors.middleName}
+            />
+            <TextField
               name="lastName"
               label="Last name"
               required
+              hint="Grandfather's name."
               defaultValue={values.lastName ?? ""}
               errors={errors.lastName}
+            />
+            <TextField
+              name="familyName"
+              label="Family name"
+              defaultValue={values.familyName ?? ""}
+              errors={errors.familyName}
             />
             <TextField
               name="fullNameAr"

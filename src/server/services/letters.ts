@@ -7,6 +7,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
 import {
   extractVariables,
   renderTemplate,
+  toHijri,
   sanitiseTemplateHtml,
   TEMPLATE_VARIABLES,
   type TemplateVariable,
@@ -164,9 +165,15 @@ export async function buildLetterData(
       joiningDate: true,
       lastWorkingDate: true,
       companyId: true,
-      company: { select: { name: true, shortName: true, crNumber: true } },
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      familyName: true,
+      company: { select: { name: true, shortName: true, crNumber: true, city: true } },
       position: { select: { title: true } },
-      department: { select: { name: true } },
+      department: {
+        select: { name: true, headEmployee: { select: { fullName: true } } },
+      },
       iqama: { select: { iqamaNumber: true } },
       passport: { select: { passportNumber: true } },
       contracts: {
@@ -198,6 +205,10 @@ export async function buildLetterData(
     data: {
       employee_name: employee.fullName,
       employee_name_ar: employee.fullNameAr,
+      employee_first_name: employee.firstName,
+      employee_middle_name: employee.middleName,
+      employee_last_name: employee.lastName,
+      employee_family_name: employee.familyName,
       employee_id: employee.employeeNo,
       employee_nationality: employee.nationality,
       iqama_number: employee.iqama?.iqamaNumber ?? null,
@@ -205,8 +216,10 @@ export async function buildLetterData(
       company_name: employee.company.name,
       company_short_name: employee.company.shortName,
       company_cr: employee.company.crNumber,
+      company_city: employee.company.city,
       position: employee.position?.title ?? null,
       department: employee.department?.name ?? null,
+      department_manager: employee.department?.headEmployee?.fullName ?? null,
       joining_date: iso(employee.joiningDate),
       last_working_date: iso(employee.lastWorkingDate),
       salary: canSeeSalary && contract?.basicSalary ? contract.basicSalary.toString() : null,
@@ -214,6 +227,7 @@ export async function buildLetterData(
       contract_start: iso(contract?.startDate),
       contract_end: iso(contract?.endDate),
       today: new Date().toISOString().slice(0, 10),
+      today_hijri: toHijri(new Date()),
     },
   };
 }

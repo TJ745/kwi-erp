@@ -246,6 +246,27 @@
   opacity: 0.25;
 }
 
+/* Compact form grid — `<table class="form-grid">`.
+   The default letter styling is set for prose: 1.7 line-height and roomy cells
+   read well in a paragraph and turn a one-page government form into four. A
+   form is a grid of short labels, so it gets its own density. Opt-in by class
+   rather than applied to every table, because tables inside an ordinary letter
+   (a salary breakdown, say) should still read as prose. */
+.letter-body .form-grid {
+  margin-block: 0.3rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+}
+.letter-body .form-grid td,
+.letter-body .form-grid th {
+  padding: 0.08rem 0.28rem;
+}
+/* Signature strips need height to write in, which is the one place a form
+   wants MORE room than prose. */
+.letter-body .form-grid.form-sign td {
+  padding-top: 0.8rem;
+}
+
 /* Letterhead artwork.
    The height cap lives here rather than in the print block on purpose: capped
    only when printing, a tall header renders full-bleed on screen and then
@@ -254,7 +275,7 @@
    letter onto a second page. */
 .letter-head img,
 .letter-foot img {
-  max-height: 35mm;
+  max-height: 30mm;
   object-fit: contain;
   object-position: center;
 }
@@ -323,9 +344,9 @@
          last paragraph there, which is what a reader notices.
 
      The reserved band is a fixed height because CSS cannot ask how tall the
-     rendered footer is; 1.7in covers the 35mm artwork cap plus its gap. */
+     rendered footer is; 1.35in covers the 30mm artwork cap plus its gap. */
   .letter-frame > tfoot > tr > td {
-    height: 1.7in;
+    height: 1.35in;
     padding-top: 0;
   }
   .letter-foot {
