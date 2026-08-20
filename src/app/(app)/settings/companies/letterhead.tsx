@@ -100,9 +100,18 @@ function SlotEditor({
 
   const { startUpload, isUploading } = useUploadThing("documentUploader", {
     onClientUploadComplete: (result) => {
-      const fileId = result[0]?.serverData.fileId;
+      // serverData is absent whenever onUploadComplete did not run — most
+      // often because UploadThing could not reach this app to deliver the
+      // callback. Guarded rather than dereferenced: without the second `?.`
+      // that case throws a TypeError the user sees as an SDK crash instead of
+      // the actual problem.
+      const fileId = result[0]?.serverData?.fileId;
       if (!fileId) {
-        toast.error("The upload finished but no file was returned.");
+        toast.error(
+          "The image uploaded but was not registered. The server did not " +
+            "receive the upload callback — see docs/DEVELOPMENT.md on running " +
+            "uploads locally.",
+        );
         return;
       }
       attach(fileId);

@@ -73,6 +73,33 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ---
 
+### Running locally: `dev` vs `start`, and why uploads need `dev`
+
+Two things behave differently under `pnpm start` (`next start`), and both cost
+time to rediscover:
+
+**`next start` serves a build, not your source.** Code changes are invisible
+until you re-run `pnpm build`. If a field you just added does not appear, check
+this before debugging the component — verified 2026-08-20, when new company
+fields were missing purely because the running build predated them.
+
+**File uploads cannot complete on localhost under `next start`.** The bytes
+reach UploadThing, but `onUploadComplete` runs only when UploadThing calls back
+*into this app* — and it cannot reach `localhost`. No callback means no
+`FileObject` row and no `serverData`, so the upload silently produces nothing.
+Measured: the dev server logged 12 callbacks over the same journeys where the
+production server logged 0. `next dev` handles the callback locally, so **use
+`pnpm dev` for any work touching uploads**; a deployed instance on a public URL
+is fine because the callback can reach it.
+
+`NODE_ENV` in `.env.local` does not change this — Next ignores it, and
+`next start` is production regardless.
+
+**Free tier in production is refused unless accepted.** `next start` counts as
+production, so `UPLOADTHING_TIER=free` makes every upload, download, and
+letterhead request return **503** until `ACCEPT_PUBLIC_FILE_STORAGE=true` is
+set (docs/SECURITY.md §6.0). That is the guard working as designed, not a bug.
+
 ## 4. Quality gates
 
 Per §47 of the brief, run before any feature is called done:

@@ -547,6 +547,14 @@ slot names all get 404 with no body. Verified live.
 | **No antivirus scanning** | Magic-byte validation catches type confusion, not malware. `scanStatus` exists precisely so an AV step can be inserted later without a schema change. |
 | **Vendor availability** | An UploadThing outage stops uploads and downloads. Acceptable for an internal tool; noted so it is a known dependency rather than a surprise. |
 
+**Free tier accepted, 2026-08-20.** `ACCEPT_PUBLIC_FILE_STORAGE=true` is set for
+this deployment. Until it moves to `UPLOADTHING_TIER=pro`, stored objects —
+including Iqama and passport scans — are readable by anyone holding the object
+URL. The application never discloses that URL (both file routes stream bytes
+rather than redirect), so exposure requires the URL to escape by some other
+path. Without this flag the per-request guard refuses to serve any file in
+production, which is the intended fail-closed behaviour.
+
 ---
 
 ### 5a. Bank details — the two permissions are independent

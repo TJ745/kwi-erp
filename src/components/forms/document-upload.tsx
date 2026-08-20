@@ -55,9 +55,21 @@ export function DocumentUpload({
   const { startUpload, isUploading } = useUploadThing("documentUploader", {
     onClientUploadComplete: (result) => {
       const first = result[0];
-      if (first?.serverData.fileId) {
+      // Same guard as the letterhead uploader: a missing serverData means the
+      // upload callback never reached this app, and dereferencing it turns
+      // that into an opaque TypeError.
+      if (first?.serverData?.fileId) {
         setUploadedFileId(first.serverData.fileId);
         toast.success("File uploaded and verified.");
+      } else {
+        // Previously this branch did nothing: the file uploaded, no record was
+        // created, and the dialog just sat there. Silence is the worst of the
+        // three outcomes here — say what happened.
+        toast.error(
+          "The file uploaded but was not registered. The server did not " +
+            "receive the upload callback.",
+        );
+        setFile(null);
       }
     },
     onUploadError: (error) => {
