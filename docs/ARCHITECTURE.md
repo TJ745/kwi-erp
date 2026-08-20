@@ -141,6 +141,35 @@ Implementation constraints, stated up front because they bite late:
 - Arabic fonts (Noto Naskh Arabic) are **embedded in the repo and loaded from disk**, not fetched from Google Fonts at render time — a network dependency inside PDF generation is a reliability and privacy problem.
 - PDF generation is a queued, audited operation, never a synchronous blocking call in a form submit.
 
+**Repeating letterhead on every page** (added 2026-08-20). A multi-page letter
+must carry the company header and footer on *each* page, inside 1in margins.
+That combination needs two mechanisms, and neither alone is sufficient:
+
+| Mechanism | Gives | Cannot give |
+|---|---|---|
+| `<thead>` / `<tfoot>` in a wrapping `<table class="letter-frame">` | Repeats on every printed page **and reserves its height there**, so body text never runs under the letterhead | Pins the footer to the bottom of a **short final page** — `tfoot` sits directly under the last paragraph instead |
+| `position: fixed` | Repeats on every page pinned to the page box, including the last | Reserves no space at all — padding on a flowing block applies only to its first and last fragment, so pages 2..n would overlap |
+
+So the header uses `thead` (top of the page is where it lands anyway), and the
+footer uses **both**: `tfoot` reserves a fixed 1.7in band on every page, and
+`.letter-foot` is `position: fixed; bottom: 0` to paint it. The band is a fixed
+height because CSS cannot ask how tall the rendered footer is; 1.7in covers the
+35mm artwork cap plus its gap.
+
+The table is layout-only and carries none of a table's appearance. Its
+`display: table-header-group` / `table-footer-group` values are restated in the
+print block even though they are the defaults — the whole feature silently
+collapses to "letterhead on page one" if anything overrides them.
+
+Verified against a real 11-page PDF: all 11 pages carried both images, ink
+measured 1.00–1.01in from every edge, and the footer sat 1.01in from the bottom
+on the short final page as well as the full ones.
+
+`@page { margin: 1in }` is global, so reports print with the same margins.
+Reports get **no letterhead**: they have no company context — a report can span
+every company the reader can see, so there is no single letterhead that would
+not be a lie.
+
 ### ADR-008 — UploadThing for file storage, with two mandatory hardening steps
 
 **Resolved by Decision B: UploadThing.**

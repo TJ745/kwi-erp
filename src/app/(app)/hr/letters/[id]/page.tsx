@@ -68,62 +68,89 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
 
       <article className="letter-sheet bg-background rounded-lg border p-10 print:rounded-none print:border-0 print:p-0">
         {/*
+          A table, and not for layout fashion — it is the only construct
+          browsers repeat across printed pages. `thead` and `tfoot` are drawn
+          on EVERY page of a multi-page letter and, crucially, reserve their
+          height on every page. `position: fixed` also repeats, but padding on
+          a flowing block only applies to its first and last fragment, so the
+          body would run underneath the letterhead on pages 2..n.
+
           Letterhead is page chrome, not letter content. It lives here rather
           than inside the template body on purpose: the body is sanitised and
           the sanitiser forbids <img> (src/lib/templates.ts), and it should stay
           that way. Artwork set once in company settings also means a template
           does not carry a copy of the branding that goes stale when it changes.
         */}
-        <header className="letter-head mb-8">
-          {letter.company.headerImageFileId !== null ? (
-            // Served from a session-gated route that streams the bytes, so
-            // next/image's optimiser cannot reach it.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/companies/${letter.company.id}/branding/header`}
-              alt={`${letter.company.name} letterhead`}
-              className="mb-6 w-full object-contain"
-            />
-          ) : (
-            <div className="mb-6">
-              <p className="text-lg font-semibold">{letter.company.name}</p>
-              <p className="text-muted-foreground text-xs">
-                {[letter.company.addressLine, letter.company.city]
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
-            </div>
-          )}
+        <table className="letter-frame">
+          <thead className="letter-head-group">
+            <tr>
+              <td>
+                <div className="letter-head">
+                  {letter.company.headerImageFileId !== null ? (
+                    // Served from a session-gated route that streams the bytes,
+                    // so next/image's optimiser cannot reach it.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/companies/${letter.company.id}/branding/header`}
+                      alt={`${letter.company.name} letterhead`}
+                      className="w-full object-contain"
+                    />
+                  ) : (
+                    <div>
+                      <p className="text-lg font-semibold">{letter.company.name}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {[letter.company.addressLine, letter.company.city]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
 
-          <div className="text-muted-foreground flex justify-between border-t pt-3 text-xs">
-            <span className="font-mono">{letter.letterNo}</span>
-            <span>{letter.generatedAt.toISOString().slice(0, 10)}</span>
-          </div>
-        </header>
+                  <div className="text-muted-foreground mt-3 flex justify-between border-t pt-3 text-xs">
+                    <span className="font-mono">{letter.letterNo}</span>
+                    <span>{letter.generatedAt.toISOString().slice(0, 10)}</span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </thead>
 
-        {/*
-          Sanitised on save and again at render (src/lib/templates.ts), with all
-          substituted values HTML-escaped. This is the only place letter HTML is
-          injected.
-        */}
-        <div
-          className="letter-body"
-          dangerouslySetInnerHTML={{ __html: letter.renderedHtml }}
-        />
+          <tbody>
+            <tr>
+              <td>
+                {/*
+                  Sanitised on save and again at render (src/lib/templates.ts),
+                  with all substituted values HTML-escaped. This is the only
+                  place letter HTML is injected.
+                */}
+                <div
+                  className="letter-body"
+                  dangerouslySetInnerHTML={{ __html: letter.renderedHtml }}
+                />
+              </td>
+            </tr>
+          </tbody>
 
-        <footer className="letter-foot mt-10">
-          {letter.company.footerImageFileId !== null ? (
-            // As above.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/companies/${letter.company.id}/branding/footer`}
-              alt=""
-              className="w-full object-contain"
-            />
-          ) : (
-            <CompanyFootline company={letter.company} />
-          )}
-        </footer>
+          <tfoot className="letter-foot-group">
+            <tr>
+              <td>
+                <div className="letter-foot">
+                  {letter.company.footerImageFileId !== null ? (
+                    // As above.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/companies/${letter.company.id}/branding/footer`}
+                      alt=""
+                      className="w-full object-contain"
+                    />
+                  ) : (
+                    <CompanyFootline company={letter.company} />
+                  )}
+                </div>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </article>
     </div>
   );

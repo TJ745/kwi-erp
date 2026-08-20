@@ -259,6 +259,31 @@
   object-position: center;
 }
 
+/* The letter frame.
+   A table because `thead`/`tfoot` are the only thing browsers repeat on every
+   printed page while also reserving their height there — see the comment in
+   the letter page. It carries none of a table's usual appearance. */
+.letter-frame {
+  width: 100%;
+  border-collapse: collapse;
+}
+.letter-frame > thead > tr > td,
+.letter-frame > tbody > tr > td,
+.letter-frame > tfoot > tr > td {
+  padding: 0;
+  border: 0;
+  vertical-align: top;
+}
+/* Space between the letterhead and the body, applied to the frame cells rather
+   than the letterhead itself: a margin on a repeated thead collapses
+   unpredictably across page fragments, padding does not. */
+.letter-frame > thead > tr > td {
+  padding-bottom: 2rem;
+}
+.letter-frame > tfoot > tr > td {
+  padding-top: 2.5rem;
+}
+
 /* Letters render to PDF through the browser print dialog (ADR-004). */
 @media print {
   .no-print {
@@ -268,10 +293,46 @@
     background: white;
     color: black;
   }
-  /* A4 with the margins a Saudi letterhead expects. */
+  /* A4, 1 inch on every side. The margin box is what the letterhead sits
+     inside: `thead` renders at the top of this area on each page and `tfoot` at
+     the bottom, so the artwork is 1in from the paper edge on every page rather
+     than only the first. */
   @page {
     size: A4;
-    margin: 20mm 18mm;
+    margin: 1in;
+  }
+
+  /* Repeat the letterhead on every page.
+     These are the default display values for thead/tfoot, restated because the
+     whole feature depends on them: anything that overrode them — a utility
+     class, a reset, `display: block` on the table — would silently collapse a
+     five-page letter back to letterhead on page one only. */
+  .letter-head-group {
+    display: table-header-group;
+  }
+  .letter-foot-group {
+    display: table-footer-group;
+  }
+  /* The footer is painted fixed and spaced by the table, which sounds like
+     belt and braces but is two different jobs:
+
+       - `tfoot` reserves the band on every page, so body text never runs into
+         the footer. A fixed element reserves nothing.
+       - `position: fixed` pins the artwork to the bottom of EVERY page,
+         including a short final page. `tfoot` alone sits directly under the
+         last paragraph there, which is what a reader notices.
+
+     The reserved band is a fixed height because CSS cannot ask how tall the
+     rendered footer is; 1.7in covers the 35mm artwork cap plus its gap. */
+  .letter-frame > tfoot > tr > td {
+    height: 1.7in;
+    padding-top: 0;
+  }
+  .letter-foot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
   }
   /* The print dialog adds its own page furniture; the app's is redundant. */
   .letter-sheet {
