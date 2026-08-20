@@ -9,6 +9,8 @@ import {
 import { requirePermission } from "@/server/auth/guards";
 import { logger } from "@/server/logger";
 import { isUploadTargetInScope, registerVerifiedFile } from "@/server/services/documents";
+import { getEnv } from "@/lib/env";
+import { storageDisclosure } from "@/lib/storage-policy";
 import {
   assertStorageAclPolicy,
   assertStorageUsable,
@@ -82,14 +84,14 @@ assertStorageAclPolicy(
   Object.values(DOCUMENT_ROUTE_CONFIG).map((c) => ("acl" in c ? c.acl : undefined)),
 );
 
-if (TIER === "free") {
-  logger.warn(
-    "Storage tier is FREE: uploaded documents are readable by anyone holding " +
-      "the object URL. The application never discloses that URL — downloads " +
-      "stream through /api/files/[id] — but a leaked URL needs no session. " +
-      "Set UPLOADTHING_TIER=pro to make objects private.",
-  );
-}
+// Stated at every boot, at a level that reflects whether the exposure has been
+// accepted in configuration. See storageDisclosure for why an accepted risk is
+// info rather than warn.
+const disclosure = storageDisclosure({
+  tier: TIER,
+  accepted: getEnv().ACCEPT_PUBLIC_FILE_STORAGE,
+});
+if (disclosure) logger[disclosure.level](disclosure.message);
 
 export const omsFileRouter = {
   documentUploader: f(DOCUMENT_ROUTE_CONFIG, { awaitServerData: true })

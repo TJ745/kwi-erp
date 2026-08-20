@@ -75,3 +75,48 @@ export function assertStorageAclPolicy(
     );
   }
 }
+
+/**
+ * What to say at boot about the configured storage tier, and how loudly.
+ *
+ * Pure and separate from the logger so the *decision* can be tested, in the
+ * same spirit as the two assertions above.
+ *
+ * The level distinction matters. A warning exists to force a decision; once
+ * that decision is recorded in configuration, repeating it as a warning every
+ * boot trains people to ignore warnings — and the next one may be the ACL
+ * mismatch that publishes every passport scan. So an accepted risk drops to
+ * `info`: still printed, still greppable, no longer nagging. What never
+ * happens is silence — the exposure is stated at every boot either way.
+ */
+export function storageDisclosure(config: {
+  tier: StorageTier;
+  accepted: boolean;
+}): { level: "info" | "warn"; message: string } | null {
+  if (config.tier === "pro") return null;
+
+  const exposure =
+    "Storage tier is FREE: uploaded documents, including identity scans, are " +
+    "readable by anyone holding the object URL. The application never " +
+    "discloses that URL — both file routes stream bytes rather than redirect " +
+    "— but a leaked URL needs no session.";
+
+  if (config.accepted) {
+    return {
+      level: "info",
+      message:
+        exposure +
+        " Accepted for this deployment via ACCEPT_PUBLIC_FILE_STORAGE=true " +
+        "(docs/SECURITY.md §6.5).",
+    };
+  }
+
+  return {
+    level: "warn",
+    message:
+      exposure +
+      " This is NOT accepted for this deployment, so file routes will refuse " +
+      "to serve in production. Set ACCEPT_PUBLIC_FILE_STORAGE=true to accept " +
+      "it, or UPLOADTHING_TIER=pro to make objects private.",
+  };
+}

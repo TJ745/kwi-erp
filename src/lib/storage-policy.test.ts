@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assertStorageAclPolicy, assertStorageTierAllowed } from "./storage-policy";
+import {
+  assertStorageAclPolicy,
+  assertStorageTierAllowed,
+  storageDisclosure,
+} from "./storage-policy";
 
 const SIX_ROUTES_PRIVATE = Array.from({ length: 6 }, () => "private");
 const SIX_ROUTES_NO_ACL = Array.from({ length: 6 }, () => undefined);
@@ -109,5 +113,42 @@ describe("assertStorageAclPolicy — edges", () => {
     };
     expect(free).toThrow();
     expect(pro).toThrow();
+  });
+});
+
+describe("storageDisclosure", () => {
+  it("says nothing on the pro tier — there is no exposure to disclose", () => {
+    expect(storageDisclosure({ tier: "pro", accepted: false })).toBeNull();
+    expect(storageDisclosure({ tier: "pro", accepted: true })).toBeNull();
+  });
+
+  it("warns when free storage has NOT been accepted", () => {
+    const result = storageDisclosure({ tier: "free", accepted: false });
+    expect(result?.level).toBe("warn");
+    // It must name the fix for the 503 that free-in-production produces.
+    expect(result?.message).toContain("ACCEPT_PUBLIC_FILE_STORAGE=true");
+    expect(result?.message).toContain("refuse");
+  });
+
+  it("drops to info once the exposure is accepted, rather than nagging", () => {
+    const result = storageDisclosure({ tier: "free", accepted: true });
+    expect(result?.level).toBe("info");
+  });
+
+  it("never goes silent on free: the exposure is stated either way", () => {
+    for (const accepted of [true, false]) {
+      const result = storageDisclosure({ tier: "free", accepted });
+      expect(result).not.toBeNull();
+      // The point of the line is that the bytes are reachable by URL alone.
+      expect(result?.message).toContain("readable by anyone holding the object URL");
+      expect(result?.message).toContain("identity scans");
+    }
+  });
+
+  it("does not tell an accepted deployment to switch to pro", () => {
+    // The stale advice that made the old message read as an unresolved
+    // problem every single boot.
+    const result = storageDisclosure({ tier: "free", accepted: true });
+    expect(result?.message).not.toContain("UPLOADTHING_TIER=pro");
   });
 });
