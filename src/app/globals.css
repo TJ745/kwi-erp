@@ -432,3 +432,118 @@
     break-after: avoid;
   }
 }
+
+/*
+ * Organisation chart — a real tree, not an indented list.
+ *
+ * Connectors are borders on pseudo-elements rather than SVG, so the chart stays
+ * ordinary flow layout: it centres, scrolls, prints, and reflows with the text
+ * without anyone computing coordinates.
+ *
+ * The geometry, top to bottom within each child item:
+ *   0–12px   the horizontal BAR joining siblings, drawn as two halves so the
+ *            outer halves can be removed on the first and last child and the
+ *            line stops at the outermost siblings instead of overhanging;
+ *   12–24px  the RISER from that bar down to the child's own box.
+ * The STEM from the parent box down to the bar is drawn on the child list.
+ *
+ * This only works because the node box and the child list are siblings inside
+ * one positioned <li> — hence the ul/li structure rather than nested divs.
+ */
+.org-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.org-level {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+/* Stem: parent box down to the bar. */
+.org-level::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 12px;
+  border-left: 1px solid var(--border);
+}
+/* Separate roots are independent trees; nothing joins them. */
+.org-level--roots {
+  gap: 2rem;
+  min-width: max-content;
+}
+.org-level--roots::before {
+  content: none;
+}
+.org-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0.5rem 0;
+}
+.org-level--roots > .org-item {
+  padding-top: 0;
+}
+/* The bar, in halves. */
+.org-item::before,
+.org-item::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  width: 50%;
+  border-top: 1px solid var(--border);
+}
+.org-item::before {
+  right: 50%;
+}
+.org-item::after {
+  left: 50%;
+}
+.org-item:first-child::before,
+.org-item:last-child::after,
+.org-item:only-child::before,
+.org-item:only-child::after,
+.org-level--roots > .org-item::before,
+.org-level--roots > .org-item::after {
+  border-top: 0;
+}
+/* Riser: bar down to this child's box. */
+.org-item > .org-node::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  height: 12px;
+  border-left: 1px solid var(--border);
+}
+.org-level--roots > .org-item > .org-node::before {
+  content: none;
+}
+.org-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 10.5rem;
+  flex: none;
+}
+/* A vacancy reads as an outline, not a fill: an empty seat is a gap in the
+   structure, and colouring it like a person hides exactly that. */
+.org-node--vacant .org-node-name {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--muted) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+@media print {
+  .org-level::before,
+  .org-item::before,
+  .org-item::after,
+  .org-item > .org-node::before {
+    border-color: black;
+  }
+}

@@ -20,6 +20,8 @@ export type OrgNode = {
   departmentName: string | null;
   companyCode: string;
   status: string;
+  /** An unfilled budgeted seat rather than a person. Never links anywhere. */
+  vacant?: boolean;
   reports: OrgNode[];
 };
 
@@ -28,6 +30,14 @@ export type OrgChart = {
   /** Employees dropped because following their manager led back to themselves. */
   cycles: { id: string; fullName: string; employeeNo: string }[];
   total: number;
+  /** Unfilled budgeted seats drawn into the tree. */
+  vacancies: number;
+  /**
+   * Budgeted roles that are wholly unfilled AND have no place in the designed
+   * structure, so there is nowhere to draw them. Surfaced rather than dropped:
+   * silently omitting a vacant seat defeats the point of charting vacancies.
+   */
+  unplaced: { positionTitle: string; companyCode: string | null; seats: number }[];
 };
 
 export async function buildOrgChart(
@@ -112,7 +122,122 @@ export async function buildOrgChart(
     manager.reports.push(node);
   }
 
-  return { roots, cycles, total: employees.length };
+  const { vacancies, unplaced } = await attachVacancies(ctx, filters, nodes, roots);
+
+  return { roots, cycles, total: employees.length, vacancies, unplaced };
+}
+
+/**
+ * Draws budgeted-but-unfilled seats into the tree.
+ *
+ * A chart that only shows people cannot show a gap, and a gap is usually the
+ * most interesting thing on an org chart — it is the hire that has not
+ * happened. A seat is vacant when a position budgets more headcount than it
+ * currently has holders.
+ *
+ * Placement, in order of preference:
+ *   1. under the manager its existing holders report to — if three of four
+ *      carpenters report to the foreman, the fourth seat belongs there too;
+ *   2. under a holder of the role named by `reportsToPositionId` — the only
+ *      thing that can place a role with NO holders at all;
+ *   3. nowhere, in which case it is returned as `unplaced` and reported.
+ */
+async function attachVacancies(
+  ctx: ActorContext,
+  filters: { companyId?: string | undefined },
+  nodes: Map<string, OrgNode>,
+  roots: OrgNode[],
+): Promise<{ vacancies: number; unplaced: OrgChart["unplaced"] }> {
+  const positions = await prisma.position.findMany({
+    where: {
+      status: "ACTIVE",
+      budgetedHeadcount: { gt: 0 },
+      ...(filters.companyId ? { companyId: filters.companyId } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      budgetedHeadcount: true,
+      reportsToPositionId: true,
+      company: { select: { code: true } },
+      employees: {
+        where: { deletedAt: null, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+        select: { id: true, managerId: true },
+      },
+    },
+  });
+
+  // Which node holds which position, so `reportsToPositionId` can be resolved
+  // to somewhere in the tree that actually exists.
+  const holdersOfPosition = new Map<string, string[]>();
+  for (const position of positions) {
+    holdersOfPosition.set(
+      position.id,
+      position.employees.map((e) => e.id).filter((id) => nodes.has(id)),
+    );
+  }
+
+  let vacancies = 0;
+  const unplaced: OrgChart["unplaced"] = [];
+  let counter = 0;
+
+  for (const position of positions) {
+    const visibleHolders = position.employees.filter((e) => nodes.has(e.id));
+    const seats = position.budgetedHeadcount - visibleHolders.length;
+    if (seats <= 0) continue;
+
+    // (1) the manager the existing holders report to
+    let parent: OrgNode | undefined;
+    for (const holder of visibleHolders) {
+      const manager = holder.managerId ? nodes.get(holder.managerId) : undefined;
+      if (manager) {
+        parent = manager;
+        break;
+      }
+    }
+
+    // (2) somebody holding the position this role reports to
+    if (!parent && position.reportsToPositionId) {
+      for (const holderId of holdersOfPosition.get(position.reportsToPositionId) ?? []) {
+        const candidate = nodes.get(holderId);
+        if (candidate) {
+          parent = candidate;
+          break;
+        }
+      }
+    }
+
+    if (!parent) {
+      // (3) nowhere to put it — say so rather than lose it.
+      unplaced.push({
+        positionTitle: position.title,
+        companyCode: position.company?.code ?? null,
+        seats,
+      });
+      continue;
+    }
+
+    for (let i = 0; i < seats; i += 1) {
+      counter += 1;
+      parent.reports.push({
+        // Synthetic and clearly not an employee id — nothing may link to it.
+        id: `vacant:${position.id}:${String(counter)}`,
+        fullName: "Vacant",
+        employeeNo: "",
+        positionTitle: position.title,
+        departmentName: null,
+        companyCode: position.company?.code ?? "—",
+        status: "VACANT",
+        vacant: true,
+        reports: [],
+      });
+      vacancies += 1;
+    }
+  }
+
+  void ctx;
+  void roots;
+  return { vacancies, unplaced };
 }
 
 /** Flattened counts for the header. */

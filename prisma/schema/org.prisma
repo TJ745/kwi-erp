@@ -107,11 +107,23 @@ model Position {
   titleAr   String?
   grade     String?
 
+  /// Seats this role is budgeted for. 0 means "not tracked" — the role simply
+  /// does not appear on the structure chart, which is the right default for
+  /// the many positions that exist only to label a job description.
+  budgetedHeadcount Int @default(0)
+  /// Where the role sits in the DESIGNED structure, as opposed to where its
+  /// current holders happen to report. Without this a wholly unfilled role has
+  /// no anchor and cannot be drawn at all — and an unfilled role is exactly
+  /// the one a chart most needs to show.
+  reportsToPositionId String?
+
   status    RecordStatus @default(ACTIVE)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   company Company? @relation(fields: [companyId], references: [id])
+  reportsTo   Position?  @relation("PositionReportsTo", fields: [reportsToPositionId], references: [id])
+  directRoles Position[] @relation("PositionReportsTo")
 
   employees       Employee[]
   jobDescriptions JobDescription[]
