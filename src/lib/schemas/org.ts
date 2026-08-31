@@ -93,6 +93,18 @@ export const positionSchema = z
     title: z.string().trim().min(2, "Title is required").max(150),
     titleAr: optionalText(150),
     grade: optionalText(50),
+    /** Seats the role is budgeted for. 0 keeps it off the structure chart. */
+    budgetedHeadcount: z.coerce
+      .number()
+      .int("Whole seats only")
+      .min(0, "Cannot be negative")
+      .max(9999, "That is not a headcount")
+      .default(0),
+    /** The role this one reports to, for placing vacancies. "none" clears it. */
+    reportsToPositionId: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" || v === "none" ? undefined : v)),
     status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).default("ACTIVE"),
   })
   .strict();

@@ -33,6 +33,14 @@ export default async function DepartmentsPage() {
       : Promise.resolve([]),
   ]);
 
+  // Offered as "reports to" targets. Built here rather than in the dialog so
+  // both the create and edit instances see the same list.
+  const positionOptions = positions.map((p) => ({
+    id: p.id,
+    title: p.title,
+    companyCode: p.company?.code ?? null,
+  }));
+
   const options = companies.map((c) => ({ id: c.id, code: c.code, name: c.name }));
   const parentOptions = departments.map((d) => ({
     id: d.id,
@@ -129,7 +137,11 @@ export default async function DepartmentsPage() {
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">Positions</h2>
             {canManagePositions ? (
-              <PositionDialog mode="create" companies={options} />
+              <PositionDialog
+                mode="create"
+                companies={options}
+                positions={positionOptions}
+              />
             ) : null}
           </div>
 
@@ -177,12 +189,15 @@ export default async function DepartmentsPage() {
                           <PositionDialog
                             mode="edit"
                             companies={options}
+                            positions={positionOptions}
                             position={{
                               id: position.id,
                               title: position.title,
                               titleAr: position.titleAr,
                               grade: position.grade,
                               companyId: position.companyId,
+                              budgetedHeadcount: position.budgetedHeadcount,
+                              reportsToPositionId: position.reportsToPositionId,
                               status: position.status,
                             }}
                           />

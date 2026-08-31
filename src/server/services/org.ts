@@ -342,10 +342,61 @@ export async function listPositions(ctx: ActorContext) {
       grade: true,
       status: true,
       companyId: true,
+      budgetedHeadcount: true,
+      reportsToPositionId: true,
       company: { select: { code: true } },
+      reportsTo: { select: { title: true } },
       _count: { select: { employees: true } },
     },
   });
+}
+
+/**
+ * Refuses a reporting role that does not exist, is the role itself, or would
+ * close a loop.
+ *
+ * A cycle here is not cosmetic: `attachVacancies` walks this chain to find
+ * somewhere to draw an unfilled seat, and a loop would hang that walk. The
+ * chart builder already defends against cycles in EMPLOYEE reporting lines for
+ * the same reason — this closes the equivalent hole in POSITION lines, at the
+ * point where the bad data would be written rather than every time it is read.
+ */
+async function assertPositionParent(
+  reportsToPositionId: string | undefined,
+  selfId: string | null,
+): Promise<void> {
+  if (!reportsToPositionId) return;
+  if (reportsToPositionId === selfId) {
+    throw new ValidationError("A position cannot report to itself.");
+  }
+
+  const parent = await prisma.position.findUnique({
+    where: { id: reportsToPositionId },
+    select: { id: true },
+  });
+  if (!parent) throw new NotFoundError("Reporting position not found.");
+
+  if (selfId === null) return;
+
+  // Walk up from the proposed parent; reaching self means a loop. Bounded by
+  // the row count so a pre-existing loop cannot spin this either.
+  const total = await prisma.position.count();
+  let cursor: string | null = reportsToPositionId;
+  let hops = 0;
+  while (cursor !== null && hops <= total) {
+    if (cursor === selfId) {
+      throw new ValidationError(
+        "That would make the reporting line loop back on itself.",
+      );
+    }
+    const next: { reportsToPositionId: string | null } | null =
+      await prisma.position.findUnique({
+        where: { id: cursor },
+        select: { reportsToPositionId: true },
+      });
+    cursor = next?.reportsToPositionId ?? null;
+    hops += 1;
+  }
 }
 
 export async function createPosition(ctx: ActorContext, input: PositionInput) {
@@ -357,12 +408,16 @@ export async function createPosition(ctx: ActorContext, input: PositionInput) {
   });
   if (existing) throw new ConflictError(`Position "${input.title}" already exists.`);
 
+  await assertPositionParent(input.reportsToPositionId, null);
+
   return prisma.position.create({
     data: {
       title: input.title,
       titleAr: input.titleAr ?? null,
       grade: input.grade ?? null,
       companyId: input.companyId ?? null,
+      budgetedHeadcount: input.budgetedHeadcount,
+      reportsToPositionId: input.reportsToPositionId ?? null,
       status: input.status,
     },
   });
@@ -377,6 +432,8 @@ export async function updatePosition(
   if (before.companyId) requireCompanyAccess(ctx, before.companyId);
   if (input.companyId) requireCompanyAccess(ctx, input.companyId);
 
+  await assertPositionParent(input.reportsToPositionId, input.id);
+
   const after = await prisma.position.update({
     where: { id: input.id },
     data: {
@@ -384,6 +441,8 @@ export async function updatePosition(
       titleAr: input.titleAr ?? null,
       grade: input.grade ?? null,
       companyId: input.companyId ?? null,
+      budgetedHeadcount: input.budgetedHeadcount,
+      reportsToPositionId: input.reportsToPositionId ?? null,
       status: input.status,
     },
   });

@@ -18,6 +18,7 @@ import { readString } from "@/lib/form-data";
 import { createPositionAction, updatePositionAction } from "@/server/actions/org";
 
 type Company = { id: string; code: string; name: string };
+type PositionOption = { id: string; title: string; companyCode: string | null };
 
 /**
  * Job titles. Unlike departments, a position may be shared across every company
@@ -27,16 +28,21 @@ type Company = { id: string; code: string; name: string };
 export function PositionDialog({
   mode,
   companies,
+  positions,
   position,
 }: {
   mode: "create" | "edit";
   companies: Company[];
+  /** Every other role, for the "reports to" line. */
+  positions: PositionOption[];
   position?: {
     id: string;
     title: string;
     titleAr: string | null;
     grade: string | null;
     companyId: string | null;
+    budgetedHeadcount: number;
+    reportsToPositionId: string | null;
     status: string;
   };
 }) {
@@ -55,6 +61,8 @@ export function PositionDialog({
       title: readString(fd, "title"),
       titleAr: readString(fd, "titleAr"),
       grade: readString(fd, "grade"),
+      budgetedHeadcount: readString(fd, "budgetedHeadcount") || "0",
+      reportsToPositionId: readString(fd, "reportsToPositionId"),
       status: readString(fd, "status") || "ACTIVE",
     };
 
@@ -132,6 +140,35 @@ export function PositionDialog({
                 hint="Used on official letters."
                 defaultValue={position?.titleAr ?? ""}
                 errors={errors.titleAr}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField
+                name="budgetedHeadcount"
+                label="Budgeted seats"
+                type="number"
+                hint="How many people this role should have. 0 keeps it off the org chart; anything above the number of holders shows as a vacancy."
+                defaultValue={String(position?.budgetedHeadcount ?? 0)}
+                errors={errors.budgetedHeadcount}
+              />
+              <SelectField
+                name="reportsToPositionId"
+                label="Reports to"
+                hint="Where an unfilled seat is drawn. Only needed when nobody holds this role."
+                defaultValue={position?.reportsToPositionId ?? "none"}
+                options={[
+                  { value: "none", label: "— Not set —" },
+                  ...positions
+                    // A role reporting to itself is refused by the server; not
+                    // offering it avoids the pointless round trip.
+                    .filter((p) => p.id !== position?.id)
+                    .map((p) => ({
+                      value: p.id,
+                      label: p.companyCode ? `${p.title} (${p.companyCode})` : p.title,
+                    })),
+                ]}
+                errors={errors.reportsToPositionId}
               />
             </div>
 
