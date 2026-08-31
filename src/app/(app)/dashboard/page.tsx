@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Building2,
   CalendarClock,
+  IdCard,
   Layers,
   ListChecks,
   UserPlus,
@@ -26,7 +27,8 @@ import {
 } from "@/server/services/dashboard";
 import { CategoryBars, OrdinalBars } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { listExpiring } from "@/server/services/expiry";
+import { expiryBuckets, listExpiring } from "@/server/services/expiry";
+import { IQAMA_BUCKETS } from "@/lib/expiry";
 import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
 
@@ -62,6 +64,10 @@ export default async function DashboardPage() {
 
       <Suspense fallback={<CardLoadingState count={4} />}>
         <KpiRow ctx={ctx} />
+      </Suspense>
+
+      <Suspense fallback={<CardLoadingState count={1} />}>
+        <ResidencyDocuments ctx={ctx} />
       </Suspense>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -380,6 +386,111 @@ async function KpiRow({ ctx }: { ctx: ActorContext }) {
         href="/people/iqama?within=30"
       />
     </div>
+  );
+}
+
+/**
+ * Iqama and passport expiry, counted by window.
+ *
+ * On the dashboard because a missed Iqama renewal has legal consequences, and
+ * "nobody opened the page" is not a defence. This is the ALERT: the counts, and
+ * a way through to the records. The working surface stays at /people/iqama,
+ * which holds the full list and the filters someone actually processes
+ * renewals with — a top-ten list is not a work queue.
+ *
+ * Deliberately narrowed to IQAMA and PASSPORT. "Expiring soon" further down
+ * mixes in contracts, vehicles, and certificates, which is right for a general
+ * alert and wrong for the one document class with a statutory deadline.
+ */
+async function ResidencyDocuments({ ctx }: { ctx: ActorContext }) {
+  const sources = ["IQAMA", "PASSPORT"] as const;
+  const buckets = await expiryBuckets(ctx, IQAMA_BUCKETS, [...sources]);
+
+  const total = buckets.expired + buckets.buckets.reduce((sum, b) => sum + b.count, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <IdCard className="size-4" />
+            Iqama &amp; passport expiry
+          </CardTitle>
+          <Link
+            href="/people/iqama"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Work through them
+            <ArrowRight />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {total === 0 ? (
+          <EmptyState
+            title="Nothing expiring in the next 90 days"
+            description="Iqama and passport expiry dates appear here as soon as they are recorded."
+            className="border-0 py-6"
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <BucketTile
+              label="Expired"
+              count={buckets.expired}
+              tone="expired"
+              href="/people/iqama"
+            />
+            {buckets.buckets.map((bucket) => (
+              <BucketTile
+                key={bucket.days}
+                label={`${String(bucket.days)} days`}
+                count={bucket.count}
+                tone={bucket.days <= 15 ? "warning" : "neutral"}
+                href={`/people/iqama?within=${String(bucket.days)}`}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * One count, linking into the filtered list.
+ *
+ * A zero is rendered in muted ink rather than the tone colour: six red tiles
+ * reading 0 is the same alarm as six reading 12, and a dashboard that always
+ * looks alarming stops being read.
+ */
+function BucketTile({
+  label,
+  count,
+  tone,
+  href,
+}: {
+  label: string;
+  count: number;
+  tone: "expired" | "warning" | "neutral";
+  href: string;
+}) {
+  const toneClass =
+    count === 0
+      ? "text-muted-foreground"
+      : tone === "expired"
+        ? "text-status-expired"
+        : tone === "warning"
+          ? "text-status-warning"
+          : "text-foreground";
+
+  return (
+    <Link
+      href={href}
+      className="hover:bg-muted/50 focus-visible:ring-ring rounded-lg border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+    >
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneClass}`}>{count}</p>
+    </Link>
   );
 }
 
