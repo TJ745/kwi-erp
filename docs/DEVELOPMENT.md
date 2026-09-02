@@ -92,6 +92,26 @@ production server logged 0. `next dev` handles the callback locally, so **use
 `pnpm dev` for any work touching uploads**; a deployed instance on a public URL
 is fine because the callback can reach it.
 
+Re-measured 2026-09-02 on the employee document uploader, same file both ways:
+
+| | `next start` | `pnpm dev` |
+|---|---|---|
+| Presigned URLs issued | 3 | yes |
+| Callbacks delivered | **0** | **1** |
+| `File accepted` logged | **0** | **1** |
+| Dialog after selecting | nothing happens | `Verified: test-doc.png` |
+
+**What the user sees is an error toast about six seconds in:** *"The file
+uploaded but was not registered. The server did not receive the upload
+callback."* `onClientUploadComplete` does fire — with `serverData` absent,
+because the callback that would have populated it never arrived — and the
+uploader reports that rather than failing silently.
+
+Worth stating because it was diagnosed wrongly once: sampling the toast list
+*after* the fact shows nothing, since a toast auto-dismisses within seconds.
+That is a measurement artifact, not silence. To observe it, poll during the
+upload rather than reading the DOM once at the end.
+
 `NODE_ENV` in `.env.local` does not change this — Next ignores it, and
 `next start` is production regardless.
 
