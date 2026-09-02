@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listRolesWithPermissionCounts } from "@/server/services/users";
+import { DeleteRoleButton, RoleDialog } from "./role-dialog";
 import { PERMISSION_KEYS } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Roles & Permissions" };
@@ -14,11 +15,18 @@ export default async function RolesPage() {
   const ctx = await requirePagePermission("roles.manage");
   const roles = await listRolesWithPermissionCounts(ctx);
 
+  // Offered as the default for a new role: one step junior to the most junior
+  // that exists, and never senior to the actor — the server refuses that
+  // anyway, so proposing it would only produce a failed submit.
+  const mostJunior = roles.reduce((max, r) => Math.max(max, r.rank), ctx.roleRank);
+  const suggestedRank = Math.max(mostJunior + 1, ctx.roleRank + 1);
+
   return (
     <PageShell>
       <PageHeader
         title="Roles & Permissions"
         description={`${String(PERMISSION_KEYS.length)} permissions across the system. A role can only be edited by someone more senior than it.`}
+        action={<RoleDialog suggestedRank={suggestedRank} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -56,12 +64,21 @@ export default async function RolesPage() {
                 </dl>
 
                 {editable ? (
-                  <Link
-                    href={`/settings/roles/${role.id}`}
-                    className="text-sm font-medium underline underline-offset-4"
-                  >
-                    Edit permissions
-                  </Link>
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/settings/roles/${role.id}`}
+                      className="text-sm font-medium underline underline-offset-4"
+                    >
+                      Edit permissions
+                    </Link>
+                    {role.isSystem ? null : (
+                      <DeleteRoleButton
+                        roleId={role.id}
+                        roleName={role.name}
+                        userCount={role._count.users}
+                      />
+                    )}
+                  </div>
                 ) : (
                   <p className="text-muted-foreground text-xs">
                     {role.key === "SUPER_ADMIN"

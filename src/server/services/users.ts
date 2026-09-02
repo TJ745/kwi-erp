@@ -10,6 +10,7 @@ import {
   type Paginated,
 } from "@/lib/list-query";
 import { requireSeniorTo } from "@/server/auth/guards";
+import { hashPassword } from "@/server/auth/password";
 import { isPermissionKey } from "@/lib/permissions";
 
 /**
@@ -504,4 +505,191 @@ export async function removeUserPermissionOverride(
   });
 
   return { user: target, permission, before: { effect: existing.effect } };
+}
+
+
+// --- Creating users and roles ------------------------------------------------
+
+/**
+ * Creates a user account with a temporary password.
+ *
+ * The password is hashed with the same Argon2id profile as every other
+ * credential and written to an `Account` row with providerId "credential" —
+ * the shape Better Auth expects. `mustChangePassword` is forced on, which the
+ * app layout already acts on by redirecting to /change-password, so a password
+ * that passed through an administrator cannot survive the first sign-in.
+ *
+ * Both writes happen in one transaction. A User without its Account is an
+ * account nobody can ever sign into and which blocks the email address from
+ * being reused — worse than no account at all.
+ */
+export async function createUser(
+  ctx: ActorContext,
+  input: {
+    email: string;
+    name: string;
+    roleId: string;
+    temporaryPassword: string;
+    companyIds: string[];
+    employeeId?: string | undefined;
+  },
+) {
+  const email = input.email.trim().toLowerCase();
+
+  const [existing, role] = await Promise.all([
+    prisma.user.findFirst({ where: { email }, select: { id: true } }),
+    prisma.role.findUnique({
+      where: { id: input.roleId },
+      select: { id: true, key: true, name: true, rank: true },
+    }),
+  ]);
+
+  // Checked against soft-deleted rows too: the column is unique, so a
+  // deactivated account still owns the address and a clearer error beats a
+  // constraint violation.
+  if (existing) throw new ConflictError("An account with that email already exists.");
+  if (!role) throw new NotFoundError("Role not found.");
+
+  // Nobody may mint an account at or above their own level.
+  requireSeniorTo(ctx, role.rank);
+
+  if (input.employeeId) {
+    const employee = await prisma.employee.findFirst({
+      where: { id: input.employeeId, deletedAt: null },
+      select: { id: true, userAccount: { select: { id: true } } },
+    });
+    if (!employee) throw new NotFoundError("Employee not found.");
+    if (employee.userAccount) {
+      throw new ConflictError("That employee already has a user account.");
+    }
+  }
+
+  const passwordHash = await hashPassword(input.temporaryPassword);
+
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        email,
+        name: input.name,
+        roleId: role.id,
+        status: "ACTIVE",
+        // Not verified: nothing has proved the address works. It gates nothing
+        // today, and claiming otherwise would make a future email flow lie.
+        emailVerified: false,
+        mustChangePassword: true,
+        ...(input.employeeId ? { employeeId: input.employeeId } : {}),
+      },
+      select: { id: true, name: true, email: true },
+    });
+
+    await tx.account.create({
+      data: {
+        userId: user.id,
+        providerId: "credential",
+        accountId: user.id,
+        password: passwordHash,
+      },
+    });
+
+    if (input.companyIds.length > 0) {
+      await tx.userCompanyAccess.createMany({
+        data: input.companyIds.map((companyId) => ({ userId: user.id, companyId })),
+        skipDuplicates: true,
+      });
+    }
+
+    return { ...user, roleKey: role.key, roleName: role.name };
+  });
+}
+
+/**
+ * Creates a custom role.
+ *
+ * `isSystem` is false and never settable from here: a role created through the
+ * UI must stay deletable, and letting the UI mint protected roles would let
+ * somebody build a role they then could not remove.
+ *
+ * The new role starts with NO permissions. Granting them is a separate,
+ * separately audited step in the role editor — a role that arrived
+ * pre-populated would make "who granted this" unanswerable.
+ */
+export async function createRole(
+  ctx: ActorContext,
+  input: { key: string; name: string; description?: string | undefined; rank: number },
+) {
+  const key = input.key.trim().toUpperCase();
+
+  const existing = await prisma.role.findUnique({ where: { key }, select: { id: true } });
+  if (existing) throw new ConflictError(`A role with key ${key} already exists.`);
+
+  // Creating a role senior to yourself would hand you a ladder out of your own
+  // permission set the moment somebody assigned it to you.
+  requireSeniorTo(ctx, input.rank);
+
+  return prisma.role.create({
+    data: {
+      key,
+      name: input.name,
+      description: input.description ?? null,
+      rank: input.rank,
+      isSystem: false,
+    },
+    select: { id: true, key: true, name: true, rank: true },
+  });
+}
+
+/**
+ * Deletes a custom role.
+ *
+ * Refused for system roles and for any role that still has users: `User.roleId`
+ * is required, so removing a role in use would either orphan those accounts or
+ * silently move them somewhere they were never assigned.
+ */
+export async function deleteRole(ctx: ActorContext, roleId: string) {
+  const role = await prisma.role.findUnique({
+    where: { id: roleId },
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      rank: true,
+      isSystem: true,
+      _count: { select: { users: true } },
+    },
+  });
+  if (!role) throw new NotFoundError("Role not found.");
+
+  if (role.isSystem) {
+    throw new ForbiddenError("Built-in roles cannot be deleted.");
+  }
+  requireSeniorTo(ctx, role.rank);
+
+  if (role._count.users > 0) {
+    throw new ConflictError(
+      `${String(role._count.users)} user(s) still have this role. Move them to another role first.`,
+    );
+  }
+
+  // Grants go with it; nothing else references a role.
+  await prisma.$transaction([
+    prisma.rolePermission.deleteMany({ where: { roleId } }),
+    prisma.role.delete({ where: { id: roleId } }),
+  ]);
+
+  return { key: role.key, name: role.name };
+}
+
+/** Employees with no user account yet, for the optional link on the create form. */
+export async function employeesWithoutUser(ctx: ActorContext) {
+  void ctx;
+  return prisma.employee.findMany({
+    where: {
+      deletedAt: null,
+      userAccount: { is: null },
+      status: { in: ["ACTIVE", "ON_LEAVE"] },
+    },
+    orderBy: { fullName: "asc" },
+    take: 500,
+    select: { id: true, fullName: true, employeeNo: true },
+  });
 }

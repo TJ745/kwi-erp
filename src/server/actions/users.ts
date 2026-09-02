@@ -3,6 +3,9 @@
 import { z } from "zod";
 import { defineAction } from "./define-action";
 import {
+  createRole,
+  createUser,
+  deleteRole,
   removeUserPermissionOverride,
   setRolePermissions,
   setUserCompanyAccess,
@@ -161,4 +164,104 @@ export const removeUserPermissionOverrideAction = defineAction({
     return { ok: true as const };
   },
   revalidate: () => ["/settings/users"],
+});
+
+
+// --- Creating users and roles ------------------------------------------------
+
+/**
+ * A temporary password still has to be a real one.
+ *
+ * Deliberately the SAME rule as changePasswordSchema — length only, 12 to 128,
+ * no composition requirements. Length beats composition (docs/SECURITY.md §2),
+ * and a stricter rule here would be worse than useless: it would reject
+ * passphrases the user is then free to choose the moment they sign in, so the
+ * create form would enforce a policy the system does not actually hold.
+ */
+const temporaryPassword = z
+  .string()
+  .min(12, "Use at least 12 characters")
+  .max(128, "Use at most 128 characters");
+
+export const createUserAction = defineAction({
+  permission: "users.manage",
+  schema: z
+    .object({
+      email: z.string().trim().email("Enter a valid email").max(200),
+      name: z.string().trim().min(2, "Name is required").max(150),
+      roleId: z.string().min(1, "Role is required"),
+      temporaryPassword,
+      companyIds: z.array(z.string().min(1)).default([]),
+      employeeId: z
+        .string()
+        .optional()
+        .transform((v) => (v === "" || v === "none" ? undefined : v)),
+    })
+    .strict(),
+  audit: { action: "CREATE", entity: "USER" },
+  handler: async ({ input, ctx, audit }) => {
+    const user = await createUser(ctx, input);
+    audit.record({
+      entityId: user.id,
+      // The password is deliberately absent from the audit record, as it is
+      // from the logs and the response — SECURITY.md §39.
+      summary: `Created user ${user.email} with role ${user.roleKey}`,
+      after: { email: user.email, name: user.name, roleKey: user.roleKey },
+    });
+    return { id: user.id };
+  },
+  revalidate: () => ["/settings/users"],
+});
+
+export const createRoleAction = defineAction({
+  permission: "roles.manage",
+  schema: z
+    .object({
+      key: z
+        .string()
+        .trim()
+        .min(2, "At least 2 characters")
+        .max(40)
+        .regex(/^[A-Za-z0-9_]+$/, "Letters, digits, and underscores only"),
+      name: z.string().trim().min(2, "Name is required").max(100),
+      description: z
+        .string()
+        .trim()
+        .max(300)
+        .optional()
+        .transform((v) => (v === "" ? undefined : v)),
+      rank: z.coerce
+        .number()
+        .int("Whole numbers only")
+        .min(1, "Rank starts at 1")
+        .max(999),
+    })
+    .strict(),
+  audit: { action: "CREATE", entity: "ROLE" },
+  handler: async ({ input, ctx, audit }) => {
+    const role = await createRole(ctx, input);
+    audit.record({
+      entityId: role.id,
+      summary: `Created role ${role.key} (${role.name}) at rank ${String(role.rank)}`,
+      after: { key: role.key, name: role.name, rank: role.rank },
+    });
+    return { id: role.id };
+  },
+  revalidate: () => ["/settings/roles", "/settings/users"],
+});
+
+export const deleteRoleAction = defineAction({
+  permission: "roles.manage",
+  schema: z.object({ roleId: z.string().min(1) }).strict(),
+  audit: { action: "DELETE", entity: "ROLE" },
+  handler: async ({ input, ctx, audit }) => {
+    const role = await deleteRole(ctx, input.roleId);
+    audit.record({
+      entityId: input.roleId,
+      summary: `Deleted role ${role.key} (${role.name})`,
+      before: { key: role.key, name: role.name },
+    });
+    return { ok: true as const };
+  },
+  revalidate: () => ["/settings/roles", "/settings/users"],
 });

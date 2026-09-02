@@ -11,7 +11,12 @@ import { PERMISSIONS, PERMISSION_KEYS } from "@/lib/permissions";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listUsers, type UserListRow } from "@/server/services/users";
 import { UserRowActions } from "./user-row-actions";
-import { listCompaniesForAssignment, listRolesForAssignment } from "@/server/services/users";
+import { UserDialog } from "./user-dialog";
+import {
+  employeesWithoutUser,
+  listCompaniesForAssignment,
+  listRolesForAssignment,
+} from "@/server/services/users";
 
 export const metadata: Metadata = { title: "Users" };
 
@@ -24,13 +29,15 @@ export default async function UsersPage({
   const params = await searchParams;
   const query = parseListQuery(params);
 
-  const [data, roles, companies] = await Promise.all([
+  const canManage = ctx.permissions.has("users.manage");
+
+  const [data, roles, companies, unlinkedEmployees] = await Promise.all([
     listUsers(ctx, query),
     listRolesForAssignment(ctx),
     listCompaniesForAssignment(ctx),
+    // Only needed by the create dialog, which only a manager sees.
+    canManage ? employeesWithoutUser(ctx) : Promise.resolve([]),
   ]);
-
-  const canManage = ctx.permissions.has("users.manage");
 
   // The dialog offers only what the server will accept: an ALLOW override can
   // never hand out a permission the actor does not hold themselves.
@@ -122,6 +129,21 @@ export default async function UsersPage({
       <PageHeader
         title="Users"
         description="Accounts, roles, and company access. Users are created by an administrator; there is no self-registration."
+        action={
+          canManage ? (
+            <UserDialog
+              roles={roles.map((r) => ({ id: r.id, label: r.name }))}
+              companies={companies.map((c) => ({
+                id: c.id,
+                label: `${c.code} — ${c.name}`,
+              }))}
+              employees={unlinkedEmployees.map((e) => ({
+                id: e.id,
+                label: `${e.fullName} (${e.employeeNo})`,
+              }))}
+            />
+          ) : null
+        }
       />
 
       <SearchInput placeholder="Search by name or email…" />
