@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
+import { allOf, pooledOrScoped } from "@/lib/scope-filters";
 import { ConflictError, NotFoundError } from "@/lib/result";
 import { deactivateExpiry, syncExpiry } from "./expiry";
 import type {
@@ -384,19 +385,22 @@ export async function listIpPhones(
   filters: { q?: string | undefined } = {},
 ) {
   return prisma.ipPhone.findMany({
-    where: {
+    // Two independent OR conditions, composed under AND rather than spread:
+    // spreading keeps only the last, which would drop company scoping the
+    // moment someone typed in the search box.
+    where: allOf(
       // A phone reaches a company through its employee; unassigned handsets
       // are pool stock and visible to everyone.
-      OR: [{ employeeId: null }, { employee: { ...companyScopeWhere(ctx) } }],
-      ...(filters.q
+      { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
+      filters.q
         ? {
             OR: [
               { extension: { contains: filters.q } },
               { macAddress: { contains: filters.q, mode: "insensitive" as const } },
             ],
           }
-        : {}),
-    },
+        : undefined,
+    ),
     orderBy: { extension: "asc" },
     select: {
       id: true,
@@ -821,12 +825,14 @@ export async function listAdRecords(
   filters: { q?: string | undefined } = {},
 ) {
   return prisma.adRecord.findMany({
-    where: {
-      OR: [{ employeeId: null }, { employee: { ...companyScopeWhere(ctx) } }],
-      ...(filters.q
+    where: allOf(
+      // An AD account reaches a company through its employee; accounts with no
+      // employee are service or shared accounts and visible to everyone.
+      { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
+      filters.q
         ? { samAccountName: { contains: filters.q, mode: "insensitive" as const } }
-        : {}),
-    },
+        : undefined,
+    ),
     orderBy: { samAccountName: "asc" },
     take: 1000,
     select: {
