@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SelectField, TextAreaField, TextField } from "@/components/forms/field";
+import { DateField, SelectField, TextAreaField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { ACCOMMODATION_TYPES, RECORD_STATUSES } from "@/lib/schemas/accommodation";
 import {
@@ -29,6 +29,12 @@ export type AccommodationValues = {
   city: string | null;
   type: string;
   status: string;
+  rentAmount: string | null;
+  rentCurrency: string;
+  rentFrequency: string | null;
+  rentDueDate: string | null;
+  leaseStartDate: string | null;
+  leaseEndDate: string | null;
   notes: string | null;
 };
 
@@ -73,6 +79,12 @@ export function AccommodationDialog({
       city: readString(fd, "city"),
       type: readString(fd, "type"),
       status: readString(fd, "status"),
+      rentAmount: readString(fd, "rentAmount"),
+      rentCurrency: readString(fd, "rentCurrency") || "SAR",
+      rentFrequency: readString(fd, "rentFrequency"),
+      rentDueDate: readString(fd, "rentDueDate"),
+      leaseStartDate: readString(fd, "leaseStartDate"),
+      leaseEndDate: readString(fd, "leaseEndDate"),
       notes: readString(fd, "notes"),
     };
 
@@ -180,6 +192,67 @@ export function AccommodationDialog({
                   errors={errors.addressLine}
                 />
               </div>
+
+              {/*
+                Rent is grouped and clearly optional: a great many properties
+                are owned rather than leased, and a required rent field would
+                push people into typing 0 — which then reads on the dashboard
+                as a payment due.
+              */}
+              <fieldset className="space-y-3 rounded-md border p-3">
+                <legend className="px-1 text-xs font-medium">Lease &amp; rent (optional)</legend>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <TextField
+                    name="rentAmount"
+                    label="Rent amount"
+                    hint="Leave blank if the property is owned."
+                    defaultValue={accommodation?.rentAmount ?? ""}
+                    errors={errors.rentAmount}
+                  />
+                  <TextField
+                    name="rentCurrency"
+                    label="Currency"
+                    defaultValue={accommodation?.rentCurrency ?? "SAR"}
+                    errors={errors.rentCurrency}
+                  />
+                  <SelectField
+                    name="rentFrequency"
+                    label="Paid every"
+                    defaultValue={accommodation?.rentFrequency ?? ""}
+                    options={[
+                      { value: "", label: "— Not set —" },
+                      { value: "MONTHLY", label: "Month" },
+                      { value: "QUARTERLY", label: "Quarter" },
+                      { value: "SEMI_ANNUAL", label: "Six months" },
+                      { value: "ANNUAL", label: "Year" },
+                    ]}
+                    errors={errors.rentFrequency}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <DateField
+                    name="rentDueDate"
+                    label="Next rent due"
+                    hint="What the dashboard counts down to."
+                    defaultValue={accommodation?.rentDueDate ?? ""}
+                    errors={errors.rentDueDate}
+                  />
+                  <DateField
+                    name="leaseStartDate"
+                    label="Lease starts"
+                    defaultValue={accommodation?.leaseStartDate ?? ""}
+                    errors={errors.leaseStartDate}
+                  />
+                  <DateField
+                    name="leaseEndDate"
+                    label="Lease ends"
+                    defaultValue={accommodation?.leaseEndDate ?? ""}
+                    errors={errors.leaseEndDate}
+                  />
+                </div>
+              </fieldset>
 
               <TextAreaField
                 name="notes"

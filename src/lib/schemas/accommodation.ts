@@ -16,6 +16,23 @@ const requiredDate = z
   .transform((v) => new Date(v))
   .refine((v) => !Number.isNaN(v.getTime()), "Enter a valid date");
 
+/** Empty string is what an untouched date or number input submits. */
+const optionalDate = z
+  .string()
+  .optional()
+  .transform((v) => (v === undefined || v === "" ? undefined : new Date(v)))
+  .refine((v) => v === undefined || !Number.isNaN(v.getTime()), "Enter a valid date");
+
+const optionalDecimal = z
+  .string()
+  .optional()
+  .transform((v) => (v === undefined || v.trim() === "" ? undefined : v.trim()))
+  .refine(
+    (v) => v === undefined || (/^\d+(\.\d{1,2})?$/.test(v) && Number(v) >= 0),
+    "Enter an amount, to at most two decimal places",
+  );
+
+export const RENT_FREQUENCIES = ["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"] as const;
 export const ACCOMMODATION_TYPES = ["APARTMENT", "VILLA", "CAMP", "HOTEL", "OTHER"] as const;
 export const RECORD_STATUSES = ["ACTIVE", "INACTIVE", "ARCHIVED"] as const;
 export const BED_STATUSES = ["AVAILABLE", "OCCUPIED", "RESERVED", "OUT_OF_SERVICE"] as const;
@@ -28,9 +45,27 @@ export const accommodationSchema = z
     city: optionalText(100),
     type: z.enum(ACCOMMODATION_TYPES).default("APARTMENT"),
     status: z.enum(RECORD_STATUSES).default("ACTIVE"),
+    /** Rent. All optional — a property may be owned, or its lease not yet to hand. */
+    rentAmount: optionalDecimal,
+    rentCurrency: z.string().trim().length(3).default("SAR"),
+    rentFrequency: z
+      .enum(RENT_FREQUENCIES)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" ? undefined : v)),
+    rentDueDate: optionalDate,
+    leaseStartDate: optionalDate,
+    leaseEndDate: optionalDate,
     notes: optionalText(1000),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) =>
+      v.leaseStartDate === undefined ||
+      v.leaseEndDate === undefined ||
+      v.leaseEndDate >= v.leaseStartDate,
+    { message: "Lease end cannot be before it starts", path: ["leaseEndDate"] },
+  );
 
 export const updateAccommodationSchema = accommodationSchema.extend({
   id: z.string().min(1),

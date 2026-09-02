@@ -80,6 +80,16 @@ export default async function AccommodationDetailPage({
                   city: accommodation.city,
                   type: accommodation.type,
                   status: accommodation.status,
+                  // Decimals and dates cross to the client as strings: a
+                  // Decimal is not serialisable, and a date input wants
+                  // YYYY-MM-DD rather than an ISO timestamp.
+                  rentAmount: accommodation.rentAmount?.toString() ?? null,
+                  rentCurrency: accommodation.rentCurrency,
+                  rentFrequency: accommodation.rentFrequency,
+                  rentDueDate: accommodation.rentDueDate?.toISOString().slice(0, 10) ?? null,
+                  leaseStartDate:
+                    accommodation.leaseStartDate?.toISOString().slice(0, 10) ?? null,
+                  leaseEndDate: accommodation.leaseEndDate?.toISOString().slice(0, 10) ?? null,
                   notes: accommodation.notes,
                 }}
                 companies={options.companies}

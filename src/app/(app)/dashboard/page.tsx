@@ -6,9 +6,14 @@ import {
   ArrowRight,
   Building2,
   CalendarClock,
+  BadgeCheck,
+  CalendarDays,
+  FileClock,
+  Home,
   IdCard,
   Layers,
   ListChecks,
+  Plug,
   UserPlus,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,12 +23,15 @@ import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { CardLoadingState, EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import {
+  DEADLINE_WINDOWS,
   dashboardKpis,
   expiryOutlook,
   headcountByDepartment,
   moduleTotals,
   openWorkByModule,
+  operationalDeadlines,
   pendingWork,
+  type DeadlinePanel,
 } from "@/server/services/dashboard";
 import { CategoryBars, OrdinalBars } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
@@ -68,6 +76,10 @@ export default async function DashboardPage() {
 
       <Suspense fallback={<CardLoadingState count={1} />}>
         <ResidencyDocuments ctx={ctx} />
+      </Suspense>
+
+      <Suspense fallback={<CardLoadingState count={6} />}>
+        <OperationalDeadlines ctx={ctx} />
       </Suspense>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -491,6 +503,178 @@ function BucketTile({
       <p className="text-muted-foreground text-xs">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneClass}`}>{count}</p>
     </Link>
+  );
+}
+
+/**
+ * The six operational deadlines, one card each.
+ *
+ * Each card is independent because each is somebody's job: the HR officer
+ * chasing leave, the admin clerk paying bills, the person renewing the CR. A
+ * single merged list would make everyone read all six to find their one.
+ *
+ * A card the viewer lacks permission for is ABSENT, not zero — see
+ * DeadlinePanel. A zero means "nothing is due"; hiding a permission behind a
+ * zero would tell someone the company has no overdue bills when in fact they
+ * simply cannot see bills.
+ */
+async function OperationalDeadlines({ ctx }: { ctx: ActorContext }) {
+  const d = await operationalDeadlines(ctx);
+
+  const cards = [
+    {
+      key: "leave",
+      title: "Leave starting soon",
+      hint: `Submitted, awaiting approval, travelling within ${String(DEADLINE_WINDOWS.leaveDays)} days`,
+      icon: CalendarDays,
+      href: "/people/leave",
+      tone: "warning" as const,
+      panel: d.leaveUpcoming,
+    },
+    {
+      key: "certificates",
+      title: "Expired certificates",
+      hint: "Company certificates past their expiry date",
+      icon: BadgeCheck,
+      href: "/admin/certificates",
+      tone: "expired" as const,
+      panel: d.certificatesExpired,
+    },
+    {
+      key: "bills",
+      title: "Electricity bills due",
+      hint: `Unpaid, due within ${String(DEADLINE_WINDOWS.billsDays)} days or already overdue`,
+      icon: Plug,
+      href: "/admin/electricity-bills",
+      tone: "warning" as const,
+      panel: d.billsDue,
+    },
+    {
+      key: "subcontracts",
+      title: "Expired subcontracts",
+      hint: "Subcontractor contracts past their end date",
+      icon: FileClock,
+      href: "/admin/subcontractors",
+      tone: "expired" as const,
+      panel: d.subcontractsExpired,
+    },
+    {
+      key: "rent",
+      title: "Accommodation rent due",
+      hint: `Due within ${String(DEADLINE_WINDOWS.rentDays)} days, or already past`,
+      icon: Home,
+      href: "/admin/accommodation",
+      tone: "warning" as const,
+      panel: d.rentDue,
+    },
+    {
+      key: "contracts",
+      title: "Employee contracts ending",
+      hint: `Within ${String(DEADLINE_WINDOWS.contractDays)} days`,
+      icon: FileClock,
+      href: "/hr/contracts",
+      tone: "neutral" as const,
+      panel: d.employeeContracts,
+    },
+  ].filter((c) => c.panel !== null);
+
+  if (cards.length === 0) return null;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {cards.map((card) => (
+        <DeadlineCard
+          key={card.key}
+          title={card.title}
+          hint={card.hint}
+          icon={card.icon}
+          href={card.href}
+          tone={card.tone}
+          panel={card.panel}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DeadlineCard({
+  title,
+  hint,
+  icon: Icon,
+  href,
+  tone,
+  panel,
+}: {
+  title: string;
+  hint: string;
+  icon: typeof CalendarDays;
+  href: string;
+  tone: "expired" | "warning" | "neutral";
+  panel: DeadlinePanel;
+}) {
+  if (panel === null) return null;
+
+  // Zero is shown in muted ink, never in the tone colour. Six cards glowing red
+  // at 0 is the same alarm as six at 12, and a dashboard that always looks
+  // urgent stops being read.
+  const countClass =
+    panel.count === 0
+      ? "text-muted-foreground"
+      : tone === "expired"
+        ? "text-status-expired"
+        : tone === "warning"
+          ? "text-status-warning"
+          : "text-foreground";
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Icon className="size-4 shrink-0" />
+              {title}
+            </CardTitle>
+            <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+          </div>
+          <p className={`shrink-0 text-2xl font-semibold tabular-nums ${countClass}`}>
+            {panel.count}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {panel.count === 0 ? (
+          <p className="text-muted-foreground text-sm">Nothing due.</p>
+        ) : (
+          <>
+            <ul className="divide-y">
+              {panel.items.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">{item.label}</p>
+                    {item.sub ? (
+                      <p className="text-muted-foreground truncate text-xs">{item.sub}</p>
+                    ) : null}
+                  </div>
+                  <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                    {item.date.toISOString().slice(0, 10)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href={href}
+              className="text-muted-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+            >
+              {panel.count > panel.items.length
+                ? `See all ${String(panel.count)}`
+                : "Open"}
+              <ArrowRight className="size-3" />
+            </Link>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -20,6 +20,14 @@ enum PaymentType {
   CREDIT
 }
 
+/// How often rent falls due on a leased property.
+enum RentFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+}
+
 enum AccommodationType {
   APARTMENT
   VILLA
@@ -130,6 +138,18 @@ model Accommodation {
   status      RecordStatus      @default(ACTIVE)
   notes       String?
 
+  /// Lease and rent. All nullable: a property may be owned outright, or
+  /// recorded for occupancy before anyone has the tenancy paperwork to hand.
+  rentAmount    Decimal?       @db.Decimal(14, 2)
+  rentCurrency  String         @default("SAR")
+  rentFrequency RentFrequency?
+  /// The NEXT payment due, not a schedule. A schedule needs its own table and
+  /// a generator; one forward-looking date answers "what is due soon", which is
+  /// the question being asked. Rolled forward by the frequency when marked paid.
+  rentDueDate    DateTime?
+  leaseStartDate DateTime?
+  leaseEndDate   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -138,6 +158,7 @@ model Accommodation {
   bills   ElectricityBill[]
 
   @@index([companyId, status])
+  @@index([rentDueDate])
 }
 
 model AccommodationRoom {
