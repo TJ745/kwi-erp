@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listSubcontractors, vendorCounts } from "@/server/services/vendors";
 import { SubcontractorDialog } from "./subcontractor-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Subcontractors" };
 
@@ -32,7 +33,12 @@ export default async function SubcontractorsPage({
       <PageHeader
         title="Subcontractors"
         description="Companies working under contract. Contract end dates feed the expiry register and the reminder engine."
-        action={canManage ? <SubcontractorDialog /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="subcontractor-register" ctx={ctx} />
+            {canManage ? <SubcontractorDialog /> : null}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

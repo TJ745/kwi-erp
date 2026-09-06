@@ -7,6 +7,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { employeeOptions, listIncrements } from "@/server/services/hr-records";
 import { IncrementDialog } from "./increment-dialog";
 import { IncrementRowActions } from "./increment-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Increments" };
 
@@ -35,7 +36,12 @@ export default async function IncrementsPage({
       <PageHeader
         title="Increments"
         description="Salary increases. The amount and percentage are derived from the two salaries, and approving one updates the employee's active contract."
-        action={canManage ? <IncrementDialog employees={employees} /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="increment-register" ctx={ctx} />
+            {canManage ? <IncrementDialog employees={employees} /> : null}
+          </div>
+        }
       />
 
       {!canSeeFigures ? (

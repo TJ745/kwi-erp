@@ -15,6 +15,7 @@ import {
 import { orgOptions } from "@/server/services/org";
 import { BillDialog } from "./bill-dialog";
 import { BillRowActions } from "./bill-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Electricity Bills" };
 
@@ -42,9 +43,12 @@ export default async function ElectricityBillsPage({
         title="Electricity Bills"
         description="Meter readings and payments per location. A bill left unpaid past its due date is shown as overdue whether or not anyone has relabelled it."
         action={
-          canManage ? (
-            <BillDialog companies={options.companies} accommodations={accommodations} />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="electricity-bills" ctx={ctx} />
+            {canManage ? (
+              <BillDialog companies={options.companies} accommodations={accommodations} />
+            ) : null}
+          </div>
         }
       />
 

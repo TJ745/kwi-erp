@@ -15,6 +15,7 @@ import {
 import { orgOptions } from "@/server/services/org";
 import { CertificateDialog } from "./certificate-dialog";
 import { CertificateRowActions } from "./certificate-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Company Certificates" };
 
@@ -43,9 +44,12 @@ export default async function CertificatesPage({
         title="Company Certificates"
         description="CR, VAT, GOSI, Zakat and the rest. Active certificates feed the expiry register, so renewals surface on the dashboard and in reminders."
         action={
-          canManage ? (
-            <CertificateDialog companies={options.companies} types={types} />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="certificate-register" ctx={ctx} />
+            {canManage ? (
+              <CertificateDialog companies={options.companies} types={types} />
+            ) : null}
+          </div>
         }
       />
 

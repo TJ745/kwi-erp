@@ -8,6 +8,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listAdRecords, orphanedAdAccounts } from "@/server/services/infrastructure";
 import { employeeOptions } from "@/server/services/hr-records";
 import { AdControls } from "./ad-controls";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Active Directory" };
 
@@ -35,7 +36,12 @@ export default async function ActiveDirectoryPage({
       <PageHeader
         title="Active Directory"
         description="Directory metadata only — account name, OU, groups, enabled. No credentials are stored here; passwords belong in the vault."
-        action={canManage ? <AdControls employees={employees} mode="create" /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="ad-account-register" ctx={ctx} />
+            {canManage ? <AdControls employees={employees} mode="create" /> : null}
+          </div>
+        }
       />
 
       {orphaned.length > 0 ? (

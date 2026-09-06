@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/states";
 import { buildQueryString, parseListQuery, type SearchParams } from "@/lib/list-query";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
+import { ReportLink } from "@/components/shared/report-link";
 import {
   contractCounts,
   listContracts,
@@ -115,6 +116,7 @@ export default async function ContractsPage({
       <PageHeader
         title="Contracts"
         description="Employment contracts. Those with an end date appear in expiry alerts automatically."
+              action={<ReportLink reportId="contract-register" ctx={ctx} />}
       />
 
       <div className="grid grid-cols-3 gap-3">

@@ -9,6 +9,7 @@ import { listSuppliers, supplierCategories } from "@/server/services/vendors";
 import { orgOptions } from "@/server/services/org";
 import { SupplierDialog } from "./supplier-dialog";
 import { SupplierRowActions } from "./supplier-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Suppliers" };
 
@@ -33,9 +34,12 @@ export default async function SuppliersPage({
         title="Suppliers"
         description="Vendors the company buys from. A supplier with no company is shared across both entities."
         action={
-          canManage ? (
-            <SupplierDialog companies={options.companies} categories={categories} />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="supplier-register" ctx={ctx} />
+            {canManage ? (
+              <SupplierDialog companies={options.companies} categories={categories} />
+            ) : null}
+          </div>
         }
       />
 

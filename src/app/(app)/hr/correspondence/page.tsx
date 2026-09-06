@@ -15,6 +15,7 @@ import {
 import { orgOptions } from "@/server/services/org";
 import { CorrespondenceDialog } from "./correspondence-dialog";
 import { CorrespondenceRowActions } from "./correspondence-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Correspondence" };
 
@@ -46,9 +47,12 @@ export default async function CorrespondencePage({
         title="Correspondence"
         description="Letters in and out — government, insurance, banks, suppliers. Follow-up dates are what stop a waiting reply being forgotten."
         action={
-          canManage ? (
-            <CorrespondenceDialog companies={options.companies} employees={employees} />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="correspondence-register" ctx={ctx} />
+            {canManage ? (
+              <CorrespondenceDialog companies={options.companies} employees={employees} />
+            ) : null}
+          </div>
         }
       />
 

@@ -14,6 +14,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { fleetCounts, listVehicles, type VehicleListRow } from "@/server/services/fleet";
 import { orgOptions } from "@/server/services/org";
 import { VehicleDialog } from "./vehicle-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Vehicles" };
 
@@ -98,7 +99,12 @@ export default async function VehiclesPage({
       <PageHeader
         title="Vehicles"
         description="Fleet register. Registration and insurance expiry both feed the dashboard alerts."
-        action={canManage && options ? <VehicleDialog companies={options.companies} /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="fleet-register" ctx={ctx} />
+            {canManage && options ? <VehicleDialog companies={options.companies} /> : null}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

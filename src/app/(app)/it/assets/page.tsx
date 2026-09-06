@@ -14,6 +14,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { assetCounts, listAssets, type AssetListRow } from "@/server/services/assets";
 import { orgOptions } from "@/server/services/org";
 import { AssetDialog } from "./asset-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "IT Assets" };
 
@@ -106,9 +107,12 @@ export default async function AssetsPage({
         title="IT Assets"
         description="Hardware register and handover history. An asset can only be issued to one person at a time."
         action={
-          canManage && options ? (
-            <AssetDialog companies={options.companies} />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="it-asset-register" ctx={ctx} />
+            {canManage && options ? (
+              <AssetDialog companies={options.companies} />
+            ) : null}
+          </div>
         }
       />
 

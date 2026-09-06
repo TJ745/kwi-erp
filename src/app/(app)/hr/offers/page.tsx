@@ -11,6 +11,7 @@ import { listJobDescriptions, listJobOffers, offerCounts } from "@/server/servic
 import { orgOptions } from "@/server/services/org";
 import { OfferDialog } from "./offer-dialog";
 import { OfferRowActions } from "./offer-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Job Offers" };
 
@@ -40,13 +41,16 @@ export default async function JobOffersPage({
         title="Job Offers"
         description="Candidates through to hire. Accepting an offer is not hiring — converting it creates the employee record, and that can only happen once."
         action={
-          canManage ? (
-            <OfferDialog
-              companies={options.companies}
-              positions={options.positions}
-              descriptions={descriptions.map((d) => ({ id: d.id, title: d.title }))}
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="job-offer-register" ctx={ctx} />
+            {canManage ? (
+              <OfferDialog
+                companies={options.companies}
+                positions={options.positions}
+                descriptions={descriptions.map((d) => ({ id: d.id, title: d.title }))}
+              />
+            ) : null}
+          </div>
         }
       />
 

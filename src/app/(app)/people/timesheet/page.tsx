@@ -12,6 +12,7 @@ import { TimesheetFilters } from "./timesheet-filters";
 import { TimesheetDialog } from "./timesheet-dialog";
 import { TimesheetRowActions } from "./timesheet-row-actions";
 import { ApprovePeriodButton } from "./approve-period-button";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Timesheet" };
 
@@ -55,12 +56,15 @@ export default async function TimesheetPage({
         title="Timesheet"
         description="Hours per person per day — one entry each, enforced by the database. Only approved days count towards the totals payroll would act on."
         action={
-          canManage ? (
-            <TimesheetDialog
-              employees={employees}
-              defaultDate={new Date().toISOString().slice(0, 10)}
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="timesheet-summary" ctx={ctx} />
+            {canManage ? (
+              <TimesheetDialog
+                employees={employees}
+                defaultDate={new Date().toISOString().slice(0, 10)}
+              />
+            ) : null}
+          </div>
         }
       />
 

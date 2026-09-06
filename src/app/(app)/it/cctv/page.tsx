@@ -7,6 +7,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listCctv } from "@/server/services/infrastructure";
 import { orgOptions } from "@/server/services/org";
 import { CctvControls } from "./cctv-controls";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "CCTV" };
 
@@ -25,13 +26,16 @@ export default async function CctvPage() {
         title="CCTV"
         description="Cameras and the recorders they feed. Only an NVR or DVR can be a recorder, and one with cameras attached cannot be demoted or deleted."
         action={
-          canManage ? (
-            <CctvControls
-              companies={options.companies}
-              recorders={recorders}
-              mode="create"
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="cctv-register" ctx={ctx} />
+            {canManage ? (
+              <CctvControls
+                companies={options.companies}
+                recorders={recorders}
+                mode="create"
+              />
+            ) : null}
+          </div>
         }
       />
 

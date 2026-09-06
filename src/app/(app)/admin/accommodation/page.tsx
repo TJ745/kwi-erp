@@ -11,6 +11,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { accommodationCounts, listAccommodations } from "@/server/services/accommodation";
 import { orgOptions } from "@/server/services/org";
 import { AccommodationDialog } from "./accommodation-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Accommodation" };
 
@@ -34,7 +35,12 @@ export default async function AccommodationPage({
       <PageHeader
         title="Accommodation"
         description="Properties, rooms, and beds. Occupancy is counted from live check-ins, and one occupant per bed is enforced by the database, not by the form."
-        action={canManage ? <AccommodationDialog companies={options.companies} /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="accommodation-occupancy" ctx={ctx} />
+            {canManage ? <AccommodationDialog companies={options.companies} /> : null}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

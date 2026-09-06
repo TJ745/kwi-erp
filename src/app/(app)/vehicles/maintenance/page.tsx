@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/states";
 import { parseListQuery, type SearchParams } from "@/lib/list-query";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listMaintenance } from "@/server/services/fleet";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Vehicle maintenance" };
 
@@ -94,6 +95,7 @@ export default async function MaintenancePage({
       <PageHeader
         title="Vehicle maintenance"
         description="Service history across the fleet. Record maintenance from a vehicle's page."
+              action={<ReportLink reportId="vehicle-maintenance" ctx={ctx} />}
       />
 
       <SearchInput placeholder="Search by plate, workshop, or work done…" />

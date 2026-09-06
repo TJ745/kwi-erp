@@ -7,6 +7,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { employeeOptions, listWarnings } from "@/server/services/hr-records";
 import { WarningDialog } from "./warning-dialog";
 import { WarningRowActions } from "./warning-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Warning Letters" };
 
@@ -40,7 +41,12 @@ export default async function WarningsPage({
       <PageHeader
         title="Warning Letters"
         description="Disciplinary record. Once an employee acknowledges a warning it can no longer be edited or deleted — it is what they signed for."
-        action={canManage ? <WarningDialog employees={employees} /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="warning-register" ctx={ctx} />
+            {canManage ? <WarningDialog employees={employees} /> : null}
+          </div>
+        }
       />
 
       {warnings.length === 0 ? (

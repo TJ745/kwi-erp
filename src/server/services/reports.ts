@@ -5,6 +5,7 @@ import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ForbiddenError } from "@/lib/result";
 import { daysUntilExpiry } from "@/lib/expiry";
+import { allOf, pooledOrScoped } from "@/lib/scope-filters";
 import {
   expiryBucketLabel,
   isCompanyInScope,
@@ -1163,6 +1164,478 @@ const warningRegister: QueryFn = async (ctx, filters) => {
   }));
 };
 
+// --- Registers added for the module-by-module report coverage ----------------
+
+const jobOfferRegister: QueryFn = async (ctx, filters) => {
+  // Salary is selected only when permitted, so an unauthorised run cannot even
+  // fetch it — the column gate in the spec is the second line of defence, not
+  // the only one.
+  const canSeeSalary = ctx.permissions.has("employees.salary.view");
+
+  const offers = await prisma.jobOffer.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "DRAFT" } : {}),
+      ...dateWindowOn("createdAt", filters),
+      ...(filters.q
+        ? {
+            OR: [
+              { candidateName: { contains: filters.q, mode: "insensitive" as const } },
+              { candidateEmail: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: MAX_ROWS + 1,
+    select: {
+      candidateName: true,
+      proposedSalary: canSeeSalary,
+      currency: true,
+      proposedJoiningDate: true,
+      sentAt: true,
+      status: true,
+      company: { select: { code: true } },
+      position: { select: { title: true } },
+    },
+  });
+
+  return offers.map((o) => ({
+    candidate: o.candidateName,
+    company: o.company.code,
+    position: o.position?.title ?? null,
+    salary: canSeeSalary && o.proposedSalary ? `${o.proposedSalary.toString()} ${o.currency}` : null,
+    joiningDate: o.proposedJoiningDate,
+    sentAt: o.sentAt,
+    status: o.status,
+  }));
+};
+
+const jobDescriptionRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.jobDescription.findMany({
+    where: {
+      // Descriptions may be shared across companies, so the nullable-aware
+      // helper applies. Composed under AND so the search OR cannot displace
+      // the scope OR — the collision that made vault search run unscoped.
+      AND: [
+        filters.companyId ? scopeWhere(ctx, filters) : optionalCompanyScopeWhere(ctx),
+        filters.q
+          ? {
+              OR: [
+                { title: { contains: filters.q, mode: "insensitive" as const } },
+                { summary: { contains: filters.q, mode: "insensitive" as const } },
+              ],
+            }
+          : {},
+      ],
+    },
+    orderBy: { title: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      title: true,
+      version: true,
+      isActive: true,
+      updatedAt: true,
+      company: { select: { code: true } },
+      position: { select: { title: true } },
+    },
+  });
+
+  return rows.map((d) => ({
+    title: d.title,
+    company: d.company?.code ?? "All companies",
+    position: d.position?.title ?? null,
+    version: d.version,
+    status: d.isActive ? "Active" : "Inactive",
+    updatedAt: d.updatedAt,
+  }));
+};
+
+const correspondenceRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.correspondence.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "DRAFT" } : {}),
+      ...dateWindowOn("sentDate", filters),
+      ...(filters.q
+        ? {
+            OR: [
+              { subject: { contains: filters.q, mode: "insensitive" as const } },
+              { recipient: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: MAX_ROWS + 1,
+    select: {
+      subject: true,
+      type: true,
+      recipient: true,
+      sentDate: true,
+      followUpDate: true,
+      status: true,
+      company: { select: { code: true } },
+      employee: { select: { fullName: true } },
+    },
+  });
+
+  return rows.map((c) => ({
+    subject: c.subject,
+    type: c.type,
+    recipient: c.recipient,
+    employee: c.employee?.fullName ?? null,
+    company: c.company.code,
+    sentDate: c.sentDate,
+    followUpDate: c.followUpDate,
+    status: c.status,
+  }));
+};
+
+const adAccountRegister: QueryFn = async (ctx, filters) => {
+  // AdRecord has no company column; it reaches one only through its employee,
+  // and an unassigned account belongs to no company. Scoping on the employee
+  // keeps unassigned accounts visible, which is the point of the register —
+  // an orphaned domain account is exactly what an audit is looking for.
+  const rows = await prisma.adRecord.findMany({
+    where: {
+      ...allOf(
+        { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
+        filters.q
+          ? {
+              OR: [
+                { samAccountName: { contains: filters.q, mode: "insensitive" as const } },
+                { ou: { contains: filters.q, mode: "insensitive" as const } },
+              ],
+            }
+          : undefined,
+      ),
+    },
+    orderBy: { samAccountName: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      samAccountName: true,
+      ou: true,
+      enabled: true,
+      lastSyncedAt: true,
+      employee: { select: { fullName: true } },
+    },
+  });
+
+  return rows.map((a) => ({
+    samAccountName: a.samAccountName,
+    employee: a.employee?.fullName ?? "— unassigned —",
+    ou: a.ou,
+    enabled: a.enabled ? "Yes" : "No",
+    lastSyncedAt: a.lastSyncedAt,
+  }));
+};
+
+const serverRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.server.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { name: { contains: filters.q, mode: "insensitive" as const } },
+              { ipAddress: { contains: filters.q, mode: "insensitive" as const } },
+              { role: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { name: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      name: true,
+      ipAddress: true,
+      os: true,
+      role: true,
+      location: true,
+      status: true,
+      company: { select: { code: true } },
+    },
+  });
+
+  return rows.map((v) => ({
+    name: v.name,
+    company: v.company.code,
+    ipAddress: v.ipAddress,
+    os: v.os,
+    role: v.role,
+    location: v.location,
+    status: v.status,
+  }));
+};
+
+const ipPhoneRegister: QueryFn = async (ctx, filters) => {
+  // Like AdRecord, an IpPhone reaches a company only through its holder.
+  const rows = await prisma.ipPhone.findMany({
+    where: {
+      ...allOf(
+        { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
+        filters.status ? { status: filters.status } : undefined,
+        filters.q
+          ? {
+              OR: [
+                { extension: { contains: filters.q, mode: "insensitive" as const } },
+                { location: { contains: filters.q, mode: "insensitive" as const } },
+              ],
+            }
+          : undefined,
+      ),
+    },
+    orderBy: { extension: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      extension: true,
+      deviceModel: true,
+      macAddress: true,
+      location: true,
+      status: true,
+      employee: { select: { fullName: true } },
+    },
+  });
+
+  return rows.map((v) => ({
+    extension: v.extension,
+    employee: v.employee?.fullName ?? "— unassigned —",
+    deviceModel: v.deviceModel,
+    macAddress: v.macAddress,
+    location: v.location,
+    status: v.status,
+  }));
+};
+
+const cctvRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.cctvDevice.findMany({
+    where: {
+      ...scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { name: { contains: filters.q, mode: "insensitive" as const } },
+              { location: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ location: "asc" }, { name: "asc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      name: true,
+      type: true,
+      location: true,
+      ipAddress: true,
+      status: true,
+      lastMaintenanceAt: true,
+      company: { select: { code: true } },
+      recorder: { select: { name: true } },
+    },
+  });
+
+  return rows.map((v) => ({
+    name: v.name,
+    company: v.company.code,
+    type: v.type,
+    location: v.location,
+    ipAddress: v.ipAddress,
+    recorder: v.recorder?.name ?? null,
+    lastMaintenanceAt: v.lastMaintenanceAt,
+    status: v.status,
+  }));
+};
+
+const vehicleMaintenanceRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.vehicleMaintenance.findMany({
+    where: {
+      vehicle: scopeWhere(ctx, filters),
+      ...(filters.status ? { status: filters.status as "APPROVED" } : {}),
+      ...dateWindowOn("date", filters),
+      ...(filters.q
+        ? {
+            OR: [
+              { description: { contains: filters.q, mode: "insensitive" as const } },
+              { workshop: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { date: "desc" },
+    take: MAX_ROWS + 1,
+    select: {
+      date: true,
+      type: true,
+      description: true,
+      workshop: true,
+      cost: true,
+      currency: true,
+      nextDueDate: true,
+      status: true,
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
+    },
+  });
+
+  return rows.map((m) => ({
+    vehicle: `${m.vehicle.make} ${m.vehicle.model}`,
+    plateNumber: m.vehicle.plateNumber,
+    date: m.date,
+    type: m.type,
+    description: m.description,
+    workshop: m.workshop,
+    cost: m.cost ? `${m.cost.toString()} ${m.currency}` : null,
+    nextDueDate: m.nextDueDate,
+    status: m.status,
+  }));
+};
+
+const vehicleHandoverRegister: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.vehicleHandover.findMany({
+    where: {
+      vehicle: scopeWhere(ctx, filters),
+      ...dateWindowOn("handoverDate", filters),
+      ...(filters.q
+        ? { vehicle: { plateNumber: { contains: filters.q, mode: "insensitive" as const } } }
+        : {}),
+    },
+    orderBy: { handoverDate: "desc" },
+    take: MAX_ROWS + 1,
+    select: {
+      handoverDate: true,
+      mileage: true,
+      fuelLevel: true,
+      condition: true,
+      acknowledgedAt: true,
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
+      fromEmployee: { select: { fullName: true } },
+      toEmployee: { select: { fullName: true } },
+    },
+  });
+
+  return rows.map((h) => ({
+    vehicle: `${h.vehicle.make} ${h.vehicle.model}`,
+    plateNumber: h.vehicle.plateNumber,
+    handoverDate: h.handoverDate,
+    fromEmployee: h.fromEmployee?.fullName ?? "— store —",
+    toEmployee: h.toEmployee?.fullName ?? "— store —",
+    mileage: h.mileage,
+    fuelLevel: h.fuelLevel,
+    condition: h.condition,
+    acknowledged: h.acknowledgedAt ? "Yes" : "No",
+  }));
+};
+
+const userRegister: QueryFn = async (ctx, filters) => {
+  void ctx;
+  const rows = await prisma.user.findMany({
+    where: {
+      deletedAt: null,
+      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { name: { contains: filters.q, mode: "insensitive" as const } },
+              { email: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { name: "asc" },
+    take: MAX_ROWS + 1,
+    select: {
+      name: true,
+      email: true,
+      status: true,
+      lastLoginAt: true,
+      role: { select: { name: true } },
+      companyAccess: { select: { company: { select: { code: true } } } },
+    },
+  });
+
+  return rows.map((u) => ({
+    name: u.name,
+    email: u.email,
+    role: u.role.name,
+    companies:
+      u.companyAccess.length === 0
+        ? "All companies"
+        : u.companyAccess.map((a) => a.company.code).join(", "),
+    status: u.status,
+    lastLoginAt: u.lastLoginAt,
+  }));
+};
+
+const roleRegister: QueryFn = async (ctx, filters) => {
+  void ctx;
+  void filters;
+  const rows = await prisma.role.findMany({
+    orderBy: { rank: "asc" },
+    select: {
+      key: true,
+      name: true,
+      description: true,
+      rank: true,
+      isSystem: true,
+      _count: { select: { permissions: true, users: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    key: r.key,
+    name: r.name,
+    description: r.description,
+    rank: r.rank,
+    isSystem: r.isSystem ? "Yes" : "No",
+    // SUPER_ADMIN holds every permission implicitly rather than by grant rows,
+    // so the raw count would read 0 and imply it can do nothing.
+    permissions: r.key === "SUPER_ADMIN" ? "All" : r._count.permissions,
+    users: r._count.users,
+  }));
+};
+
+const reportingLines: QueryFn = async (ctx, filters) => {
+  const rows = await prisma.employee.findMany({
+    where: {
+      deletedAt: null,
+      status: { in: ["ACTIVE", "ON_LEAVE"] },
+      ...scopeWhere(ctx, filters),
+      ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { fullName: { contains: filters.q, mode: "insensitive" as const } },
+              { employeeNo: { contains: filters.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ company: { code: "asc" } }, { fullName: "asc" }],
+    take: MAX_ROWS + 1,
+    select: {
+      employeeNo: true,
+      fullName: true,
+      company: { select: { code: true } },
+      position: { select: { title: true } },
+      department: { select: { name: true } },
+      manager: { select: { fullName: true } },
+    },
+  });
+
+  return rows.map((e) => ({
+    employeeNo: e.employeeNo,
+    name: e.fullName,
+    position: e.position?.title ?? null,
+    department: e.department?.name ?? null,
+    // Stated rather than blank: "no manager set" and "reports to nobody" look
+    // identical in an empty cell, and only one of them is a data problem.
+    manager: e.manager?.fullName ?? "— none set —",
+    company: e.company.code,
+  }));
+};
+
 const QUERIES: Record<ReportId, QueryFn> = {
   "employee-directory": employeeDirectory,
   "employee-headcount": employeeHeadcount,
@@ -1186,4 +1659,16 @@ const QUERIES: Record<ReportId, QueryFn> = {
   "evaluation-register": evaluationRegister,
   "increment-register": incrementRegister,
   "warning-register": warningRegister,
+  "job-offer-register": jobOfferRegister,
+  "job-description-register": jobDescriptionRegister,
+  "correspondence-register": correspondenceRegister,
+  "ad-account-register": adAccountRegister,
+  "server-register": serverRegister,
+  "ip-phone-register": ipPhoneRegister,
+  "cctv-register": cctvRegister,
+  "vehicle-maintenance": vehicleMaintenanceRegister,
+  "vehicle-handover": vehicleHandoverRegister,
+  "user-register": userRegister,
+  "role-register": roleRegister,
+  "reporting-lines": reportingLines,
 };

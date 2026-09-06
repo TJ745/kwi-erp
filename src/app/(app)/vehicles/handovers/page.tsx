@@ -7,6 +7,7 @@ import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listHandovers } from "@/server/services/fleet";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Vehicle Handovers" };
 
@@ -29,6 +30,7 @@ export default async function HandoversPage({
       <PageHeader
         title="Vehicle Handovers"
         description="Every change of keys across the fleet. A handover is what moves a vehicle's driver — the assignment closes and reopens with it."
+              action={<ReportLink reportId="vehicle-handover" ctx={ctx} />}
       />
 
       {handovers.length === 0 ? (

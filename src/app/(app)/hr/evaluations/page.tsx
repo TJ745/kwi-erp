@@ -7,6 +7,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { employeeOptions, listEvaluations } from "@/server/services/hr-records";
 import { EvaluationDialog } from "./evaluation-dialog";
 import { EvaluationRowActions } from "./evaluation-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Evaluations" };
 
@@ -29,7 +30,12 @@ export default async function EvaluationsPage({
       <PageHeader
         title="Evaluations"
         description="Performance reviews. The overall score is a weighted average of the criteria, computed on the server — it cannot disagree with the scores it came from."
-        action={canManage ? <EvaluationDialog employees={employees} /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="evaluation-register" ctx={ctx} />
+            {canManage ? <EvaluationDialog employees={employees} /> : null}
+          </div>
+        }
       />
 
       {evaluations.length === 0 ? (

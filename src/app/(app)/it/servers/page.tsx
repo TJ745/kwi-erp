@@ -8,6 +8,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listServers } from "@/server/services/infrastructure";
 import { orgOptions } from "@/server/services/org";
 import { ServerControls } from "./server-controls";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Servers" };
 
@@ -31,7 +32,10 @@ export default async function ServersPage({
         title="Servers"
         description="Physical and virtual servers, their roles, and their specifications."
         action={
-          canManage ? <ServerControls companies={options.companies} mode="create" /> : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="server-register" ctx={ctx} />
+            {canManage ? <ServerControls companies={options.companies} mode="create" /> : null}
+          </div>
         }
       />
 

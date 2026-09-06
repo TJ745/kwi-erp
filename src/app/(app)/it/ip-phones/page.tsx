@@ -8,6 +8,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listIpPhones } from "@/server/services/infrastructure";
 import { employeeOptions } from "@/server/services/hr-records";
 import { PhoneControls } from "./phone-controls";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "IP Phones" };
 
@@ -30,7 +31,12 @@ export default async function IpPhonesPage({
       <PageHeader
         title="IP Phones"
         description="Handsets and extensions. An extension is unique — the directory depends on it."
-        action={canManage ? <PhoneControls employees={employees} mode="create" /> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="ip-phone-register" ctx={ctx} />
+            {canManage ? <PhoneControls employees={employees} mode="create" /> : null}
+          </div>
+        }
       />
 
       <SearchInput placeholder="Search extension or MAC…" />

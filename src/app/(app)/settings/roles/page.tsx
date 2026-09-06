@@ -8,6 +8,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listRolesWithPermissionCounts } from "@/server/services/users";
 import { DeleteRoleButton, RoleDialog } from "./role-dialog";
 import { PERMISSION_KEYS } from "@/lib/permissions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Roles & Permissions" };
 
@@ -26,7 +27,12 @@ export default async function RolesPage() {
       <PageHeader
         title="Roles & Permissions"
         description={`${String(PERMISSION_KEYS.length)} permissions across the system. A role can only be edited by someone more senior than it.`}
-        action={<RoleDialog suggestedRank={suggestedRank} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="role-register" ctx={ctx} />
+            <RoleDialog suggestedRank={suggestedRank} />
+          </div>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

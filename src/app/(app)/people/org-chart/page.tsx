@@ -6,6 +6,7 @@ import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { buildOrgChart, orgChartStats, type OrgNode } from "@/server/services/org-chart";
+import { ReportLink } from "@/components/shared/report-link";
 import {
   assignCompanyColours,
   OrgLegend,
@@ -49,6 +50,7 @@ export default async function OrgChartPage({
       <PageHeader
         title="Organisation Chart"
         description="Reporting lines from each employee's manager. Someone whose manager is outside the companies you can see appears as a root here."
+              action={<ReportLink reportId="reporting-lines" ctx={ctx} />}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

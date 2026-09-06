@@ -12,6 +12,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { listUsers, type UserListRow } from "@/server/services/users";
 import { UserRowActions } from "./user-row-actions";
 import { UserDialog } from "./user-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 import {
   employeesWithoutUser,
   listCompaniesForAssignment,
@@ -130,19 +131,22 @@ export default async function UsersPage({
         title="Users"
         description="Accounts, roles, and company access. Users are created by an administrator; there is no self-registration."
         action={
-          canManage ? (
-            <UserDialog
-              roles={roles.map((r) => ({ id: r.id, label: r.name }))}
-              companies={companies.map((c) => ({
-                id: c.id,
-                label: `${c.code} — ${c.name}`,
-              }))}
-              employees={unlinkedEmployees.map((e) => ({
-                id: e.id,
-                label: `${e.fullName} (${e.employeeNo})`,
-              }))}
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="user-register" ctx={ctx} />
+            {canManage ? (
+              <UserDialog
+                roles={roles.map((r) => ({ id: r.id, label: r.name }))}
+                companies={companies.map((c) => ({
+                  id: c.id,
+                  label: `${c.code} — ${c.name}`,
+                }))}
+                employees={unlinkedEmployees.map((e) => ({
+                  id: e.id,
+                  label: `${e.fullName} (${e.employeeNo})`,
+                }))}
+              />
+            ) : null}
+          </div>
         }
       />
 

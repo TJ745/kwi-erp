@@ -19,6 +19,7 @@ import {
 import { listEmployees } from "@/server/services/employees";
 import { LeaveDecision } from "./leave-decision";
 import { LeaveRequestButton } from "./leave-request-form";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Leave" };
 
@@ -121,11 +122,14 @@ export default async function LeavePage({
             : "Your leave requests."
         }
         action={
-          <LeaveRequestButton
-            leaveTypes={types}
-            employees={employees?.rows.map((e) => ({ id: e.id, label: `${e.fullName} (${e.employeeNo})` })) ?? []}
-            ownEmployeeId={ctx.employeeId}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="leave-register" ctx={ctx} />
+            <LeaveRequestButton
+              leaveTypes={types}
+              employees={employees?.rows.map((e) => ({ id: e.id, label: `${e.fullName} (${e.employeeNo})` })) ?? []}
+              ownEmployeeId={ctx.employeeId}
+            />
+          </div>
         }
       />
 

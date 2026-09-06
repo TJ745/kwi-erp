@@ -9,6 +9,7 @@ import { listJobDescriptions } from "@/server/services/hiring";
 import { orgOptions } from "@/server/services/org";
 import { JobDescriptionDialog } from "./job-description-dialog";
 import { JobDescriptionRowActions } from "./job-description-row-actions";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Job Descriptions" };
 
@@ -32,12 +33,15 @@ export default async function JobDescriptionsPage({
         title="Job Descriptions"
         description="Reusable role definitions attached to offers. Editing one bumps its version, so an offer that quoted an earlier text stays distinguishable."
         action={
-          canManage ? (
-            <JobDescriptionDialog
-              companies={options.companies}
-              positions={options.positions}
-            />
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="job-description-register" ctx={ctx} />
+            {canManage ? (
+              <JobDescriptionDialog
+                companies={options.companies}
+                positions={options.positions}
+              />
+            ) : null}
+          </div>
         }
       />
 

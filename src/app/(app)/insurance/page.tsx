@@ -18,6 +18,7 @@ import { enrolmentsForPolicy } from "@/server/services/insurance";
 import { employeeOptions } from "@/server/services/hr-records";
 import { PolicyTable } from "./policy-table";
 import { ProviderDialog } from "./provider-dialog";
+import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Medical Insurance" };
 
@@ -56,17 +57,20 @@ export default async function InsurancePage({
         title="Medical Insurance"
         description="Company policies and their status. A policy can be in-date yet not working at the clinic — both are tracked."
         action={
-          canManage && options ? (
-            <div className="flex items-center gap-2">
-              <ProviderDialog />
-              <PolicyDialog
-                companies={options.companies}
-                providers={providers
-                  .filter((p) => p.isActive)
-                  .map((p) => ({ id: p.id, name: p.name }))}
-              />
-            </div>
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportLink reportId="insurance-register" ctx={ctx} />
+            {canManage && options ? (
+              <div className="flex items-center gap-2">
+                <ProviderDialog />
+                <PolicyDialog
+                  companies={options.companies}
+                  providers={providers
+                    .filter((p) => p.isActive)
+                    .map((p) => ({ id: p.id, name: p.name }))}
+                />
+              </div>
+            ) : null}
+          </div>
         }
       />
 
