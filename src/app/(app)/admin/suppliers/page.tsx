@@ -10,6 +10,7 @@ import { orgOptions } from "@/server/services/org";
 import { SupplierDialog } from "./supplier-dialog";
 import { SupplierRowActions } from "./supplier-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
+import { DocumentsLink } from "@/components/shared/documents-link";
 
 export const metadata: Metadata = { title: "Suppliers" };
 
@@ -21,6 +22,9 @@ export default async function SuppliersPage({
   const ctx = await requirePagePermission("suppliers.view");
   const { q, status } = await searchParams;
   const canManage = ctx.permissions.has("suppliers.manage");
+  // Documents are readable by more people than may edit the record,
+  // so this is a separate gate rather than a reuse of canManage.
+  const canViewDocs = ctx.permissions.has("documents.view");
 
   const [suppliers, categories, options] = await Promise.all([
     listSuppliers(ctx, { ...(q ? { q } : {}), ...(status ? { status } : {}) }),
@@ -67,7 +71,7 @@ export default async function SuppliersPage({
                 <th className="px-3 py-2 text-left font-medium">Terms</th>
                 <th className="px-3 py-2 text-left font-medium">Company</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                {canManage || canViewDocs ? <th className="w-10 px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -105,8 +109,17 @@ export default async function SuppliersPage({
                       {s.status}
                     </Badge>
                   </td>
-                  {canManage ? (
+                  {canManage || canViewDocs ? (
                     <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        {canViewDocs ? (
+                          <DocumentsLink
+                            entityType="SUPPLIER"
+                            entityId={s.id}
+                            label={s.name}
+                          />
+                        ) : null}
+                        {canManage ? (<>
                       <SupplierRowActions
                         supplier={{
                           id: s.id,
@@ -125,6 +138,8 @@ export default async function SuppliersPage({
                         companies={options.companies}
                         categories={categories}
                       />
+                    </>) : null}
+                      </div>
                     </td>
                   ) : null}
                 </tr>

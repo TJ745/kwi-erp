@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { DateField, SelectField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
+import type { UploadEntityType } from "@/lib/upload-entities";
 import { useUploadThing } from "@/lib/uploadthing";
 import { extensionOf, isAllowedExtension, maxBytesFor } from "@/lib/file-validation";
 import { createDocumentAction } from "@/server/actions/documents";
@@ -39,7 +40,7 @@ export function DocumentUpload({
   documentTypes,
   defaultTitle,
 }: {
-  entityType: "EMPLOYEE" | "COMPANY" | "VEHICLE" | "IT_ASSET";
+  entityType: UploadEntityType;
   entityId: string;
   companyId: string;
   documentTypes: DocumentType[];

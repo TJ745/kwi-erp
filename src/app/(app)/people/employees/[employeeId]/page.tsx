@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/shared/states";
 import { DocumentUpload } from "@/components/forms/document-upload";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { getEmployee } from "@/server/services/employees";
-import { documentsForEntity, documentTypes } from "@/server/services/documents";
+import { documentsForEntity, documentTypesFor } from "@/server/services/documents";
 import { assetsForEmployee } from "@/server/services/assets";
 import { allowanceValue, contractsForEmployee } from "@/server/services/contracts";
 import { ContractDialog } from "./contract-dialog";
@@ -116,7 +116,7 @@ export default async function EmployeeDetailPage({
     canViewDocuments
       ? documentsForEntity(ctx, "EMPLOYEE", employee.id)
       : Promise.resolve([]),
-    canViewDocuments && canUpload ? documentTypes() : Promise.resolve([]),
+    canViewDocuments && canUpload ? documentTypesFor("EMPLOYEE") : Promise.resolve([]),
     canViewContracts ? contractsForEmployee(ctx, employee.id) : Promise.resolve([]),
     canViewLeave ? leaveForEmployee(ctx, employee.id) : Promise.resolve([]),
     canViewAssets ? assetsForEmployee(ctx, employee.id) : Promise.resolve([]),

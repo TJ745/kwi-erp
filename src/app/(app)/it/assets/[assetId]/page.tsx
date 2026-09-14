@@ -10,6 +10,7 @@ import { assignableEmployees, getAsset } from "@/server/services/assets";
 import { orgOptions } from "@/server/services/org";
 import { AssetDialog } from "../asset-dialog";
 import { AssetHandover } from "./asset-handover";
+import { DocumentsPanel } from "@/components/shared/documents-panel";
 
 export const metadata: Metadata = { title: "Asset" };
 
@@ -177,6 +178,16 @@ export default async function AssetDetailPage({
           </Card>
         </div>
       </div>
+
+      {/* The record's own document library. Renders nothing without
+          documents.view, so no page needs to repeat that check. */}
+      <DocumentsPanel
+        ctx={ctx}
+        entityType="IT_ASSET"
+        entityId={asset.id}
+        companyId={asset.companyId}
+        title="Asset documents"
+      />
     </PageShell>
   );
 }

@@ -16,6 +16,7 @@ import { orgOptions } from "@/server/services/org";
 import { BillDialog } from "./bill-dialog";
 import { BillRowActions } from "./bill-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
+import { DocumentsLink } from "@/components/shared/documents-link";
 
 export const metadata: Metadata = { title: "Electricity Bills" };
 
@@ -27,6 +28,8 @@ export default async function ElectricityBillsPage({
   const ctx = await requirePagePermission("bills.view");
   const { status, q } = await searchParams;
   const canManage = ctx.permissions.has("bills.manage");
+  // Documents are readable by more people than may edit a bill.
+  const canViewDocs = ctx.permissions.has("documents.view");
 
   const [bills, counts, accommodations, options] = await Promise.all([
     listBills(ctx, { ...(status ? { status } : {}), ...(q ? { q } : {}) }),
@@ -81,7 +84,7 @@ export default async function ElectricityBillsPage({
                 <th className="px-3 py-2 text-left font-medium">Due</th>
                 <th className="px-3 py-2 text-left font-medium">Company</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                {canManage || canViewDocs ? <th className="w-10 px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -133,8 +136,18 @@ export default async function ElectricityBillsPage({
                         {b.status === "PAID" ? "PAID" : isOverdue ? "OVERDUE" : b.status}
                       </Badge>
                     </td>
-                    {canManage ? (
+                    {canManage || canViewDocs ? (
                       <td className="px-3 py-2">
+                        {canViewDocs ? (
+                          <DocumentsLink
+                            entityType="ELECTRICITY_BILL"
+                            entityId={b.id}
+                            label={`${b.location} bill`}
+                          />
+                        ) : null}
+                        {/* Still gated: viewing documents does not imply
+                            editing the bill. */}
+                        {canManage ? (
                         <BillRowActions
                           bill={{
                             id: b.id,
@@ -158,6 +171,7 @@ export default async function ElectricityBillsPage({
                           companies={options.companies}
                           accommodations={accommodations}
                         />
+                        ) : null}
                       </td>
                     ) : null}
                   </tr>

@@ -16,6 +16,7 @@ import { orgOptions } from "@/server/services/org";
 import { CertificateDialog } from "./certificate-dialog";
 import { CertificateRowActions } from "./certificate-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
+import { DocumentsLink } from "@/components/shared/documents-link";
 
 export const metadata: Metadata = { title: "Company Certificates" };
 
@@ -27,6 +28,9 @@ export default async function CertificatesPage({
   const ctx = await requirePagePermission("certificates.view");
   const { status, typeId } = await searchParams;
   const canManage = ctx.permissions.has("certificates.manage");
+  // Documents are readable by more people than may edit the record,
+  // so this is a separate gate rather than a reuse of canManage.
+  const canViewDocs = ctx.permissions.has("documents.view");
 
   const [certificates, types, counts, options] = await Promise.all([
     listCertificates(ctx, {
@@ -77,7 +81,7 @@ export default async function CertificatesPage({
                 <th className="px-3 py-2 text-left font-medium">Expiry</th>
                 <th className="px-3 py-2 text-left font-medium">Authority</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                {canManage || canViewDocs ? <th className="w-10 px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -105,8 +109,17 @@ export default async function CertificatesPage({
                       {c.status}
                     </Badge>
                   </td>
-                  {canManage ? (
+                  {canManage || canViewDocs ? (
                     <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        {canViewDocs ? (
+                          <DocumentsLink
+                            entityType="COMPANY_CERTIFICATE"
+                            entityId={c.id}
+                            label={c.certificateNo}
+                          />
+                        ) : null}
+                        {canManage ? (<>
                       <CertificateRowActions
                         certificate={{
                           id: c.id,
@@ -122,6 +135,8 @@ export default async function CertificatesPage({
                         companies={options.companies}
                         types={types}
                       />
+                    </>) : null}
+                      </div>
                     </td>
                   ) : null}
                 </tr>

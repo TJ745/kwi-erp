@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { defineAction } from "./define-action";
+import { UPLOAD_ENTITY_TYPES } from "@/lib/upload-entities";
 import { createDocument, deleteDocument } from "@/server/services/documents";
 
 const optionalDate = z
@@ -16,7 +17,7 @@ export const createDocumentAction = defineAction({
     .object({
       fileId: z.string().min(1),
       documentTypeId: z.string().min(1, "Select a document type"),
-      entityType: z.enum(["EMPLOYEE", "COMPANY", "VEHICLE", "IT_ASSET"]),
+      entityType: z.enum(UPLOAD_ENTITY_TYPES),
       entityId: z.string().min(1),
       companyId: z.string().min(1),
       title: z.string().trim().min(2, "Title is required").max(200),

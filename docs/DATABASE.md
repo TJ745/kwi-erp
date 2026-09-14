@@ -391,6 +391,34 @@ Mitigations, all of which are real work we are committing to:
 
 The alternative — a join table per entity type — would mean ~15 near-identical tables and a `UNION` on every "show me everything attached to X" query. We accept application-enforced integrity here.
 
+### What may be uploaded against
+
+`Document.entityType` accepts the whole `EntityType` enum, but **uploads are
+restricted to `UPLOAD_ENTITY_TYPES`** (`src/lib/upload-entities.ts`) — 13
+values, each of which resolves to an owning company. That restriction is the
+point: company scope is what every document read filters on, so an entity with
+no reachable company could carry documents nobody could subsequently scope.
+
+The list is paired with the `switch` in `isUploadTargetInScope`, which decides
+whether the caller may reach that record. Adding a value to one without adding
+a case to the other would accept an upload that nothing authorises; the guard's
+`default` returns false, so the failure is closed rather than open, but it
+presents as "uploads are broken for this module" and the tempting fix is to
+loosen the guard. `src/lib/upload-entities.test.ts` fails when the two
+disagree — verified by adding an unguarded value and watching it fail.
+
+`DocumentType.appliesTo` narrows this further per module, so an employee upload
+offers Iqama and Passport while a vehicle offers Istimara and Inspection.
+Filtering happens in the query (`documentTypesFor`), not the component, so the
+wrong options never reach the payload.
+
+**Known limitation.** A supplier shared across both companies, or a
+subcontractor with no contracts yet, reaches no company of its own. Such a
+document is stamped with the actor's company, or failing that the first company
+by code — deterministic, but it means the document is visible to that company's
+users and not the other's. Attach paperwork to a company-owned record where
+that distinction matters.
+
 ---
 
 ## 7. ExpiryIndex (ADR-005)

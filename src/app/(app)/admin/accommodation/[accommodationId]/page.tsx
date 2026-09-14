@@ -16,6 +16,7 @@ import { AccommodationEditButton } from "./accommodation-edit-button";
 import { BedCell } from "./bed-cell";
 import { RoomDialog } from "./room-dialog";
 import { RoomActions } from "./room-actions";
+import { DocumentsPanel } from "@/components/shared/documents-panel";
 
 export const metadata: Metadata = { title: "Accommodation" };
 
@@ -189,6 +190,16 @@ export default async function AccommodationDetailPage({
           ))}
         </div>
       )}
+
+      {/* The record's own document library. Renders nothing without
+          documents.view, so no page needs to repeat that check. */}
+      <DocumentsPanel
+        ctx={ctx}
+        entityType="ACCOMMODATION"
+        entityId={accommodation.id}
+        companyId={accommodation.companyId}
+        title="Property documents"
+      />
     </PageShell>
   );
 }

@@ -12,6 +12,7 @@ import { orgOptions } from "@/server/services/org";
 import { OfferDialog } from "./offer-dialog";
 import { OfferRowActions } from "./offer-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
+import { DocumentsLink } from "@/components/shared/documents-link";
 
 export const metadata: Metadata = { title: "Job Offers" };
 
@@ -24,6 +25,8 @@ export default async function JobOffersPage({
   const { status, q } = await searchParams;
 
   const canManage = ctx.permissions.has("hr.offers.manage");
+  // Documents are readable by more people than may edit an offer.
+  const canViewDocs = ctx.permissions.has("documents.view");
   const canConvert = ctx.permissions.has("employees.create");
   // The proposed salary is salary data like any other.
   const canSeeSalary = ctx.permissions.has("employees.salary.view");
@@ -81,7 +84,9 @@ export default async function JobOffersPage({
                 ) : null}
                 <th className="px-3 py-2 text-left font-medium">Joining</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage || canConvert ? <th className="w-10 px-3 py-2" /> : null}
+                {canManage || canConvert || canViewDocs ? (
+                  <th className="w-10 px-3 py-2" />
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -133,8 +138,18 @@ export default async function JobOffersPage({
                       </Badge>
                     )}
                   </td>
-                  {canManage || canConvert ? (
+                  {canManage || canConvert || canViewDocs ? (
                     <td className="px-3 py-2">
+                      {canViewDocs ? (
+                        <DocumentsLink
+                          entityType="JOB_OFFER"
+                          entityId={o.id}
+                          label={o.candidateName}
+                        />
+                      ) : null}
+                      {/* Still gated: viewing documents does not imply the
+                          right to edit or convert an offer. */}
+                      {canManage || canConvert ? (
                       <OfferRowActions
                         offer={{
                           id: o.id,
@@ -166,6 +181,7 @@ export default async function JobOffersPage({
                         canManage={canManage}
                         canConvert={canConvert}
                       />
+                      ) : null}
                     </td>
                   ) : null}
                 </tr>

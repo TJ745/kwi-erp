@@ -6,6 +6,7 @@ import {
   MAX_FILE_BYTES,
   validateFileMetadata,
 } from "@/lib/file-validation";
+import { UPLOAD_ENTITY_TYPES } from "@/lib/upload-entities";
 import { requirePermission } from "@/server/auth/guards";
 import { logger } from "@/server/logger";
 import { isUploadTargetInScope, registerVerifiedFile } from "@/server/services/documents";
@@ -33,7 +34,7 @@ const f = createUploadthing();
  */
 
 const uploadInput = z.object({
-  entityType: z.enum(["EMPLOYEE", "COMPANY", "VEHICLE", "IT_ASSET"]),
+  entityType: z.enum(UPLOAD_ENTITY_TYPES),
   entityId: z.string().min(1),
 });
 

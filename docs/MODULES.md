@@ -77,6 +77,7 @@ Each module ships with: list view (server-driven table), detail view, create/edi
 |---|---|---|
 | Employees | `/people/employees` | Master record + 18-tab profile (see §3) |
 | Documents | `/documents` | Central document register, expiry tracking, versioning/renewal chain |
+| Record documents | `/documents/[entityType]/[entityId]` | The library for one record, for the modules that have no detail page of their own. Reached from a paperclip on each row, or shown inline where a detail page exists (employee, vehicle, asset, accommodation). Uploads are limited to `UPLOAD_ENTITY_TYPES` — 13 entities, each resolving to an owning company (docs/DATABASE.md §6) |
 | Tasks & Follow-ups | `/tasks` | Polymorphic task attachment, board + list views, comments, overdue detection |
 | Checklist Engine | `/settings/checklists` | Templates for onboarding, offboarding, clearance |
 | Expiry Engine | — (service) | `ExpiryIndex` projection + nightly reconciliation |

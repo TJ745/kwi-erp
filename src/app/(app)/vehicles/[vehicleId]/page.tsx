@@ -13,6 +13,7 @@ import { orgOptions } from "@/server/services/org";
 import { VehicleDialog } from "../vehicle-dialog";
 import { DriverPanel } from "./driver-panel";
 import { MaintenanceDialog } from "./maintenance-dialog";
+import { DocumentsPanel } from "@/components/shared/documents-panel";
 
 export const metadata: Metadata = { title: "Vehicle" };
 
@@ -276,6 +277,16 @@ export default async function VehicleDetailPage({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* The record's own document library. Renders nothing without
+          documents.view, so no page needs to repeat that check. */}
+      <DocumentsPanel
+        ctx={ctx}
+        entityType="VEHICLE"
+        entityId={vehicle.id}
+        companyId={vehicle.companyId}
+        title="Vehicle documents"
+      />
     </PageShell>
   );
 }

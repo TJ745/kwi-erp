@@ -34,6 +34,10 @@ enum EntityType {
   COMPANY
   DEPARTMENT
   VEHICLE
+  /// A single service record, not the vehicle. A workshop invoice belongs to
+  /// the job it paid for — attaching it to the vehicle loses which of forty
+  /// services it covers.
+  VEHICLE_MAINTENANCE
   IT_ASSET
   IT_TICKET
   SERVER

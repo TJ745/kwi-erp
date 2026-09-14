@@ -205,13 +205,69 @@ async function main() {
       appliesTo: ["VEHICLE"],
     },
     { key: "CR", name: "Commercial Registration", requiresExpiry: true, appliesTo: ["COMPANY"] },
-    { key: "OTHER", name: "Other Document", requiresExpiry: false, appliesTo: ["EMPLOYEE"] },
+
+    // --- Types specific to each module's nature ---------------------------
+    // requiresExpiry is set only where the document genuinely lapses, because
+    // it is what feeds the expiry index and the dashboard alerts. Marking a
+    // paid invoice as expiring would put it in the renewals queue forever.
+
+    { key: "VEHICLE_ISTIMARA", name: "Istimara (Vehicle Licence)", requiresExpiry: true, appliesTo: ["VEHICLE"] },
+    { key: "VEHICLE_INSPECTION", name: "Periodic Inspection (Fahes)", requiresExpiry: true, appliesTo: ["VEHICLE"] },
+    { key: "VEHICLE_PURCHASE", name: "Purchase Invoice", requiresExpiry: false, appliesTo: ["VEHICLE"] },
+    { key: "MAINT_INVOICE", name: "Workshop Invoice", requiresExpiry: false, appliesTo: ["VEHICLE_MAINTENANCE"] },
+    { key: "MAINT_QUOTE", name: "Workshop Quotation", requiresExpiry: false, appliesTo: ["VEHICLE_MAINTENANCE"] },
+
+    { key: "EMP_CONTRACT", name: "Signed Contract", requiresExpiry: true, appliesTo: ["CONTRACT"] },
+    { key: "CONTRACT_AMENDMENT", name: "Contract Amendment", requiresExpiry: false, appliesTo: ["CONTRACT"] },
+
+    { key: "OFFER_LETTER", name: "Signed Offer Letter", requiresExpiry: false, appliesTo: ["JOB_OFFER"] },
+    { key: "CANDIDATE_CV", name: "Candidate CV", requiresExpiry: false, appliesTo: ["JOB_OFFER"] },
+
+    { key: "LEASE", name: "Lease Contract", requiresExpiry: true, appliesTo: ["ACCOMMODATION"] },
+    { key: "MUNICIPALITY_LICENCE", name: "Municipality Licence", requiresExpiry: true, appliesTo: ["ACCOMMODATION"] },
+    { key: "RENT_RECEIPT", name: "Rent Receipt", requiresExpiry: false, appliesTo: ["ACCOMMODATION"] },
+
+    { key: "VENDOR_CR", name: "Commercial Registration", requiresExpiry: true, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
+    { key: "VENDOR_VAT", name: "VAT Certificate", requiresExpiry: false, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
+    { key: "VENDOR_BANK", name: "Bank Letter", requiresExpiry: false, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
+    { key: "VENDOR_QUOTE", name: "Quotation", requiresExpiry: false, appliesTo: ["SUPPLIER"] },
+    { key: "SUBCONTRACT", name: "Subcontract Agreement", requiresExpiry: true, appliesTo: ["SUBCONTRACTOR"] },
+
+    { key: "BILL_SCAN", name: "Bill Scan", requiresExpiry: false, appliesTo: ["ELECTRICITY_BILL"] },
+    { key: "BILL_PAYMENT", name: "Payment Proof", requiresExpiry: false, appliesTo: ["ELECTRICITY_BILL"] },
+
+    { key: "CERT_SCAN", name: "Certificate Scan", requiresExpiry: true, appliesTo: ["COMPANY_CERTIFICATE"] },
+
+    { key: "POLICY_SCHEDULE", name: "Policy Schedule", requiresExpiry: true, appliesTo: ["MEDICAL_INSURANCE_POLICY"] },
+    { key: "POLICY_MEMBERS", name: "Member List", requiresExpiry: false, appliesTo: ["MEDICAL_INSURANCE_POLICY"] },
+
+    { key: "ASSET_INVOICE", name: "Purchase Invoice", requiresExpiry: false, appliesTo: ["IT_ASSET"] },
+    { key: "ASSET_WARRANTY", name: "Warranty Document", requiresExpiry: true, appliesTo: ["IT_ASSET"] },
+
+    // Last, and applicable everywhere: there is always a document nobody
+    // anticipated, and without this the upload is simply refused.
+    {
+      key: "OTHER",
+      name: "Other Document",
+      requiresExpiry: false,
+      appliesTo: [
+        "EMPLOYEE", "COMPANY", "VEHICLE", "VEHICLE_MAINTENANCE", "IT_ASSET",
+        "CONTRACT", "JOB_OFFER", "ACCOMMODATION", "SUPPLIER", "SUBCONTRACTOR",
+        "ELECTRICITY_BILL", "COMPANY_CERTIFICATE", "MEDICAL_INSURANCE_POLICY",
+      ],
+    },
   ] as const;
 
   for (const dt of documentTypes) {
     await prisma.documentType.upsert({
       where: { key: dt.key },
-      update: { name: dt.name, requiresExpiry: dt.requiresExpiry },
+      update: {
+        name: dt.name,
+        requiresExpiry: dt.requiresExpiry,
+        // Updated, not just set on create: OTHER started as employee-only, and
+        // an existing database would otherwise keep the narrow list forever.
+        appliesTo: [...dt.appliesTo],
+      },
       create: {
         key: dt.key,
         name: dt.name,
