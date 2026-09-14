@@ -106,11 +106,15 @@ async function main() {
     },
   ];
 
+  // Created only when absent. The seed is re-runnable, and a re-run must not
+  // overwrite the registered name, CR, VAT, or address an administrator has
+  // since entered — those are the real company's details, and the values
+  // below are only enough to make a fresh database usable.
   const companies = new Map<string, string>();
   for (const c of companySeeds) {
     const company = await prisma.company.upsert({
       where: { code: c.code },
-      update: { name: c.name, shortName: c.shortName, city: c.city, country: c.country },
+      update: {},
       create: c,
     });
     companies.set(c.code, company.id);
@@ -135,7 +139,7 @@ async function main() {
     for (const [deptCode, name] of departmentNames) {
       await prisma.department.upsert({
         where: { companyId_code: { companyId, code: deptCode } },
-        update: { name },
+        update: {},
         create: { companyId, code: deptCode, name },
       });
       departmentCount += 1;
@@ -583,13 +587,17 @@ async function main() {
     await prisma.counter.upsert({ where: { key }, update: {}, create: { key, value: 0 } });
   }
 
-  // --- Development admin user ----------------------------------------------
+  // --- Super administrator ---------------------------------------------------
+  // The one account a fresh deployment starts with. Both values come from the
+  // environment so the credentials never sit in a committed file; the password
+  // is hashed with the same Argon2id profile as every other credential.
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.local";
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const adminName = process.env.SEED_ADMIN_NAME ?? "Administrator";
 
   if (!adminPassword) {
     console.log(
-      "\n  admin user       SKIPPED (set SEED_ADMIN_PASSWORD to create a dev sign-in)",
+      "\n  admin user       SKIPPED (set SEED_ADMIN_PASSWORD to create the super admin)",
     );
   } else {
     const superAdmin = await prisma.role.findUniqueOrThrow({ where: { key: "SUPER_ADMIN" } });
@@ -597,10 +605,10 @@ async function main() {
 
     const user = await prisma.user.upsert({
       where: { email: adminEmail },
-      update: { roleId: superAdmin.id, status: "ACTIVE" },
+      update: { roleId: superAdmin.id, status: "ACTIVE", name: adminName },
       create: {
         email: adminEmail,
-        name: "Development Admin",
+        name: adminName,
         emailVerified: true,
         status: "ACTIVE",
         roleId: superAdmin.id,
@@ -625,116 +633,7 @@ async function main() {
         create: { userId: user.id, companyId },
       });
     }
-    console.log(`\n  admin user       ${adminEmail} (SUPER_ADMIN, both companies)`);
-  }
-
-  // --- Sample employees (development only) ---------------------------------
-  // Iqama dates are deliberately spread across expired / expiring / valid so
-  // the dashboard buckets and reminder thresholds have something to show.
-  const sampleEmployees = [
-    ["Ahmed", "Khan", "PK", "HR", "HR Officer", -12, "ACTIVE"],
-    ["Mohammed", "Al Harbi", "SA", "ADMIN", "Administration Manager", 5, "ACTIVE"],
-    ["Rajesh", "Kumar", "IN", "OPS", "Technician", 18, "ACTIVE"],
-    ["Yusuf", "Rahman", "BD", "OPS", "Labourer", 27, "ACTIVE"],
-    ["Fatima", "Noor", "PK", "FIN", "Accountant", 55, "ACTIVE"],
-    ["Imran", "Sheikh", "PK", "IT", "IT Technician", 88, "ACTIVE"],
-    ["Abdullah", "Al Otaibi", "SA", "PROJ", "Project Manager", 200, "ACTIVE"],
-    ["Suresh", "Nair", "IN", "LOG", "Storekeeper", 320, "ACTIVE"],
-    ["Bilal", "Ahmed", "PK", "SAFE", "Safety Officer", 45, "ON_LEAVE"],
-    ["Kamal", "Hussain", "BD", "OPS", "Foreman", 150, "ACTIVE"],
-    ["Omar", "Siddiqui", "PK", "OPS", "Driver", -3, "ACTIVE"],
-    ["Zainab", "Ali", "SA", "HR", "HR Manager", 400, "ACTIVE"],
-  ] as const;
-
-  const existingSample = await prisma.employee.count({
-    where: { employeeNo: { startsWith: "EMP-" } },
-  });
-
-  if (existingSample > 0) {
-    console.log(`  employees        ${existingSample} already present — skipped`);
-  } else {
-    const companyIds = [...companies.values()];
-    let created = 0;
-
-    for (const [first, last, nationality, deptCode, positionTitle, iqamaOffsetDays, status] of
-      sampleEmployees) {
-      const companyId = companyIds[created % companyIds.length] ?? companyIds[0];
-      if (!companyId) break;
-
-      const department = await prisma.department.findUnique({
-        where: { companyId_code: { companyId, code: deptCode } },
-        select: { id: true },
-      });
-      const position = await prisma.position.findFirst({
-        where: { title: positionTitle, companyId: null },
-        select: { id: true },
-      });
-
-      const seq = await prisma.$queryRaw<{ value: number }[]>`
-        INSERT INTO "Counter" ("key","value","updatedAt") VALUES ('employee', 1, now())
-        ON CONFLICT ("key") DO UPDATE
-          SET "value" = "Counter"."value" + 1, "updatedAt" = now()
-        RETURNING "value"`;
-      const employeeNo = `EMP-${String(seq[0]?.value ?? created + 1).padStart(5, "0")}`;
-
-      const joining = new Date();
-      joining.setFullYear(joining.getFullYear() - (1 + (created % 5)));
-
-      const employee = await prisma.employee.create({
-        data: {
-          employeeNo,
-          companyId,
-          departmentId: department?.id ?? null,
-          positionId: position?.id ?? null,
-          firstName: first,
-          lastName: last,
-          fullName: `${first} ${last}`,
-          gender: ["Fatima", "Zainab"].includes(first) ? "FEMALE" : "MALE",
-          nationality,
-          joiningDate: joining,
-          status,
-          mobile: `+9665${String(10000000 + created * 137).slice(0, 8)}`,
-          workEmail: `${first.toLowerCase()}.${last.toLowerCase().replace(/\s+/g, "")}@example.local`,
-        },
-      });
-
-      const iqamaExpiry = new Date();
-      iqamaExpiry.setDate(iqamaExpiry.getDate() + iqamaOffsetDays);
-      const iqamaIssue = new Date(iqamaExpiry);
-      iqamaIssue.setFullYear(iqamaIssue.getFullYear() - 1);
-
-      const iqama = await prisma.iqamaRecord.create({
-        data: {
-          employeeId: employee.id,
-          iqamaNumber: String(2000000000 + created * 7919),
-          profession: positionTitle,
-          issueDate: iqamaIssue,
-          expiryDate: iqamaExpiry,
-        },
-      });
-
-      await prisma.expiryIndex.upsert({
-        where: { source_sourceId: { source: "IQAMA", sourceId: iqama.id } },
-        update: {
-          label: `Iqama — ${employee.fullName}`,
-          expiryDate: iqamaExpiry,
-          employeeId: employee.id,
-          companyId,
-          isActive: true,
-        },
-        create: {
-          source: "IQAMA",
-          sourceId: iqama.id,
-          label: `Iqama — ${employee.fullName}`,
-          expiryDate: iqamaExpiry,
-          employeeId: employee.id,
-          companyId,
-        },
-      });
-
-      created += 1;
-    }
-    console.log(`  employees        ${created} (with Iqama records and expiry projection)`);
+    console.log(`\n  admin user       ${adminEmail} (SUPER_ADMIN, all companies)`);
   }
 
   console.log("\nSeed complete.");

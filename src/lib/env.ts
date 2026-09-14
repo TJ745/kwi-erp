@@ -104,6 +104,7 @@ const serverSchema = z
 
     SEED_ADMIN_EMAIL: z.string().email().optional(),
     SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
+    SEED_ADMIN_NAME: z.string().trim().min(1).max(150).optional(),
     ALLOW_PRODUCTION_SEED: z
       .enum(["true", "false"])
       .default("false")
