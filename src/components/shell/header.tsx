@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { LogOut, Menu, Moon, Search, Sun, User as UserIcon } from "lucide-react";
+import { LogOut, Menu, Moon, Search, Sun } from "lucide-react";
 import { NotificationBell } from "@/components/shell/notification-bell";
 import {
   Breadcrumb,
@@ -41,7 +41,7 @@ export function Header({
   const match = findNavItem(pathname);
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur print:hidden">
+    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 flex h-16 items-center gap-3 px-5 backdrop-blur print:hidden">
       {/* Sidebar collapses to a sheet below lg — the desktop layout is not
           simply shrunk (docs/ARCHITECTURE.md, brief §42). */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -89,8 +89,13 @@ export function Header({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <UserIcon className="size-4" />
+          <Button variant="ghost" size="sm" className="gap-2 rounded-full pl-1">
+            <span
+              aria-hidden="true"
+              className="bg-brand-teal text-brand-teal-foreground flex size-7 items-center justify-center rounded-full text-[11px] font-bold"
+            >
+              {initials(user.name)}
+            </span>
             <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
           </Button>
         </DropdownMenuTrigger>
@@ -125,12 +130,22 @@ export function Header({
 }
 
 /** Hints at ⌘K without duplicating the dialog's own keyboard handler. */
+/** Up to two initials, so "Talha Jamil" reads TJ and "Admin" reads A. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 function SearchHint() {
   return (
     <Button
       variant="outline"
       size="sm"
-      className="text-muted-foreground hidden gap-2 md:inline-flex"
+      className="text-muted-foreground bg-card hidden h-9 w-60 justify-start gap-2 rounded-lg border-transparent shadow-[0_1px_2px_oklch(0.3_0.03_60_/_0.06),0_8px_24px_-12px_oklch(0.3_0.03_60_/_0.18)] md:inline-flex dark:border-border dark:shadow-none"
       onClick={() => {
         document.dispatchEvent(
           new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
@@ -138,8 +153,8 @@ function SearchHint() {
       }}
     >
       <Search className="size-3.5" />
-      <span className="text-xs">Search</span>
-      <kbd className="bg-muted rounded px-1 text-[10px]">⌘K</kbd>
+      <span className="text-xs">Search anything…</span>
+      <kbd className="bg-muted ml-auto rounded px-1 text-[10px]">⌘K</kbd>
     </Button>
   );
 }

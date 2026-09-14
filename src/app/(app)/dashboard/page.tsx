@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Dashboard"
+        title={greeting(ctx.name)}
         description="What is expiring, what is pending, and what needs attention today."
         action={
           ctx.permissions.has("employees.create") ? (
@@ -725,6 +725,23 @@ async function ExpiringSoon({ ctx }: { ctx: ActorContext }) {
   );
 }
 
+/**
+ * "Good morning, Talha" — first name only, by the clock where the readers
+ * are. Falls back to the plain page title for an account with no name set,
+ * rather than greeting nobody.
+ */
+function greeting(fullName: string): string {
+  const first = fullName.trim().split(/\s+/)[0];
+  if (!first) return "Dashboard";
+
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Riyadh" })
+      .format(new Date()),
+  );
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  return `Good ${part}, ${first}`;
+}
+
 function Kpi({
   label,
   value,
@@ -736,19 +753,24 @@ function Kpi({
   href?: string;
   tone?: "neutral" | "warning" | "expired";
 }) {
+  const rule =
+    tone === "expired"
+      ? "border-t-status-expired"
+      : tone === "warning"
+        ? "border-t-status-warning"
+        : "border-t-brand-teal";
+  const figure =
+    tone === "expired"
+      ? "text-status-expired"
+      : tone === "warning"
+        ? "text-status-warning"
+        : "text-foreground";
+
   const body = (
-    <Card className="gap-0 py-4 transition-colors hover:border-foreground/20">
+    <Card className={`gap-0 border-t-[3px] py-4 transition-transform hover:-translate-y-0.5 ${rule}`}>
       <CardContent className="px-4">
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p
-          className={
-            tone === "expired"
-              ? "text-status-expired text-2xl font-semibold tabular-nums"
-              : tone === "warning"
-                ? "text-status-warning text-2xl font-semibold tabular-nums"
-                : "text-2xl font-semibold tabular-nums"
-          }
-        >
+        <p className="text-muted-foreground text-xs font-semibold">{label}</p>
+        <p className={`text-[32px] leading-none font-extrabold tracking-tight tabular-nums ${figure} mt-1.5`}>
           {value}
         </p>
       </CardContent>

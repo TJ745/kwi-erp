@@ -4,34 +4,46 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * Neutral, low-chroma enterprise palette.
+ * "Sandstone" — a warm, low-chroma palette with two accents.
  *
- * Colour is reserved for meaning: status, expiry, and severity. Everything
- * structural is greyscale, so a red badge in a table always signifies something
- * rather than decorating it (docs/MODULES.md §6).
+ * Every structural colour sits on one warm hue (h≈50–75) at very low chroma:
+ * sand ground, warm charcoal ink, a dark warm sidebar. The two accents share
+ * chroma and lightness and differ only in hue — terracotta (h 40) is the
+ * primary action, teal (h 200) is focus and secondary emphasis — so neither
+ * dominates and both read as one family.
+ *
+ * Colour stays reserved for MEANING. The status scale below is untouched: a
+ * red badge in a table still signifies something rather than decorating it
+ * (docs/MODULES.md §6), and terracotta is deliberately far from the expired
+ * red (h 25 at higher chroma) so an accent is never mistaken for an alarm.
  */
 :root {
-  --radius: 0.5rem;
+  /* 10px base: sm 6 · md 8 · lg 10 · xl 14, which is the card radius. */
+  --radius: 0.625rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.965 0.012 75);
+  --foreground: oklch(0.24 0.02 50);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.24 0.02 50);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.24 0.02 50);
+  --primary: oklch(0.6 0.13 40);
+  --primary-foreground: oklch(0.99 0.01 75);
+  --secondary: oklch(0.94 0.012 75);
+  --secondary-foreground: oklch(0.24 0.02 50);
+  --muted: oklch(0.94 0.012 75);
+  --muted-foreground: oklch(0.5 0.03 50);
+  --accent: oklch(0.94 0.012 75);
+  --accent-foreground: oklch(0.24 0.02 50);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0.012 75);
+  --input: oklch(0.9 0.012 75);
+  --ring: oklch(0.6 0.13 200);
+
+  /* The second accent. Same chroma and lightness as --primary, hue 200. */
+  --brand-teal: oklch(0.6 0.13 200);
+  --brand-teal-foreground: oklch(0.99 0.01 75);
 
   /* Status scale — one definition, used by StatusBadge and ExpiryAlert. */
   --status-valid: oklch(0.52 0.13 150);
@@ -58,8 +70,8 @@
   --chart-sev-5: #efa49d;
   /* Single-series magnitude bars. One series, so one colour and no legend. */
   --chart-bar: oklch(0.52 0.13 250);
-  --chart-grid: oklch(0.922 0 0);
-  --chart-axis: oklch(0.556 0 0);
+  --chart-grid: oklch(0.9 0.012 75);
+  --chart-axis: oklch(0.5 0.03 50);
   /* Categorical, for part-to-whole only. Four slots, not more: six hues could
      not clear the CVD floor at any lightness we tried, and the fifth slice is
      always "Other" in muted ink. Hue AND lightness both vary, because lightness
@@ -71,36 +83,46 @@
   --chart-cat-4: #981d76;
   --chart-cat-other: oklch(0.72 0.01 260);
 
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.94 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.9 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* The sidebar is the dark element in light mode: a warm charcoal panel
+     that gives the sand page an anchor. The active item is terracotta. */
+  --sidebar: oklch(0.26 0.025 50);
+  --sidebar-foreground: oklch(0.9 0.015 75);
+  --sidebar-primary: oklch(0.6 0.13 40);
+  --sidebar-primary-foreground: oklch(0.99 0.01 75);
+  --sidebar-accent: oklch(0.32 0.025 50);
+  --sidebar-accent-foreground: oklch(0.95 0.012 75);
+  --sidebar-border: oklch(0.32 0.02 50);
+  --sidebar-ring: oklch(0.6 0.13 200);
+  --sidebar-muted: oklch(0.62 0.03 60);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Chosen against the dark surface, not flipped from light: warm charcoal
+     rather than grey, and both accents lifted in lightness so they still
+     read. Shadows vanish on a dark ground, so cards get a hairline border
+     instead (see the card rules below). */
+  --background: oklch(0.19 0.012 50);
+  --foreground: oklch(0.93 0.012 75);
+  --card: oklch(0.235 0.014 50);
+  --card-foreground: oklch(0.93 0.012 75);
+  --popover: oklch(0.235 0.014 50);
+  --popover-foreground: oklch(0.93 0.012 75);
+  --primary: oklch(0.68 0.13 40);
+  --primary-foreground: oklch(0.15 0.01 50);
+  --secondary: oklch(0.28 0.014 50);
+  --secondary-foreground: oklch(0.93 0.012 75);
+  --muted: oklch(0.28 0.014 50);
+  --muted-foreground: oklch(0.66 0.02 60);
+  --accent: oklch(0.28 0.014 50);
+  --accent-foreground: oklch(0.93 0.012 75);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(0.31 0.016 50);
+  --input: oklch(0.31 0.016 50);
+  --ring: oklch(0.7 0.12 200);
+
+  --brand-teal: oklch(0.7 0.12 200);
+  --brand-teal-foreground: oklch(0.15 0.01 50);
 
   /* Lightened for contrast on dark surfaces; backgrounds become tinted fills. */
   --status-valid: oklch(0.78 0.15 150);
@@ -121,25 +143,29 @@
   --chart-sev-4: #a2504b;
   --chart-sev-5: #79403c;
   --chart-bar: oklch(0.78 0.12 250);
-  --chart-grid: oklch(1 0 0 / 12%);
-  --chart-axis: oklch(0.708 0 0);
+  --chart-grid: oklch(0.31 0.016 50);
+  --chart-axis: oklch(0.66 0.02 60);
   --chart-cat-1: #0077cd;
   --chart-cat-2: #c17d00;
   --chart-cat-3: #009b92;
   --chart-cat-4: #a42b81;
   --chart-cat-other: oklch(0.55 0.01 260);
 
-  --sidebar: oklch(0.185 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.985 0 0);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Still the darkest layer, so the depth order matches light mode. */
+  --sidebar: oklch(0.155 0.012 50);
+  --sidebar-foreground: oklch(0.88 0.014 75);
+  --sidebar-primary: oklch(0.68 0.13 40);
+  --sidebar-primary-foreground: oklch(0.15 0.01 50);
+  --sidebar-accent: oklch(0.22 0.014 50);
+  --sidebar-accent-foreground: oklch(0.93 0.012 75);
+  --sidebar-border: oklch(0.27 0.014 50);
+  --sidebar-ring: oklch(0.7 0.12 200);
+  --sidebar-muted: oklch(0.56 0.025 60);
 }
 
 @theme inline {
+  --font-sans: var(--font-manrope), "Segoe UI", system-ui, sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -179,6 +205,9 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-foreground: var(--brand-teal-foreground);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -193,6 +222,18 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  /* Cards lift off the sand with a soft shadow and no visible edge; on the
+     dark ground a shadow is invisible, so the edge does that job instead. */
+  [data-slot="card"] {
+    border-color: transparent;
+    box-shadow:
+      0 1px 2px oklch(0.3 0.03 60 / 0.06),
+      0 8px 24px -12px oklch(0.3 0.03 60 / 0.18);
+  }
+  .dark [data-slot="card"] {
+    border-color: var(--border);
+    box-shadow: none;
   }
   /* Tabular figures everywhere numbers are compared down a column. */
   th, td {

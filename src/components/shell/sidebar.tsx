@@ -48,7 +48,7 @@ export function SidebarNav({
         const Icon = ICONS[section.icon];
         return (
           <div key={section.label} className="px-3">
-            <p className="text-muted-foreground mb-1 flex items-center gap-2 px-2 text-xs font-medium tracking-wide uppercase">
+            <p className="text-sidebar-muted mb-1.5 flex items-center gap-2 px-2.5 text-[10px] font-bold tracking-[0.12em] uppercase">
               <Icon className="size-3.5" aria-hidden="true" />
               {section.label}
             </p>
@@ -65,7 +65,7 @@ export function SidebarNav({
                       <span
                         aria-disabled="true"
                         title="Not yet available"
-                        className="text-muted-foreground/50 flex cursor-not-allowed items-center justify-between rounded-md px-2 py-1.5 text-sm"
+                        className="text-sidebar-muted/60 flex cursor-not-allowed items-center justify-between rounded-lg px-2.5 py-2 text-sm"
                       >
                         {item.label}
                         <span className="text-[10px] tracking-wide uppercase">soon</span>
@@ -81,10 +81,10 @@ export function SidebarNav({
                       {...(onNavigate ? { onClick: onNavigate } : {})}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                        "block rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80 hover:text-sidebar-foreground",
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                          : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                       )}
                     >
                       {item.label}
