@@ -24,6 +24,7 @@ import { updateTaskSchema, taskSchema } from "./task";
 
 const VALID = {
   employee: {
+    employeeNo: "KWI-014",
     companyId: "c1",
     firstName: "Ahmed",
     lastName: "Khan",

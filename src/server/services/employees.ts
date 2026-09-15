@@ -27,7 +27,6 @@ import type {
   PassportInput,
   BankDetailInput,
 } from "@/lib/schemas/employee";
-import { nextEmployeeNo } from "./counter";
 import { deactivateExpiry, syncExpiry } from "./expiry";
 
 /**
@@ -176,9 +175,33 @@ export type EmployeeDetail = Awaited<ReturnType<typeof getEmployee>>;
 
 const fullNameOf = (first: string, last: string) => `${first} ${last}`.replace(/\s+/g, " ").trim();
 
+/**
+ * Refuses an employee number another record already holds.
+ *
+ * The column is unique, so the database would refuse it anyway — but as a
+ * constraint violation, which reaches the form as "something went wrong".
+ * Checked here so the message can say who has it. Soft-deleted records count:
+ * numbers are never recycled, and a departed employee's number reappearing on
+ * someone else would confuse every document that still carries it.
+ */
+export async function assertEmployeeNoFree(employeeNo: string, exceptId?: string): Promise<void> {
+  const holder = await prisma.employee.findFirst({
+    where: { employeeNo, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    select: { fullName: true, deletedAt: true },
+  });
+  if (holder) {
+    throw new ConflictError(
+      holder.deletedAt
+        ? `Employee ID ${employeeNo} belonged to ${holder.fullName}, whose record is archived. Numbers are not reused.`
+        : `Employee ID ${employeeNo} is already used by ${holder.fullName}.`,
+    );
+  }
+}
+
 export async function createEmployee(ctx: ActorContext, input: EmployeeInput) {
   requireCompanyAccess(ctx, input.companyId);
   await assertOrgReferencesValid(input);
+  await assertEmployeeNoFree(input.employeeNo);
 
   if (input.workEmail) {
     const clash = await prisma.employee.findFirst({
@@ -189,11 +212,9 @@ export async function createEmployee(ctx: ActorContext, input: EmployeeInput) {
   }
 
   return prisma.$transaction(async (tx) => {
-    const employeeNo = await nextEmployeeNo(tx);
-
     return tx.employee.create({
       data: {
-        employeeNo,
+        employeeNo: input.employeeNo,
         companyId: input.companyId,
         departmentId: input.departmentId ?? null,
         positionId: input.positionId ?? null,
@@ -243,12 +264,19 @@ export async function updateEmployee(
     if (clash) throw new ConflictError("That work email is already in use.");
   }
 
+  // A number typed wrongly at creation can be corrected here; the audit diff
+  // records the change, and the old value stays visible in that history.
+  if (input.employeeNo !== before.employeeNo) {
+    await assertEmployeeNoFree(input.employeeNo, input.id);
+  }
+
   const fullName = fullNameOf(input.firstName, input.lastName);
 
   const after = await prisma.$transaction(async (tx) => {
     const updated = await tx.employee.update({
       where: { id: input.id },
       data: {
+        employeeNo: input.employeeNo,
         companyId: input.companyId,
         departmentId: input.departmentId ?? null,
         positionId: input.positionId ?? null,

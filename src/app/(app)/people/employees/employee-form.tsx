@@ -31,6 +31,7 @@ type Options = {
 
 export type EmployeeFormValues = {
   id?: string;
+  employeeNo?: string;
   companyId?: string;
   departmentId?: string | null;
   positionId?: string | null;
@@ -88,6 +89,7 @@ export function EmployeeForm({
 
     const fd = new FormData(event.currentTarget);
     const payload = {
+      employeeNo: readString(fd, "employeeNo"),
       companyId: readString(fd, "companyId"),
       departmentId: readString(fd, "departmentId"),
       positionId: readString(fd, "positionId"),
@@ -145,6 +147,14 @@ export function EmployeeForm({
       <Card>
         <CardContent className="space-y-6">
           <FieldSet legend="Identity">
+            <TextField
+              name="employeeNo"
+              label="Employee ID"
+              required
+              hint="The company's own staff number, e.g. KWI-014. It must be unique."
+              defaultValue={values.employeeNo ?? ""}
+              errors={errors.employeeNo}
+            />
             <TextField
               name="firstName"
               label="First name"

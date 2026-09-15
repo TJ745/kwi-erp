@@ -8,15 +8,18 @@ import { prisma } from "@/server/db/client";
 type RawClient = Pick<typeof prisma, "$queryRaw">;
 
 /**
- * Sequential, human-facing business codes — EMP-00042, TKT-2026-0117, IT-00045.
+ * Sequential, human-facing business codes — TSK-00042, TKT-2026-0117, IT-00045.
  *
  * Deliberately separate from the cuid primary keys: a PK is unguessable and
  * meaningless to staff, while these are what people read out over the phone.
- * Codes are never recycled, so a soft-deleted employee keeps its number.
+ * Codes are never recycled, so a soft-deleted asset keeps its code.
+ *
+ * Employee numbers are NOT generated here: the company assigns them itself
+ * (people were numbered before this system existed), so the person creating
+ * the record types the number in.
  */
 
 export type CounterKey =
-  | "employee"
   | "task"
   | "asset"
   | "vehicle"
@@ -51,12 +54,6 @@ export async function nextSequence(
 }
 
 const pad = (value: number, width: number) => String(value).padStart(width, "0");
-
-export async function nextEmployeeNo(
-  tx?: RawClient,
-): Promise<string> {
-  return `EMP-${pad(await nextSequence("employee", tx), 5)}`;
-}
 
 export async function nextTaskNo(tx?: RawClient): Promise<string> {
   return `TSK-${pad(await nextSequence("task", tx), 5)}`;

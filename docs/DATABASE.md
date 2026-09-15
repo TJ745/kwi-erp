@@ -20,7 +20,7 @@ The brief lists ~60 candidate entities. After normalisation and the consolidatio
 ### Global conventions
 
 - **Primary keys:** `String @id @default(cuid(2))` — unguessable in URLs, sortable-ish, no cross-DB sequence coupling.
-- **Business identifiers** are separate, human-facing, and sequential: `EMP-00042`, `TKT-2026-0117`, `IT-00045`, `VEH-011`. Generated from a `Counter` table with `SELECT … FOR UPDATE` inside the creating transaction. Never reuse a PK as a display code.
+- **Business identifiers** are separate, human-facing, and sequential: `TSK-00042`, `TKT-2026-0117`, `IT-00045`, `VEH-011`. Generated from a `Counter` table by an atomic upsert inside the creating transaction. Never reuse a PK as a display code. The exception is `Employee.employeeNo`: the company numbered its staff before this system existed, so the number is typed in on the create form (unique, upper-cased, never recycled) rather than generated.
 - **Timestamps:** every table has `createdAt DateTime @default(now())`; every mutable table has `updatedAt DateTime @updatedAt`.
 - **Money:** `Decimal @db.Decimal(14, 2)` — never `Float`. Currency defaults to `SAR`, stored per-row for future-proofing.
 - **Enums** are Postgres enums via Prisma `enum` where the value set is stable and code branches on it. Where the set must be user-editable (roles, document types, leave types, credential categories, ticket categories) it is a **table**, not an enum.
@@ -208,7 +208,7 @@ Split deliberately so that sensitive data sits behind its own permission and its
 ```prisma
 model Employee {
   id             String @id @default(cuid(2))
-  employeeNo     String @unique          // EMP-00042
+  employeeNo     String @unique          // company-assigned, e.g. KWI-014
   companyId      String
   departmentId   String?
   positionId     String?

@@ -14,7 +14,7 @@ import type {
   JobOfferInput,
   TimesheetEntryInput,
 } from "@/lib/schemas/hiring";
-import { nextEmployeeNo } from "./counter";
+import { assertEmployeeNoFree } from "./employees";
 
 /**
  * Hiring and timesheets — brief §17, §18, §23.
@@ -259,6 +259,7 @@ export async function convertOffer(
   ctx: ActorContext,
   input: {
     id: string;
+    employeeNo: string;
     firstName: string;
     lastName: string;
     gender: "MALE" | "FEMALE";
@@ -304,14 +305,15 @@ export async function convertOffer(
     }
   }
 
+  await assertEmployeeNoFree(input.employeeNo);
+
   try {
     return await prisma.$transaction(async (tx) => {
-      const employeeNo = await nextEmployeeNo(tx);
       const fullName = `${input.firstName} ${input.lastName}`;
 
       const employee = await tx.employee.create({
         data: {
-          employeeNo,
+          employeeNo: input.employeeNo,
           companyId: offer.companyId,
           departmentId: input.departmentId ?? null,
           positionId: offer.positionId,

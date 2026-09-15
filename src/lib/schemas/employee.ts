@@ -30,8 +30,26 @@ export const EMPLOYEE_STATUSES = [
   "INACTIVE",
 ] as const;
 
+/**
+ * The employee's business identifier, typed by the person creating the record.
+ *
+ * The company numbered its people before it had this system, so the number is
+ * theirs to supply — not generated, and not constrained to any one shape a
+ * generator would have chosen. Letters, digits and the separators that appear
+ * in real staff numbers; upper-cased so "kwi-014" and "KWI-014" cannot both
+ * exist. Uniqueness is the database's job and is reported by the service.
+ */
+export const employeeNoSchema = z
+  .string()
+  .trim()
+  .min(1, "Employee ID is required")
+  .max(30, "At most 30 characters")
+  .regex(/^[A-Za-z0-9][A-Za-z0-9/._-]*$/, "Letters, digits and - / . _ only")
+  .transform((v) => v.toUpperCase());
+
 const employeeSchemaObject = z
   .object({
+    employeeNo: employeeNoSchema,
     companyId: z.string().min(1, "Company is required"),
     departmentId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
     positionId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),

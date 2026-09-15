@@ -42,11 +42,14 @@ export default async function EditEmployeePage({
         options={{ ...options, managers }}
         values={{
           id: employee.id,
+          employeeNo: employee.employeeNo,
           companyId: employee.companyId,
           departmentId: employee.departmentId,
           positionId: employee.positionId,
           managerId: employee.managerId,
           firstName: employee.firstName,
+          middleName: employee.middleName ?? "",
+          familyName: employee.familyName ?? "",
           lastName: employee.lastName,
           fullNameAr: employee.fullNameAr,
           gender: employee.gender,

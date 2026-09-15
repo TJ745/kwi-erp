@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { employeeNoSchema } from "./employee";
 
 /** Job offers, job descriptions, and timesheets — brief §17, §18, §23. */
 
@@ -138,6 +139,7 @@ export type JobOfferInput = z.infer<typeof jobOfferSchema>;
 export const convertOfferSchema = z
   .object({
     id: z.string().min(1),
+    employeeNo: employeeNoSchema,
     firstName: z.string().trim().min(1, "First name is required").max(80),
     lastName: z.string().trim().min(1, "Last name is required").max(80),
     gender: z.enum(GENDERS),

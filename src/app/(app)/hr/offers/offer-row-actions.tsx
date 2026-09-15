@@ -68,6 +68,7 @@ export function OfferRowActions({
     startTransition(async () => {
       const result = await convertOfferAction({
         id: offer.id,
+        employeeNo: readString(fd, "employeeNo"),
         firstName: readString(fd, "firstName"),
         lastName: readString(fd, "lastName"),
         gender: readString(fd, "gender"),
@@ -181,6 +182,14 @@ export function OfferRowActions({
               ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  name="employeeNo"
+                  label="Employee ID"
+                  required
+                  hint="The company's own staff number, e.g. KWI-014."
+                  errors={errors.employeeNo}
+                  className="sm:col-span-2"
+                />
                 <TextField
                   name="firstName"
                   label="First name"
