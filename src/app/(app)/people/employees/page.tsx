@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Users } from "lucide-react";
+import { Plus, Upload, Users } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { ExpiryDate } from "@/components/shared/expiry-alert";
@@ -99,10 +99,19 @@ export default async function EmployeesPage({
         }
         action={
           canCreate ? (
-            <Link href="/people/employees/new" className={buttonVariants({ size: "sm" })}>
-              <Plus />
-              Add employee
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/people/employees/import"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Upload />
+                Import
+              </Link>
+              <Link href="/people/employees/new" className={buttonVariants({ size: "sm" })}>
+                <Plus />
+                Add employee
+              </Link>
+            </div>
           ) : null
         }
       />

@@ -402,6 +402,8 @@ Rules that span modules, owned by services rather than any single screen:
 | Vehicle has one active driver | Partial unique index + `vehicleService.assignDriver()` |
 | Bed holds one occupant | Partial unique index + `accommodationService.assign()` |
 | Employee cannot be hard-deleted | Service rejects; status transitions only |
+| Employee numbers are the company's own, and never reused | `employeeNo` is typed in on create (form, offer conversion, bulk import), upper-cased and unique; `assertEmployeeNoFree` names the holder, archived records included |
+| A bulk import writes every row or none | `/people/employees/import` — `.xlsx` template generated with the actor's own Reference lists; `lib/employee-import.ts` validates each row with the form's own `employeeSchema` plus cross-row rules (duplicates in file and database, department/position by name within company, manager by employee ID resolving to an existing record or another row); `commitEmployeeImport` re-validates and writes in one transaction, one audit entry per person plus one for the import. Creates only — an existing number is an error, never an update |
 | Offboarding blocks completion while assets are unreturned | `checklistService.complete()` queries open `ITAssetAssignment`, `BedAssignment`, open `Task` |
 | A departmental clearance step is signed off by that department | `lib/clearance.ts` — an item carrying a responsible department or role may only be completed by a member or head of it, with `hr.clearance.confirm`. Administrators may override so a system whose admins have no employee record is not deadlocked; the audit entry says when they did |
 | Rejected leave can never display as approved | Status is a single enum on one row; transitions validated by a state machine |

@@ -33,6 +33,12 @@ export const RATE_LIMITS = {
    * an attacker with a session could take.
    */
   auditExport: { limit: 5, windowSeconds: 60 * 60 },
+  /**
+   * Bulk employee import. Each preview re-parses and re-validates the whole
+   * file, and a commit writes hundreds of rows in one transaction; neither is
+   * something a person does more than a few times an hour on purpose.
+   */
+  employeeImport: { limit: 30, windowSeconds: 60 * 60 },
   globalSearch: { limit: 60, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 

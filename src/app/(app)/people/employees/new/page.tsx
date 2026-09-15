@@ -30,7 +30,7 @@ export default async function NewEmployeePage() {
 
       <PageHeader
         title="Add employee"
-        description="An employee number is generated automatically on save."
+        description="Enter the employee's own ID as your company numbers its staff."
       />
 
       <EmployeeForm mode="create" options={{ ...options, managers }} />

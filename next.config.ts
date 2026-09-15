@@ -53,6 +53,15 @@ const nextConfig: NextConfig = {
     "puppeteer-core",
   ],
 
+  // Next 16 prints every Server Function call to the dev terminal WITH its
+  // arguments — which for loginAction is the password, and for the vault and
+  // user-creation actions is a credential. Development only, but a terminal
+  // scrollback is still a log (SECURITY.md: never expose passwords in server
+  // logs), so it is off. Our own logger never receives action input.
+  logging: {
+    serverFunctions: false,
+  },
+
   // Next 16 removed the `eslint` config key; linting is its own gate (pnpm lint).
   typescript: {
     // Never ignore type errors — pnpm typecheck must pass.
