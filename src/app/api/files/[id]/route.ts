@@ -49,6 +49,9 @@ export async function GET(
   if (!file) return deny(404, "File not found.");
 
   if (!ctx.permissions.has("documents.download")) return deny(404, "File not found.");
+  if (file.requiredPermission && !ctx.permissions.has(file.requiredPermission)) {
+    return deny(404, "File not found.");
+  }
 
   if (
     file.companyId &&

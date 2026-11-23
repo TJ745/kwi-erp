@@ -2,11 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Eye, EyeOff, Lock, Star, Users } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Lock, Star, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +57,7 @@ export function CredentialList({
   companies,
   canReveal,
   canUpdate,
+  canDelete = false,
   canGrant,
   grants,
   grantUsers,
@@ -71,6 +70,7 @@ export function CredentialList({
   companies: Company[];
   canReveal: boolean;
   canUpdate: boolean;
+  canDelete?: boolean;
   canGrant: boolean;
   grants: CredentialGrants[];
   grantUsers: { id: string; name: string; email: string }[];
@@ -111,43 +111,61 @@ export function CredentialList({
   }, [clearRevealed]);
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {credentials.map((credential) => (
-        <CredentialCard
-          key={credential.id}
-          credential={credential}
-          categories={categories}
-          companies={companies}
-          canReveal={canReveal}
-          canUpdate={canUpdate}
-          canGrant={canGrant}
-          grants={grantsById.get(credential.id) ?? null}
-          grantUsers={grantUsers}
-          grantRoles={grantRoles}
-          isUnlocked={isUnlocked}
-          secret={revealed.get(credential.id) ?? null}
-          onRevealed={(secret) => {
-            setRevealed((prev) => new Map(prev).set(credential.id, secret));
-          }}
-          onHidden={() => {
-            setRevealed((prev) => {
-              const next = new Map(prev);
-              next.delete(credential.id);
-              return next;
-            });
-          }}
-        />
-      ))}
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <caption className="sr-only">Credentials</caption>
+        <thead className="bg-muted/40 text-muted-foreground">
+          <tr>
+            <th className="w-8 px-2 py-2" />
+            <th className="px-3 py-2 text-left font-medium">Name</th>
+            <th className="px-3 py-2 text-left font-medium">Username</th>
+            <th className="px-3 py-2 text-left font-medium">Password</th>
+            <th className="px-3 py-2 text-left font-medium">URL</th>
+            <th className="px-3 py-2 text-left font-medium">Rotated</th>
+            <th className="w-10 px-3 py-2" />
+          </tr>
+        </thead>
+        <tbody>
+          {credentials.map((credential) => (
+            <CredentialRow
+              key={credential.id}
+              credential={credential}
+              categories={categories}
+              companies={companies}
+              canReveal={canReveal}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              canGrant={canGrant}
+              grants={grantsById.get(credential.id) ?? null}
+              grantUsers={grantUsers}
+              grantRoles={grantRoles}
+              isUnlocked={isUnlocked}
+              secret={revealed.get(credential.id) ?? null}
+              onRevealed={(secret) => {
+                setRevealed((prev) => new Map(prev).set(credential.id, secret));
+              }}
+              onHidden={() => {
+                setRevealed((prev) => {
+                  const next = new Map(prev);
+                  next.delete(credential.id);
+                  return next;
+                });
+              }}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function CredentialCard({
+function CredentialRow({
   credential,
   categories,
   companies,
   canReveal,
   canUpdate,
+  canDelete,
   canGrant,
   grants,
   grantUsers,
@@ -162,6 +180,7 @@ function CredentialCard({
   companies: Company[];
   canReveal: boolean;
   canUpdate: boolean;
+  canDelete: boolean;
   canGrant: boolean;
   grants: CredentialGrants | null;
   grantUsers: { id: string; name: string; email: string }[];
@@ -201,23 +220,125 @@ function CredentialCard({
   }
 
   return (
-    <Card className="gap-0 py-4">
-      <CardContent className="space-y-3 px-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate font-medium">{credential.name}</p>
-            <p className="text-muted-foreground truncate text-xs">
-              {credential.categoryName}
-              {credential.companyCode ? ` · ${credential.companyCode}` : ""}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center">
+    <tr className="border-t align-middle">
+      <td className="px-2 py-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={credential.isFavorite ? "Remove favourite" : "Add favourite"}
+          disabled={pending}
+          onClick={() => {
+            startTransition(async () => {
+              await toggleFavoriteAction({ credentialId: credential.id });
+              router.refresh();
+            });
+          }}
+        >
+          <Star
+            className={cn(
+              "size-4",
+              credential.isFavorite && "fill-status-warning text-status-warning",
+            )}
+          />
+        </Button>
+      </td>
+      <td className="max-w-[16rem] px-3 py-2">
+        <p className="truncate font-medium">{credential.name}</p>
+        <p className="text-muted-foreground truncate text-xs">
+          {credential.categoryName}
+          {credential.companyCode ? ` · ${credential.companyCode}` : ""}
+        </p>
+      </td>
+      <td className="max-w-[14rem] px-3 py-2">
+        {credential.username ? (
+          <span className="inline-flex max-w-full items-center gap-1">
+            <span className="truncate font-mono text-xs">{credential.username}</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Copy username"
+              onClick={() => void copy(credential.username ?? "", "user")}
+            >
+              {copied === "user" ? <Check className="text-status-valid" /> : <Copy />}
+            </Button>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <span className="inline-flex items-center gap-1">
+          <span
+            className={cn(
+              "max-w-[12rem] truncate font-mono text-sm",
+              secret ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {secret ?? "••••••••••••"}
+          </span>
+          {secret ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Copy password"
+                onClick={() => void copy(secret, "secret")}
+              >
+                {copied === "secret" ? <Check className="text-status-valid" /> : <Copy />}
+              </Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Hide password" onClick={onHidden}>
+                <EyeOff />
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Reveal password for ${credential.name}`}
+              disabled={!canReveal || !isUnlocked || pending}
+              title={
+                !canReveal
+                  ? "You do not have permission to reveal passwords"
+                  : !isUnlocked
+                    ? "Unlock the vault first"
+                    : undefined
+              }
+              onClick={reveal}
+            >
+              <Eye />
+            </Button>
+          )}
+        </span>
+      </td>
+      <td className="max-w-[14rem] px-3 py-2">
+        {credential.url ? (
+          <a
+            href={credential.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-muted-foreground block truncate text-xs underline-offset-4 hover:underline"
+          >
+            {credential.url.replace(/^https?:\/\//, "")}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="text-muted-foreground px-3 py-2 text-xs whitespace-nowrap tabular-nums">
+        {credential.lastRotatedAt ?? "—"}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-end">
           {canGrant ? (
             <Button
               variant="ghost"
               size="icon-sm"
               aria-label={`Manage access to ${credential.name}`}
-              title={grants?.isRestricted ? "Restricted to named grantees" : "Open to everyone with vault access"}
+              title={
+                grants?.isRestricted
+                  ? "Restricted to named grantees"
+                  : "Open to everyone with vault access"
+              }
               onClick={() => {
                 setGrantsOpen(true);
               }}
@@ -241,167 +362,72 @@ function CredentialCard({
               }}
             />
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={credential.isFavorite ? "Remove favourite" : "Add favourite"}
-            disabled={pending}
-            onClick={() => {
-              startTransition(async () => {
-                await toggleFavoriteAction({ credentialId: credential.id });
-                router.refresh();
-              });
-            }}
-          >
-            <Star
-              className={cn(
-                "size-4",
-                credential.isFavorite && "fill-status-warning text-status-warning",
-              )}
-            />
-          </Button>
-          </div>
-        </div>
-
-        {credential.username ? (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground truncate font-mono text-xs">
-              {credential.username}
-            </span>
+          {canDelete ? (
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="Copy username"
-              onClick={() => void copy(credential.username ?? "", "user")}
+              aria-label={`Delete ${credential.name}`}
+              onClick={() => {
+                setConfirmDelete(true);
+              }}
             >
-              {copied === "user" ? <Check className="text-status-valid" /> : <Copy />}
+              <Trash2 />
             </Button>
-          </div>
-        ) : null}
-
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              "truncate font-mono text-sm",
-              secret ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {secret ?? "••••••••••••"}
-          </span>
-
-          <div className="flex shrink-0 items-center gap-1">
-            {secret ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Copy password"
-                  onClick={() => void copy(secret, "secret")}
-                >
-                  {copied === "secret" ? <Check className="text-status-valid" /> : <Copy />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Hide password"
-                  onClick={onHidden}
-                >
-                  <EyeOff />
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Reveal password for ${credential.name}`}
-                disabled={!canReveal || !isUnlocked || pending}
-                title={
-                  !canReveal
-                    ? "You do not have permission to reveal passwords"
-                    : !isUnlocked
-                      ? "Unlock the vault first"
-                      : undefined
-                }
-                onClick={reveal}
-              >
-                <Eye />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          {credential.url ? (
-            <a
-              href={credential.url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="text-muted-foreground truncate text-xs underline-offset-4 hover:underline"
-            >
-              {credential.url.replace(/^https?:\/\//, "")}
-            </a>
-          ) : (
-            <span />
-          )}
-          {credential.lastRotatedAt ? (
-            <Badge variant="neutral" className="shrink-0">
-              Rotated {credential.lastRotatedAt}
-            </Badge>
           ) : null}
         </div>
-      </CardContent>
 
-      {canGrant ? (
-        <GrantsDialog
-          open={grantsOpen}
-          onOpenChange={setGrantsOpen}
-          credential={{ id: credential.id, name: credential.name }}
-          grants={grants?.rows ?? []}
-          isRestricted={grants?.isRestricted ?? false}
-          users={grantUsers}
-          roles={grantRoles}
-        />
-      ) : null}
+        {canGrant ? (
+          <GrantsDialog
+            open={grantsOpen}
+            onOpenChange={setGrantsOpen}
+            credential={{ id: credential.id, name: credential.name }}
+            grants={grants?.rows ?? []}
+            isRestricted={grants?.isRestricted ?? false}
+            users={grantUsers}
+            roles={grantRoles}
+          />
+        ) : null}
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete “{credential.name}”?</DialogTitle>
-            <DialogDescription>
-              The credential is archived and its encrypted value retained for the audit trail.
-              Anyone still using this password should change it.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setConfirmDelete(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={pending}
-              onClick={() => {
-                startTransition(async () => {
-                  const result = await deleteCredentialAction({ id: credential.id });
-                  if (result.success) {
-                    toast.success("Credential deleted.");
-                    setConfirmDelete(false);
-                    router.refresh();
-                  } else {
-                    toast.error(result.error);
-                  }
-                });
-              }}
-            >
-              {pending ? "Deleting…" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete “{credential.name}”?</DialogTitle>
+              <DialogDescription>
+                The credential is archived and its encrypted value retained for the audit trail.
+                Anyone still using this password should change it.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfirmDelete(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={pending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await deleteCredentialAction({ id: credential.id });
+                    if (result.success) {
+                      toast.success("Credential deleted.");
+                      setConfirmDelete(false);
+                      router.refresh();
+                    } else {
+                      toast.error(result.error);
+                    }
+                  });
+                }}
+              >
+                {pending ? "Deleting…" : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </td>
+    </tr>
   );
 }

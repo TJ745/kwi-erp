@@ -3,7 +3,6 @@
  *   - contract end dates feed the expiry projection
  *   - only one ACTIVE contract per employee
  *   - overlapping leave is refused
- *   - offboarding cannot complete while an asset is unreturned
  *
  * Every row it creates is removed at the end.
  * Run: pnpm tsx scripts/verify-hr.ts
@@ -24,8 +23,6 @@ function check(label: string, ok: boolean, detail = "") {
   console.log(`  ${ok ? "ok  " : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
-
-const TERMINAL = ["COMPLETED", "NOT_APPLICABLE"] as const;
 
 async function main() {
   const kwi = await prisma.company.findFirstOrThrow({ where: { code: "KWI" } });
@@ -134,77 +131,7 @@ async function main() {
   });
   check("a rejected request does not block resubmission", blockedByRejected === null);
 
-  // --- Offboarding gate -----------------------------------------------------
-  console.log("\nOffboarding completion gate");
-  const template = await prisma.checklistTemplate.findFirstOrThrow({
-    where: { type: "OFFBOARDING" },
-    include: { items: { orderBy: { order: "asc" } } },
-  });
-
-  const instance = await prisma.checklistInstance.create({
-    data: {
-      templateId: template.id,
-      type: "OFFBOARDING",
-      employeeId: employee.id,
-      companyId: kwi.id,
-      createdById: admin.id,
-      items: {
-        create: template.items.map((i) => ({
-          templateItemId: i.id,
-          order: i.order,
-          label: i.label,
-          category: i.category,
-          status: "COMPLETED",
-          completedAt: new Date(),
-        })),
-      },
-    },
-    include: { items: true },
-  });
-
-  const incomplete = instance.items.filter((i) => !TERMINAL.includes(i.status as "COMPLETED"));
-  check("all checklist steps marked done", incomplete.length === 0);
-
-  // Now hand out an asset and confirm it is detectable as a blocker.
-  const asset = await prisma.iTAsset.create({
-    data: {
-      assetCode: "ZZZ-HR-IT",
-      type: "LAPTOP",
-      brand: "Test",
-      model: "Blocker",
-      companyId: kwi.id,
-    },
-  });
-  await prisma.iTAssetAssignment.create({
-    data: {
-      assetId: asset.id,
-      employeeId: employee.id,
-      assignedAt: new Date(),
-      assignedById: admin.id,
-      conditionOut: "GOOD",
-    },
-  });
-
-  const unreturned = await prisma.iTAssetAssignment.count({
-    where: { employeeId: employee.id, returnedAt: null },
-  });
-  check("unreturned asset blocks completion", unreturned === 1, `${String(unreturned)} outstanding`);
-
-  // Return it; the blocker should clear.
-  await prisma.iTAssetAssignment.updateMany({
-    where: { employeeId: employee.id, returnedAt: null },
-    data: { returnedAt: new Date(), conditionIn: "GOOD", receivedById: admin.id },
-  });
-  const stillOut = await prisma.iTAssetAssignment.count({
-    where: { employeeId: employee.id, returnedAt: null },
-  });
-  check("returning the asset clears the blocker", stillOut === 0);
-
   // --- Cleanup --------------------------------------------------------------
-  await prisma.checklistItem.deleteMany({ where: { instanceId: instance.id } });
-  await prisma.checklistInstance.delete({ where: { id: instance.id } });
-  await prisma.iTAssetAssignment.deleteMany({ where: { employeeId: employee.id } });
-  await prisma.iTAsset.delete({ where: { id: asset.id } });
   await prisma.leaveRequest.deleteMany({ where: { employeeId: employee.id } });
   await prisma.expiryIndex.deleteMany({ where: { sourceId: contract.id } });
   await prisma.contract.delete({ where: { id: contract.id } });

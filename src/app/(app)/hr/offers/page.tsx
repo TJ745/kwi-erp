@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { Printer, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
@@ -9,6 +10,7 @@ import { SearchInput } from "@/components/shared/search-input";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listJobDescriptions, listJobOffers, offerCounts } from "@/server/services/hiring";
 import { orgOptions } from "@/server/services/org";
+import { interviewOptions } from "@/server/services/recruitment";
 import { OfferDialog } from "./offer-dialog";
 import { OfferRowActions } from "./offer-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
@@ -31,16 +33,18 @@ export default async function JobOffersPage({
   // The proposed salary is salary data like any other.
   const canSeeSalary = ctx.permissions.has("employees.salary.view");
 
-  const [offers, counts, descriptions, options] = await Promise.all([
+  const [offers, counts, descriptions, options, interviews] = await Promise.all([
     listJobOffers(ctx, { ...(status ? { status } : {}), ...(q ? { q } : {}) }),
     offerCounts(ctx),
     canManage ? listJobDescriptions(ctx) : Promise.resolve([]),
     orgOptions(ctx),
+    canManage ? interviewOptions(ctx) : Promise.resolve([]),
   ]);
 
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Job Offers"
         description="Candidates through to hire. Accepting an offer is not hiring — converting it creates the employee record, and that can only happen once."
         action={
@@ -51,6 +55,7 @@ export default async function JobOffersPage({
                 companies={options.companies}
                 positions={options.positions}
                 descriptions={descriptions.map((d) => ({ id: d.id, title: d.title }))}
+                interviews={interviews}
               />
             ) : null}
           </div>
@@ -84,9 +89,7 @@ export default async function JobOffersPage({
                 ) : null}
                 <th className="px-3 py-2 text-left font-medium">Joining</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage || canConvert || canViewDocs ? (
-                  <th className="w-10 px-3 py-2" />
-                ) : null}
+                <th className="w-10 px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -94,25 +97,22 @@ export default async function JobOffersPage({
                 <tr key={o.id} className="border-t">
                   <td className="px-3 py-2">
                     <p className="font-medium">{o.candidateName}</p>
+                    {o.refNo ? (
+                      <p className="text-muted-foreground font-mono text-xs">{o.refNo}</p>
+                    ) : null}
                     {o.candidateEmail ? (
                       <p className="text-muted-foreground text-xs">{o.candidateEmail}</p>
                     ) : null}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {o.position?.title ?? "—"}
-                  </td>
+                  <td className="text-muted-foreground px-3 py-2">{o.position?.title ?? "—"}</td>
                   <td className="text-muted-foreground px-3 py-2">{o.company.code}</td>
                   {canSeeSalary ? (
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {o.proposedSalary
-                        ? `${o.proposedSalary.toString()} ${o.currency}`
-                        : "—"}
+                      {o.proposedSalary ? `${o.proposedSalary.toString()} ${o.currency}` : "—"}
                     </td>
                   ) : null}
                   <td className="text-muted-foreground px-3 py-2 tabular-nums">
-                    {o.proposedJoiningDate
-                      ? o.proposedJoiningDate.toISOString().slice(0, 10)
-                      : "—"}
+                    {o.proposedJoiningDate ? o.proposedJoiningDate.toISOString().slice(0, 10) : "—"}
                   </td>
                   <td className="px-3 py-2">
                     {o.convertedEmployee ? (
@@ -120,9 +120,7 @@ export default async function JobOffersPage({
                         href={`/people/employees/${o.convertedEmployee.id}`}
                         className="hover:underline"
                       >
-                        <Badge variant="default">
-                          → {o.convertedEmployee.employeeNo}
-                        </Badge>
+                        <Badge variant="default">→ {o.convertedEmployee.employeeNo}</Badge>
                       </Link>
                     ) : (
                       <Badge
@@ -138,8 +136,18 @@ export default async function JobOffersPage({
                       </Badge>
                     )}
                   </td>
-                  {canManage || canConvert || canViewDocs ? (
-                    <td className="px-3 py-2">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-end gap-1" data-print-hide>
+                      {/* The letter carries the salary, so printing it needs the
+                          salary permission too. */}
+                      {canSeeSalary ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/hr/offers/${o.id}`}>
+                            <Printer />
+                            Print
+                          </Link>
+                        </Button>
+                      ) : null}
                       {canViewDocs ? (
                         <DocumentsLink
                           entityType="JOB_OFFER"
@@ -150,40 +158,65 @@ export default async function JobOffersPage({
                       {/* Still gated: viewing documents does not imply the
                           right to edit or convert an offer. */}
                       {canManage || canConvert ? (
-                      <OfferRowActions
-                        offer={{
-                          id: o.id,
-                          companyId: o.companyId,
-                          candidateName: o.candidateName,
-                          candidateEmail: o.candidateEmail,
-                          candidatePhone: o.candidatePhone,
-                          positionId: o.positionId,
-                          jobDescriptionId: o.jobDescriptionId,
-                          proposedSalary: canSeeSalary
-                            ? (o.proposedSalary?.toString() ?? null)
-                            : null,
-                          currency: o.currency,
-                          proposedJoiningDate: o.proposedJoiningDate
-                            ? o.proposedJoiningDate.toISOString().slice(0, 10)
-                            : null,
-                          status: o.status,
-                          sentAt: o.sentAt ? o.sentAt.toISOString().slice(0, 10) : null,
-                          notes: o.notes,
-                          isConverted: o.convertedEmployeeId !== null,
-                        }}
-                        companies={options.companies}
-                        positions={options.positions}
-                        departments={options.departments}
-                        descriptions={descriptions.map((d) => ({
-                          id: d.id,
-                          title: d.title,
-                        }))}
-                        canManage={canManage}
-                        canConvert={canConvert}
-                      />
+                        <OfferRowActions
+                          offer={{
+                            id: o.id,
+                            companyId: o.companyId,
+                            candidateName: o.candidateName,
+                            candidateEmail: o.candidateEmail,
+                            candidatePhone: o.candidatePhone,
+                            salutation: o.salutation,
+                            candidateIdType: o.candidateIdType,
+                            candidateIdNumber: o.candidateIdNumber,
+                            candidateAddress: o.candidateAddress,
+                            offerDate: o.offerDate ? o.offerDate.toISOString().slice(0, 10) : null,
+                            refNo: o.refNo,
+                            basicSalary: canSeeSalary ? (o.basicSalary?.toString() ?? null) : null,
+                            housingAllowance: canSeeSalary
+                              ? (o.housingAllowance?.toString() ?? null)
+                              : null,
+                            transportAllowance: canSeeSalary
+                              ? (o.transportAllowance?.toString() ?? null)
+                              : null,
+                            mobileAllowance: canSeeSalary
+                              ? (o.mobileAllowance?.toString() ?? null)
+                              : null,
+                            contractYears: o.contractYears,
+                            probationDays: o.probationDays,
+                            familyStatus: o.familyStatus,
+                            leavePlan: o.leavePlan,
+                            ticketCover: o.ticketCover,
+                            ticketDestination: o.ticketDestination,
+                            medicalCover: o.medicalCover,
+                            positionId: o.positionId,
+                            jobDescriptionId: o.jobDescriptionId,
+                            proposedSalary: canSeeSalary
+                              ? (o.proposedSalary?.toString() ?? null)
+                              : null,
+                            currency: o.currency,
+                            proposedJoiningDate: o.proposedJoiningDate
+                              ? o.proposedJoiningDate.toISOString().slice(0, 10)
+                              : null,
+                            status: o.status,
+                            sentAt: o.sentAt ? o.sentAt.toISOString().slice(0, 10) : null,
+                            notes: o.notes,
+                            interviewId: o.interviewId,
+                            isConverted: o.convertedEmployeeId !== null,
+                          }}
+                          companies={options.companies}
+                          positions={options.positions}
+                          departments={options.departments}
+                          descriptions={descriptions.map((d) => ({
+                            id: d.id,
+                            title: d.title,
+                          }))}
+                          interviews={interviews}
+                          canManage={canManage}
+                          canConvert={canConvert}
+                        />
                       ) : null}
-                    </td>
-                  ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

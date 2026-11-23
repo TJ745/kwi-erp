@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildQueryString,
   DEFAULT_PAGE_SIZE,
+  isPrintRequest,
   MAX_PAGE_SIZE,
   paginate,
   paginationFor,
   parseListQuery,
   parseSort,
+  PRINT_PAGE_SIZE,
 } from "./list-query";
 
 describe("parseListQuery", () => {
@@ -107,5 +109,25 @@ describe("buildQueryString", () => {
 
   it("takes the first value of a repeated param", () => {
     expect(buildQueryString({ q: ["a", "b"] }, {})).toBe("?q=a");
+  });
+});
+
+describe("print mode", () => {
+  it("returns the whole filtered list on one page", () => {
+    const q = parseListQuery({ print: "1", page: "7", pageSize: "10", q: "ahmed" });
+    expect(q.page).toBe(1);
+    expect(q.pageSize).toBe(PRINT_PAGE_SIZE);
+    // Search and sort survive: what prints is what was on screen.
+    expect(q.q).toBe("ahmed");
+  });
+
+  it("is off unless print is exactly 1", () => {
+    expect(parseListQuery({ print: "true" }).pageSize).toBe(DEFAULT_PAGE_SIZE);
+    expect(isPrintRequest({ print: "0" })).toBe(false);
+    expect(isPrintRequest({ print: "1" })).toBe(true);
+  });
+
+  it("cannot be used to lift the normal page-size cap", () => {
+    expect(parseListQuery({ pageSize: String(PRINT_PAGE_SIZE) }).pageSize).toBe(DEFAULT_PAGE_SIZE);
   });
 });

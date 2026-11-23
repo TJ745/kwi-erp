@@ -1,0 +1,96 @@
+// -----------------------------------------------------------------------------
+// Recruitment and joining/leaving forms, each printed like the company's own
+// form. The parts of a form that are only ever printed live in `details`
+// (validated by Zod); what is searched or linked is a column.
+// -----------------------------------------------------------------------------
+
+/// Personnel Requirement Request (FM:AP:002): one request per vacancy.
+model PersonnelRequest {
+  id           String   @id @default(cuid(2))
+  companyId    String
+  /// e.g. PRR-KWI-26-001 — assigned on create when left blank.
+  prrNo        String   @unique
+  /// "Date Received" on the form.
+  requestDate  DateTime
+  positionId   String?
+  departmentId String?
+  jobTitle     String
+  vacancies    Int      @default(1)
+  /// The rest of the form (src/lib/schemas/recruitment.ts).
+  details      Json
+  createdById  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  position   Position?             @relation(fields: [positionId], references: [id])
+  department Department?           @relation(fields: [departmentId], references: [id])
+  interviews InterviewEvaluation[]
+
+  @@index([companyId, requestDate])
+  @@index([positionId])
+  @@index([departmentId])
+}
+
+/// Interview Evaluation Report (FM:AP:006): one applicant, against a PRR.
+model InterviewEvaluation {
+  id            String   @id @default(cuid(2))
+  companyId     String
+  prrId         String?
+  applicantName String
+  positionTitle String
+  interviewDate DateTime
+  details       Json
+  createdById   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id])
+  prr     PersonnelRequest? @relation(fields: [prrId], references: [id])
+  offers  JobOffer[]
+
+  @@index([companyId, interviewDate])
+  @@index([prrId])
+}
+
+/// New Appointment Acknowledgment (FM:AP:034).
+model JoiningLetter {
+  id            String   @id @default(cuid(2))
+  employeeId    String
+  letterDate    DateTime
+  joiningDate   DateTime
+  positionTitle String
+  /// e.g. KWI-RIYADH.
+  section       String
+  remarks       String?
+  createdById   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([letterDate])
+}
+
+/// Employee Clearance Form, bilingual.
+model ClearanceForm {
+  id          String    @id @default(cuid(2))
+  employeeId  String
+  formDate    DateTime
+  /// The last working day ("End Date").
+  endDate     DateTime?
+  details     Json
+  createdById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([formDate])
+}

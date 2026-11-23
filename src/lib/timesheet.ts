@@ -1,146 +1,173 @@
 /**
- * Timesheet arithmetic and rules — brief §18.
- *
- * Hours are stored per employee per day (the database enforces one row per
- * pair). Everything a period summary shows — totals, absences, delayed hours —
- * is derived from those rows rather than stored, so a corrected day changes
- * every figure that depends on it without a rebuild step.
+ * The company's monthly TIME SHEET, as pure rules: the period (16th of the
+ * previous month to the 15th), the code each day starts with, and the totals
+ * printed at the end of each row.
  */
 
-export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export const DAY_CODES = ["P", "A", "V", "S", "L", "FRI", "SAT", ""] as const;
+export type DayCode = (typeof DAY_CODES)[number];
+export const WEEKENDS = ["FRI", "FRI_SAT"] as const;
+export type Weekend = (typeof WEEKENDS)[number];
+export const TIMESHEET_GROUPS = ["NON_SAUDI", "SAUDI", "ALL"] as const;
+export type TimesheetGroupValue = (typeof TIMESHEET_GROUPS)[number];
 
-export type TimesheetDay = {
-  normalHours: string;
-  overtimeHours: string;
-  delayedHours: string;
-  absent: boolean;
-  status: ApprovalStatus;
-};
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Hours are quarter-hour granular in practice; hundredths cover that exactly. */
-function toHundredths(value: string | number): number {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100);
+/** `2026-11` → 16 Oct 2026 … 15 Nov 2026, as UTC midnights. */
+export function periodDays(month: string): Date[] {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const start = Date.UTC(y, m - 2, 16);
+  const end = Date.UTC(y, m - 1, 15);
+  const days: Date[] = [];
+  for (let t = start; t <= end; t += DAY_MS) days.push(new Date(t));
+  return days;
 }
 
-const fromHundredths = (n: number) => n / 100;
+/** "Nov-26", as the sheet's heading prints the month. */
+export function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const name = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y, m - 1, 1)),
+  );
+  return `${name}-${String(y % 100).padStart(2, "0")}`;
+}
 
-export type TimesheetSummary = {
-  /** Days with a row, whatever their status. */
-  daysRecorded: number;
-  daysAbsent: number;
-  /** Approved hours only — what payroll would act on. */
-  normalHours: number;
-  overtimeHours: number;
-  delayedHours: number;
-  /** Hours sitting in rows nobody has approved yet. */
-  pendingHours: number;
+/** `2026-11-01` (a stored month) → `2026-11`. */
+export function monthKey(d: Date): string {
+  return d.toISOString().slice(0, 7);
+}
+
+/** The weekly day off a date falls on for this employee, if any. */
+export function weekendCode(date: Date, weekend: Weekend): DayCode | null {
+  const dow = date.getUTCDay(); // 5 = Friday, 6 = Saturday
+  if (dow === 5) return "FRI";
+  if (dow === 6 && weekend === "FRI_SAT") return "SAT";
+  return null;
+}
+
+/** Leave as it shows on the sheet. */
+export function leaveCode(leaveTypeKey: string): DayCode {
+  if (leaveTypeKey === "SICK") return "S";
+  if (leaveTypeKey === "UNPAID") return "L";
+  return "V";
+}
+
+/**
+ * The code each day of the period starts with: blank outside employment, the
+ * weekly day off, any recorded leave (which covers days off too), else P.
+ */
+export function initialDays(input: {
+  days: Date[];
+  weekend: Weekend;
+  joiningDate: Date;
+  lastWorkingDate: Date | null;
+  leave: { start: Date; end: Date; typeKey: string }[];
+}): DayCode[] {
+  return input.days.map((d) => {
+    if (d < input.joiningDate) return "";
+    if (input.lastWorkingDate && d > input.lastWorkingDate) return "";
+    const onLeave = input.leave.find((l) => d >= l.start && d <= l.end);
+    if (onLeave) return leaveCode(onLeave.typeKey);
+    return weekendCode(d, input.weekend) ?? "P";
+  });
+}
+
+export type RowTotals = {
+  working: number;
+  absent: number;
+  vacation: number;
+  /** Days off and sick days — paid days not worked. */
+  fridaysHolidays: number;
+  /** The days paid for: worked plus paid days off. */
+  monthDays: number;
+  /** Overtime hours, or delay minutes on a Saudi sheet. */
+  extra: number;
 };
 
-export function summarise(days: readonly TimesheetDay[]): TimesheetSummary {
-  let normal = 0;
-  let overtime = 0;
-  let delayed = 0;
-  let pending = 0;
-  let absent = 0;
-
-  for (const day of days) {
-    if (day.absent) absent += 1;
-
-    const dayHours = toHundredths(day.normalHours) + toHundredths(day.overtimeHours);
-
-    if (day.status === "APPROVED") {
-      normal += toHundredths(day.normalHours);
-      overtime += toHundredths(day.overtimeHours);
-      delayed += toHundredths(day.delayedHours);
-      continue;
-    }
-
-    // Rejected and cancelled days are history; only pending work is still a
-    // claim on payroll.
-    if (day.status === "PENDING") pending += dayHours;
-  }
-
+/**
+ * The figures at the end of each row, as the company's sheets add them up:
+ * L (leave without pay) counts as absent, sick as a paid day off.
+ */
+export function rowTotals(codes: readonly string[], extra: readonly (number | null)[]): RowTotals {
+  const count = (...c: string[]) => codes.filter((x) => c.includes(x)).length;
+  const working = count("P");
+  const fridaysHolidays = count("FRI", "SAT", "S");
   return {
-    daysRecorded: days.length,
-    daysAbsent: absent,
-    normalHours: fromHundredths(normal),
-    overtimeHours: fromHundredths(overtime),
-    delayedHours: fromHundredths(delayed),
-    pendingHours: fromHundredths(pending),
+    working,
+    absent: count("A", "L"),
+    vacation: count("V"),
+    fridaysHolidays,
+    monthDays: working + fridaysHolidays,
+    extra: extra.reduce<number>((n, v) => n + (v ?? 0), 0),
   };
 }
 
-export type HoursProblem = { field: "normalHours" | "overtimeHours" | "delayedHours"; message: string };
-
-/**
- * Validates one day's hours.
- *
- * Returns every problem rather than the first, so a form can mark all the
- * offending fields at once instead of making the user resubmit to find the
- * next one.
- */
-export function validateHours(input: {
-  normalHours: string;
-  overtimeHours: string;
-  delayedHours: string;
-  absent: boolean;
-}): HoursProblem[] {
-  const problems: HoursProblem[] = [];
-
-  const normal = toHundredths(input.normalHours);
-  const overtime = toHundredths(input.overtimeHours);
-  const delayed = toHundredths(input.delayedHours);
-
-  for (const [field, value] of [
-    ["normalHours", normal],
-    ["overtimeHours", overtime],
-    ["delayedHours", delayed],
-  ] as const) {
-    if (value < 0) {
-      problems.push({ field, message: "Hours cannot be negative" });
-    }
-  }
-
-  // A day is 24 hours. Anything more is a typo — usually a date in the hours
-  // box — and it would silently inflate an overtime payment.
-  if (normal + overtime > 2400) {
-    problems.push({
-      field: "overtimeHours",
-      message: "Normal and overtime hours cannot exceed 24 in a day",
-    });
-  }
-
-  if (delayed > 2400) {
-    problems.push({ field: "delayedHours", message: "Delayed hours cannot exceed 24" });
-  }
-
-  // Absence and hours worked are contradictory claims about the same day.
-  if (input.absent && normal + overtime > 0) {
-    problems.push({
-      field: "normalHours",
-      message: "An absent day cannot also have hours worked",
-    });
-  }
-
-  return problems;
+/** "1 Hrs 25 Mins" from minutes, as the Saudi sheet prints delay. */
+export function delayLabel(minutes: number): string {
+  return `${String(Math.floor(minutes / 60))} Hrs ${String(minutes % 60)} Mins`;
 }
 
-/** Every date in an inclusive range, as yyyy-mm-dd. */
-export function datesInRange(from: Date, to: Date): string[] {
-  const out: string[] = [];
-  const cursor = new Date(
-    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
-  );
-  const end = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+/** "28th October 2026", for a leaver's row. */
+export function longOrdinal(d: Date): string {
+  const n = d.getUTCDate();
+  const suffix =
+    n % 10 === 1 && n !== 11
+      ? "st"
+      : n % 10 === 2 && n !== 12
+        ? "nd"
+        : n % 10 === 3 && n !== 13
+          ? "rd"
+          : "th";
+  const rest = new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(d);
+  return `${String(n).padStart(2, "0")}${suffix} ${rest}`;
+}
 
-  // Bounded so a hostile or mistyped range cannot spin: a timesheet period is
-  // a month, and 366 days is already more than any of them.
-  while (cursor.getTime() <= end && out.length < 366) {
-    out.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+/** What clicking a day does with each "mark with" choice. */
+export type Brush = "TOGGLE" | "V" | "S" | "L" | "OFF";
+
+export function applyBrush(code: DayCode, brush: Brush, off: DayCode | null): DayCode {
+  if (code === "") return ""; // outside employment
+  switch (brush) {
+    case "TOGGLE":
+      if (code === "P") return "A";
+      if (code === "FRI" || code === "SAT") return code;
+      return "P";
+    case "OFF":
+      return off ?? code;
+    default:
+      return code === brush ? (off ?? "P") : brush;
   }
+}
 
+export type RowSegment =
+  { kind: "day"; index: number } | { kind: "gap"; start: number; length: number; before: boolean };
+
+/**
+ * A row's cells, with each run of days outside employment merged into one
+ * cell — where the sheet prints "Last Working Day: …" or the joining date.
+ */
+export function rowSegments(codes: readonly string[]): RowSegment[] {
+  const out: RowSegment[] = [];
+  const firstWorked = codes.findIndex((c) => c !== "");
+  for (let i = 0; i < codes.length;) {
+    if (codes[i] !== "") {
+      out.push({ kind: "day", index: i });
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < codes.length && codes[j] === "") j += 1;
+    out.push({
+      kind: "gap",
+      start: i,
+      length: j - i,
+      before: firstWorked === -1 || i < firstWorked,
+    });
+    i = j;
+  }
   return out;
 }

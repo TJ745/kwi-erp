@@ -219,7 +219,9 @@ export async function deleteAccommodation(ctx: ActorContext, id: string) {
       companyId: true,
       rooms: {
         select: {
-          beds: { select: { assignments: { where: { checkOutDate: null }, select: { id: true } } } },
+          beds: {
+            select: { assignments: { where: { checkOutDate: null }, select: { id: true } } },
+          },
         },
       },
     },
@@ -273,9 +275,7 @@ export async function createRoom(ctx: ActorContext, input: RoomInput) {
     select: { id: true },
   });
   if (clash) {
-    throw new ConflictError(
-      `${accommodation.name} already has a room ${input.roomNumber}.`,
-    );
+    throw new ConflictError(`${accommodation.name} already has a room ${input.roomNumber}.`);
   }
 
   const room = await prisma.accommodationRoom.create({
@@ -381,7 +381,13 @@ async function assertBedInScope(ctx: ActorContext, bedId: string) {
 export async function createBed(ctx: ActorContext, input: BedInput) {
   const room = await prisma.accommodationRoom.findUnique({
     where: { id: input.roomId },
-    select: { id: true, roomNumber: true, capacity: true, accommodationId: true, _count: { select: { beds: true } } },
+    select: {
+      id: true,
+      roomNumber: true,
+      capacity: true,
+      accommodationId: true,
+      _count: { select: { beds: true } },
+    },
   });
   if (!room) throw new NotFoundError("Room not found.");
   const accommodation = await assertAccommodationInScope(ctx, room.accommodationId);
@@ -447,9 +453,7 @@ export async function deleteBed(ctx: ActorContext, id: string) {
     select: { employee: { select: { fullName: true } } },
   });
   if (occupied) {
-    throw new ConflictError(
-      `${occupied.employee.fullName} is in this bed. Check them out first.`,
-    );
+    throw new ConflictError(`${occupied.employee.fullName} is in this bed. Check them out first.`);
   }
 
   // An earlier version deleted the assignment history to make this succeed.
@@ -487,13 +491,14 @@ export async function checkIn(ctx: ActorContext, input: CheckInInput) {
   const employee = await prisma.employee.findFirst({
     where: {
       id: input.employeeId,
-      companyId: bed.room.accommodation.companyId,
+      // Any company the actor can see: group employees share housing.
+      ...companyScopeWhere(ctx),
       deletedAt: null,
     },
     select: { id: true, fullName: true, employeeNo: true },
   });
   if (!employee) {
-    throw new NotFoundError("Employee not found in the accommodation's company.");
+    throw new NotFoundError("Employee not found.");
   }
 
   // An employee occupying two beds at once is as wrong as two employees in
@@ -560,10 +565,7 @@ export async function checkIn(ctx: ActorContext, input: CheckInInput) {
   } catch (error) {
     // The race the pre-check cannot close: two check-ins for the same bed
     // arriving together. One of them lands here.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === UNIQUE_VIOLATION
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_VIOLATION) {
       throw new ConflictError(
         "Someone else was checked into that bed a moment ago. Refresh and try another bed.",
       );
@@ -572,10 +574,7 @@ export async function checkIn(ctx: ActorContext, input: CheckInInput) {
   }
 }
 
-export async function checkOut(
-  ctx: ActorContext,
-  input: { id: string; checkOutDate: Date },
-) {
+export async function checkOut(ctx: ActorContext, input: { id: string; checkOutDate: Date }) {
   const assignment = await prisma.bedAssignment.findUnique({
     where: { id: input.id },
     select: {
@@ -629,21 +628,27 @@ export async function checkOut(
   };
 }
 
-/** Employees in this company who are not currently housed. */
+/** Employees of any company the actor can see who are not currently housed. */
 export async function unhousedEmployees(ctx: ActorContext, companyId: string) {
   requireCompanyAccess(ctx, companyId);
 
-  return prisma.employee.findMany({
+  const rows = await prisma.employee.findMany({
     where: {
-      companyId,
+      ...companyScopeWhere(ctx),
       deletedAt: null,
       status: { in: ["ACTIVE", "ON_LEAVE"] },
       bedAssignments: { none: { checkOutDate: null } },
     },
     orderBy: { fullName: "asc" },
-    take: 500,
-    select: { id: true, fullName: true, employeeNo: true },
+    take: 2000,
+    select: { id: true, fullName: true, employeeNo: true, company: { select: { code: true } } },
   });
+  // The company shows in the picker's label, so people of the same name differ.
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    employeeNo: `${r.employeeNo} · ${r.company.code}`,
+  }));
 }
 
 export async function accommodationCounts(ctx: ActorContext) {
@@ -690,5 +695,83 @@ export async function accommodationForEmployee(ctx: ActorContext, employeeId: st
         },
       },
     },
+  });
+}
+
+// --- Occupancy sheet -----------------------------------------------------------
+
+/** Room numbers in reading order: 1, 2, 10 rather than 1, 10, 2. */
+const byRoomNumber = (a: { roomNumber: string }, b: { roomNumber: string }) =>
+  a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+
+/**
+ * Who lives where, for the printed occupancy sheet: every active property,
+ * its active rooms, and the people checked in to each, with one blank line
+ * per free bed.
+ */
+export async function occupancySheet(ctx: ActorContext, companyId?: string) {
+  if (companyId) requireCompanyAccess(ctx, companyId);
+  const properties = await prisma.accommodation.findMany({
+    where: {
+      status: "ACTIVE",
+      ...companyScopeWhere(ctx),
+      ...(companyId ? { companyId } : {}),
+    },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      company: { select: { code: true } },
+      rooms: {
+        where: { status: "ACTIVE" },
+        select: {
+          id: true,
+          roomNumber: true,
+          beds: {
+            orderBy: { bedLabel: "asc" },
+            select: {
+              id: true,
+              status: true,
+              assignments: {
+                where: { checkOutDate: null },
+                take: 1,
+                select: {
+                  employee: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      nationality: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return properties.map((p) => {
+    const rooms = [...p.rooms].sort(byRoomNumber).map((r) => {
+      const occupants = r.beds.flatMap((b) => {
+        const e = b.assignments[0]?.employee;
+        return e
+          ? [{ id: e.id, name: `${e.firstName} ${e.lastName}`.trim(), nationality: e.nationality }]
+          : [];
+      });
+      const freeBeds = r.beds.filter(
+        (b) => b.assignments.length === 0 && b.status !== "OUT_OF_SERVICE",
+      ).length;
+      return { id: r.id, roomNumber: r.roomNumber, occupants, freeBeds };
+    });
+    return {
+      id: p.id,
+      name: p.name,
+      companyCode: p.company.code,
+      total: rooms.reduce((n, r) => n + r.occupants.length, 0),
+      rooms,
+    };
   });
 }

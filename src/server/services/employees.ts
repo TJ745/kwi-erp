@@ -1,12 +1,9 @@
 import "server-only";
+import { endCoverForLeaver } from "./insurance";
 import type { EmployeeStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { describeIbanProblem, validateIban } from "@/lib/bank";
-import {
-  decideBankRead,
-  decideBankWrite,
-  describeBankDenial,
-} from "@/lib/bank-access";
+import { decideBankRead, decideBankWrite, describeBankDenial } from "@/lib/bank-access";
 import type { ActorContext } from "@/server/auth/context";
 import {
   companyScopeWhere,
@@ -63,7 +60,8 @@ export async function listEmployees(
   query: ListQuery,
   filters: EmployeeFilters = {},
 ): Promise<Paginated<EmployeeListRow>> {
-  const sort = parseSort(query.sort, SORTABLE, { field: "fullName", direction: "asc" });
+  // By employee ID unless another column is chosen: the company files by number.
+  const sort = parseSort(query.sort, SORTABLE, { field: "employeeNo", direction: "asc" });
 
   const where: Prisma.EmployeeWhereInput = {
     ...companyScopeWhere(ctx),
@@ -243,10 +241,7 @@ export async function createEmployee(ctx: ActorContext, input: EmployeeInput) {
   });
 }
 
-export async function updateEmployee(
-  ctx: ActorContext,
-  input: EmployeeInput & { id: string },
-) {
+export async function updateEmployee(ctx: ActorContext, input: EmployeeInput & { id: string }) {
   const before = await getEmployee(ctx, input.id);
   requireCompanyAccess(ctx, input.companyId);
   await assertOrgReferencesValid(input);
@@ -359,6 +354,11 @@ export async function setEmployeeStatus(
     },
     select: { id: true, fullName: true, status: true, lastWorkingDate: true },
   });
+
+  // Someone who leaves is no longer insured past their last working day.
+  if (leaving.includes(after.status) && after.lastWorkingDate) {
+    await endCoverForLeaver(after.id, after.lastWorkingDate);
+  }
 
   return {
     before: { status: before.status, lastWorkingDate: before.lastWorkingDate },
@@ -510,9 +510,7 @@ async function assertOrgReferencesValid(input: {
       select: { companyId: true },
     });
     if (!manager) throw new NotFoundError("Manager not found.");
-    if (manager.companyId !== input.companyId) {
-      throw new ConflictError("The manager belongs to a different company.");
-    }
+    // A manager may sit in another group company: people report across them.
   }
 }
 
@@ -547,13 +545,11 @@ export async function managerOptions(
   excludeId?: string,
   q?: string,
 ) {
-  if (!ctx.companyScope.includes?.(companyId) && ctx.companyScope !== "ALL") {
-    throw new ForbiddenError("Record not found.");
-  }
+  void companyId; // Managers can be in any company the actor can see.
 
-  return prisma.employee.findMany({
+  const rows = await prisma.employee.findMany({
     where: {
-      companyId,
+      ...companyScopeWhere(ctx),
       deletedAt: null,
       status: { in: ["ACTIVE", "ON_LEAVE"] },
       ...(excludeId ? { id: { not: excludeId } } : {}),
@@ -568,8 +564,14 @@ export async function managerOptions(
     },
     orderBy: { fullName: "asc" },
     take: 20,
-    select: { id: true, fullName: true, employeeNo: true },
+    select: { id: true, fullName: true, employeeNo: true, company: { select: { code: true } } },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    employeeNo: r.employeeNo,
+    companyCode: r.company.code,
+  }));
 }
 
 // --- Iqama renewals ----------------------------------------------------------
@@ -676,9 +678,7 @@ export async function updateIqamaRenewal(
       data: {
         status: input.status,
         ...(input.submittedAt ? { submittedAt: input.submittedAt } : {}),
-        ...(input.status === "SUBMITTED" && !input.submittedAt
-          ? { submittedAt: new Date() }
-          : {}),
+        ...(input.status === "SUBMITTED" && !input.submittedAt ? { submittedAt: new Date() } : {}),
         ...(input.newExpiry ? { newExpiry: input.newExpiry } : {}),
         ...(input.status === "COMPLETED" ? { completedAt: new Date() } : {}),
         ...(input.notes === undefined ? {} : { notes: input.notes }),
@@ -690,9 +690,7 @@ export async function updateIqamaRenewal(
       where: { id: renewal.iqamaRecord.id },
       data: {
         renewalStatus: input.status,
-        ...(input.status === "COMPLETED" && input.newExpiry
-          ? { expiryDate: input.newExpiry }
-          : {}),
+        ...(input.status === "COMPLETED" && input.newExpiry ? { expiryDate: input.newExpiry } : {}),
       },
     });
 

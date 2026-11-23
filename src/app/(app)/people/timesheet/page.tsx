@@ -1,184 +1,211 @@
 import type { Metadata } from "next";
-import { CalendarClock } from "lucide-react";
+import Link from "next/link";
+import { FileSpreadsheet, Printer, Table2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { DeleteRecordButton } from "@/components/shared/delete-record-button";
+import { monthLabel as sheetMonthLabel, monthKey, periodDays } from "@/lib/timesheet";
+import { listTimesheets } from "@/server/services/timesheet-sheets";
+import { deleteTimesheetAction } from "@/server/actions/timesheets";
+import { NewTimesheetDialog } from "./new-timesheet-dialog";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
-import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { listTimesheet } from "@/server/services/hiring";
-import { employeeOptions } from "@/server/services/hr-records";
+import {
+  listTimesheetFiles,
+  takenTimesheetMonths,
+  timesheetYears,
+} from "@/server/services/timesheets";
+import { orgOptions } from "@/server/services/org";
 import { TimesheetFilters } from "./timesheet-filters";
-import { TimesheetDialog } from "./timesheet-dialog";
-import { TimesheetRowActions } from "./timesheet-row-actions";
-import { ApprovePeriodButton } from "./approve-period-button";
-import { ReportLink } from "@/components/shared/report-link";
+import { UploadTimesheet } from "./upload-timesheet";
+import { DeleteTimesheet } from "./timesheet-row-actions";
 
 export const metadata: Metadata = { title: "Timesheet" };
 
-/** Defaults to the current month — the period people actually work in. */
-function defaultRange(): { from: string; to: string } {
-  const now = new Date();
-  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
-  return {
-    from: first.toISOString().slice(0, 10),
-    to: last.toISOString().slice(0, 10),
-  };
+function fileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${String(Math.max(1, Math.round(bytes / 1024)))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default async function TimesheetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ employeeId?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ company?: string; year?: string }>;
 }) {
   const ctx = await requirePagePermission("hr.timesheet.view");
   const params = await searchParams;
-  const range = defaultRange();
-  const from = params.from ?? range.from;
-  const to = params.to ?? range.to;
-
+  // Upload also goes through the document uploader, which has its own gate.
   const canManage = ctx.permissions.has("hr.timesheet.manage");
-  const canApprove = ctx.permissions.has("hr.timesheet.approve");
+  const canUpload = canManage && ctx.permissions.has("documents.upload");
+  const canDownload = ctx.permissions.has("documents.download");
 
-  const [{ entries, summary }, employees] = await Promise.all([
-    listTimesheet(ctx, {
-      ...(params.employeeId ? { employeeId: params.employeeId } : {}),
-      from: new Date(`${from}T00:00:00.000Z`),
-      to: new Date(`${to}T23:59:59.999Z`),
-    }),
-    employeeOptions(ctx),
+  const year = params.year && /^\d{4}$/.test(params.year) ? Number(params.year) : undefined;
+  const [sheets, files, years, options, taken] = await Promise.all([
+    listTimesheets(ctx),
+    listTimesheetFiles(ctx, { companyId: params.company, year }),
+    timesheetYears(ctx),
+    orgOptions(ctx),
+    canUpload ? takenTimesheetMonths(ctx) : Promise.resolve([]),
   ]);
+  const filtered = Boolean(params.company || year);
 
   return (
     <PageShell>
       <PageHeader
         title="Timesheet"
-        description="Hours per person per day — one entry each, enforced by the database. Only approved days count towards the totals payroll would act on."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <ReportLink reportId="timesheet-summary" ctx={ctx} />
-            {canManage ? (
-              <TimesheetDialog
-                employees={employees}
-                defaultDate={new Date().toISOString().slice(0, 10)}
-              />
-            ) : null}
-          </div>
-        }
+        description="Monthly attendance, 16th to 15th. Mark each day, print the sheet for signatures, then upload the signed copy against it."
+        action={canManage ? <NewTimesheetDialog companies={options.companies} /> : null}
       />
 
-      <TimesheetFilters
-        employees={employees}
-        current={{
-          employeeId: params.employeeId ?? "",
-          from,
-          to,
-        }}
-      />
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="Days recorded" value={String(summary.daysRecorded)} />
-        <StatCard label="Normal hours" value={summary.normalHours.toFixed(2)} />
-        <StatCard label="Overtime" value={summary.overtimeHours.toFixed(2)} />
-        <StatCard
-          label="Delayed hours"
-          value={summary.delayedHours.toFixed(2)}
-          tone={summary.delayedHours > 0 ? "warning" : "neutral"}
-        />
-        <StatCard
-          label="Pending approval"
-          value={summary.pendingHours.toFixed(2)}
-          tone={summary.pendingHours > 0 ? "warning" : "neutral"}
-        />
-      </div>
-
-      {canApprove && params.employeeId && summary.pendingHours > 0 ? (
-        <ApprovePeriodButton employeeId={params.employeeId} from={from} to={to} />
-      ) : null}
-
-      {entries.length === 0 ? (
+      {sheets.length === 0 ? (
         <EmptyState
-          icon={CalendarClock}
-          title="No entries in this period"
-          description="Adjust the dates, or record a day's hours."
+          icon={Table2}
+          title="No timesheets yet"
+          description="Create one for a month: everyone employed in the period is added."
         />
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Date</th>
-                <th className="px-3 py-2 text-left font-medium">Employee</th>
-                <th className="px-3 py-2 text-right font-medium">Normal</th>
-                <th className="px-3 py-2 text-right font-medium">Overtime</th>
-                <th className="px-3 py-2 text-right font-medium">Delayed</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage || canApprove ? <th className="w-10 px-3 py-2" /> : null}
+                <th className="px-3 py-2 text-left font-medium">Month</th>
+                <th className="px-3 py-2 text-left font-medium">Sheet</th>
+                <th className="px-3 py-2 text-right font-medium">Employees</th>
+                <th className="px-3 py-2 text-left font-medium">Signed copy</th>
+                <th className="w-10 px-3 py-2" />
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => (
-                <tr key={e.id} className="border-t">
-                  <td className="px-3 py-2 tabular-nums">
-                    {e.date.toISOString().slice(0, 10)}
+              {sheets.map((t) => {
+                const key = monthKey(t.month);
+                const days = periodDays(key);
+                return (
+                  <tr key={t.id} className="border-t">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <p className="font-medium">{sheetMonthLabel(key)}</p>
+                      <p className="text-muted-foreground text-xs tabular-nums">
+                        {days[0]!.toISOString().slice(5, 10)} →{" "}
+                        {days[days.length - 1]!.toISOString().slice(5, 10)}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/people/timesheet/${t.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {t.title}
+                      </Link>
+                      <p className="text-muted-foreground text-xs">
+                        {t.group === "SAUDI"
+                          ? "Saudi"
+                          : t.group === "ALL"
+                            ? "Everyone"
+                            : "Non-Saudi"}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{t._count.entries}</td>
+                    <td className="px-3 py-2">
+                      {t.signedFileId ? (
+                        canDownload ? (
+                          <a href={`/api/files/${t.signedFileId}`} className="hover:underline">
+                            {t.signedFile?.originalName ?? "Signed copy"}
+                          </a>
+                        ) : (
+                          <Badge variant="default">Signed</Badge>
+                        )
+                      ) : (
+                        <Badge variant="outline">Not uploaded</Badge>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/people/timesheet/${t.id}/print`}>
+                            <Printer />
+                            Print
+                          </Link>
+                        </Button>
+                        {canManage ? (
+                          <DeleteRecordButton
+                            id={t.id}
+                            label={`timesheet ${t.title} ${sheetMonthLabel(key)}`}
+                            action={deleteTimesheetAction}
+                          />
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end justify-between gap-2 pt-4">
+        <div>
+          <h2 className="text-sm font-semibold">Other uploaded timesheet files</h2>
+          <p className="text-muted-foreground text-xs">
+            Excel or PDF timesheets uploaded on their own, one per company per month.
+          </p>
+        </div>
+        {canUpload ? <UploadTimesheet companies={options.companies} taken={taken} /> : null}
+      </div>
+
+      <TimesheetFilters companies={options.companies} years={years} />
+
+      {files.length === 0 ? (
+        <EmptyState
+          icon={FileSpreadsheet}
+          title={filtered ? "No timesheets match" : "No timesheets yet"}
+          description={
+            filtered
+              ? "Try a different company or year."
+              : "Upload the Excel timesheet for a company and month."
+          }
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Month</th>
+                <th className="px-3 py-2 text-left font-medium">Company</th>
+                <th className="px-3 py-2 text-left font-medium">File</th>
+                <th className="px-3 py-2 text-left font-medium">Uploaded</th>
+                <th className="px-3 py-2 text-left font-medium">Notes</th>
+                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((t) => (
+                <tr key={t.id} className="border-t">
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{t.monthLabel}</td>
+                  <td className="px-3 py-2">
+                    <p>{t.company.code}</p>
+                    <p className="text-muted-foreground text-xs">{t.company.name}</p>
                   </td>
                   <td className="px-3 py-2">
-                    <p className="font-medium">{e.employee.fullName}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {e.employee.employeeNo} · {e.employee.company.code}
+                    {canDownload ? (
+                      <a href={`/api/files/${t.file.id}`} className="hover:underline">
+                        {t.file.originalName}
+                      </a>
+                    ) : (
+                      t.file.originalName
+                    )}
+                    <p className="text-muted-foreground text-xs">{fileSize(t.file.sizeBytes)}</p>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <p>{t.uploadedBy}</p>
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                      {t.uploadedAt.toISOString().slice(0, 10)}
                     </p>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.absent ? (
-                      <Badge variant="outline">Absent</Badge>
-                    ) : (
-                      e.normalHours.toString()
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.overtimeHours.toString()}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    <span
-                      className={
-                        Number(e.delayedHours) > 0 ? "text-status-warning" : undefined
-                      }
-                    >
-                      {e.delayedHours.toString()}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge
-                      variant={
-                        e.status === "APPROVED"
-                          ? "default"
-                          : e.status === "REJECTED"
-                            ? "destructive"
-                            : "outline"
-                      }
-                    >
-                      {e.status}
-                    </Badge>
-                  </td>
-                  {canManage || canApprove ? (
+                  <td className="text-muted-foreground max-w-xs px-3 py-2">{t.notes ?? ""}</td>
+                  {canManage ? (
                     <td className="px-3 py-2">
-                      <TimesheetRowActions
-                        entry={{
-                          id: e.id,
-                          employeeId: e.employeeId,
-                          date: e.date.toISOString().slice(0, 10),
-                          normalHours: e.normalHours.toString(),
-                          overtimeHours: e.overtimeHours.toString(),
-                          delayedHours: e.delayedHours.toString(),
-                          absent: e.absent,
-                          notes: e.notes,
-                          status: e.status,
-                        }}
-                        employees={employees}
-                        canManage={canManage}
-                        canApprove={canApprove}
-                      />
+                      <DeleteTimesheet id={t.id} label={`${t.company.code} ${t.monthLabel}`} />
                     </td>
                   ) : null}
                 </tr>
@@ -187,32 +214,10 @@ export default async function TimesheetPage({
           </table>
         </div>
       )}
-    </PageShell>
-  );
-}
 
-function StatCard({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "warning";
-}) {
-  return (
-    <Card className="gap-0 py-4">
-      <CardContent className="px-4">
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p
-          className={cn(
-            "text-xl font-semibold tabular-nums",
-            tone === "warning" && "text-status-warning",
-          )}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
+      <p className="text-muted-foreground text-xs">
+        {files.length} {files.length === 1 ? "file" : "files"}
+      </p>
+    </PageShell>
   );
 }

@@ -146,8 +146,8 @@ export function GenerateLetterDialog({
                     {preview.missing.length === 1 ? " has" : "s have"} no value
                   </p>
                   <p className="text-muted-foreground text-xs">
-                    {preview.missing.map((key) => `{{${key}}}`).join(", ")} will print as
-                    written. Fill in the employee record first, or generate anyway.
+                    {preview.missing.map((key) => `{{${key}}}`).join(", ")} will print as written.
+                    Fill in the employee record first, or generate anyway.
                   </p>
                 </div>
               ) : null}

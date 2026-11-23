@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { DateField, SelectField, TextAreaField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
-import { ASSET_CONDITIONS, ASSET_TYPES } from "@/lib/schemas/it";
+import { ASSET_CONDITIONS, ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/schemas/it";
 import { createAssetAction, updateAssetAction } from "@/server/actions/it";
 
 const titleCase = (v: string) =>
@@ -29,6 +29,8 @@ export type AssetFormValues = {
   model: string;
   serialNumber: string | null;
   assetTag: string | null;
+  macAddress: string | null;
+  ipAddress: string | null;
   purchaseDate: string | null;
   purchaseCost: string | null;
   warrantyExpiry: string | null;
@@ -64,6 +66,8 @@ export function AssetDialog({
       model: readString(fd, "model"),
       serialNumber: readString(fd, "serialNumber"),
       assetTag: readString(fd, "assetTag"),
+      macAddress: readString(fd, "macAddress"),
+      ipAddress: readString(fd, "ipAddress"),
       purchaseDate: readString(fd, "purchaseDate"),
       purchaseCost: readString(fd, "purchaseCost"),
       warrantyExpiry: readString(fd, "warrantyExpiry"),
@@ -138,7 +142,7 @@ export function AssetDialog({
                 label="Type"
                 required
                 defaultValue={asset?.type ?? "LAPTOP"}
-                options={ASSET_TYPES.map((t) => ({ value: t, label: titleCase(t) }))}
+                options={ASSET_TYPES.map((t) => ({ value: t, label: ASSET_TYPE_LABELS[t] }))}
                 errors={errors.type}
               />
               <TextField
@@ -166,6 +170,20 @@ export function AssetDialog({
                 label="Asset tag"
                 defaultValue={asset?.assetTag ?? ""}
                 errors={errors.assetTag}
+              />
+              <TextField
+                name="macAddress"
+                label="MAC address"
+                hint="For network devices such as IP phones, e.g. 00:1A:2B:3C:4D:5E"
+                defaultValue={asset?.macAddress ?? ""}
+                errors={errors.macAddress}
+              />
+              <TextField
+                name="ipAddress"
+                label="IP address"
+                hint="Shows on the Device IPs page. Each IP can belong to one asset."
+                defaultValue={asset?.ipAddress ?? ""}
+                errors={errors.ipAddress}
               />
               <DateField
                 name="purchaseDate"

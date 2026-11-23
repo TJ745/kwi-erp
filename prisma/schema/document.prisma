@@ -6,42 +6,40 @@
 /// Physical file. Storage metadata only; bytes live in UploadThing.
 /// Rows are only visible to the application once scanStatus = CLEAN.
 model FileObject {
-  id           String  @id @default(cuid(2))
+  id             String     @id @default(cuid(2))
   /// UploadThing file key.
-  fileKey      String  @unique
-  originalName String
+  fileKey        String     @unique
+  originalName   String
   /// Declared at upload; re-verified against magic bytes post-upload.
-  mimeType     String
+  mimeType       String
   /// Result of the magic-byte sniff in onUploadComplete.
-  detectedType String?
-  sizeBytes    Int
+  detectedType   String?
+  sizeBytes      Int
   checksumSha256 String?
   /// Asserted against the UploadThing ACL. Must always be true.
-  isPrivate    Boolean    @default(true)
-  scanStatus   ScanStatus @default(PENDING)
-  uploadedById String
+  isPrivate      Boolean    @default(true)
+  scanStatus     ScanStatus @default(PENDING)
+  uploadedById   String
 
   createdAt DateTime @default(now())
 
   documents        Document[]
   attachments      Attachment[]
-  companyLogos     Company[]           @relation("CompanyLogo")
-  companyHeaders   Company[]           @relation("CompanyHeaderImage")
-  companyFooters   Company[]           @relation("CompanyFooterImage")
-  employeePhotos   Employee[]          @relation("EmployeePhoto")
+  companyLogos     Company[]                @relation("CompanyLogo")
+  companyHeaders   Company[]                @relation("CompanyHeaderImage")
+  companyFooters   Company[]                @relation("CompanyFooterImage")
+  employeePhotos   Employee[]               @relation("EmployeePhoto")
   contracts        Contract[]
   warningLetters   WarningLetter[]
-  evaluations      Evaluation[]
   certificates     CompanyCertificate[]
   subContracts     SubcontractorContract[]
-  bills            ElectricityBill[]
-  pettyCashTxns    PettyCashTransaction[]
   maintenance      VehicleMaintenance[]
   vehicleHandovers VehicleHandover[]
   assetHandovers   ITAssetAssignment[]
   policies         MedicalInsurancePolicy[]
   generatedLetters GeneratedLetter[]
-  checklistItems   ChecklistItem[]
+  timesheetFiles   TimesheetFile[]
+  signedTimesheets Timesheet[]              @relation("TimesheetSigned")
 
   @@index([checksumSha256])
   @@index([scanStatus])
@@ -67,7 +65,7 @@ model DocumentType {
 /// A governed record with a lifecycle (issue/expiry/renewal), attached to any
 /// entity via (entityType, entityId).
 model Document {
-  id             String  @id @default(cuid(2))
+  id             String     @id @default(cuid(2))
   companyId      String
   documentTypeId String
   entityType     EntityType

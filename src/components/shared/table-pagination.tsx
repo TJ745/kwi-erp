@@ -38,7 +38,7 @@ export function TablePagination<TRow>({
         <span className="tabular-nums">{data.total}</span>
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-print-hide>
         <PageLink
           href={`${basePath}${buildQueryString(searchParams, { page: data.page - 1 })}`}
           disabled={!hasPrev}

@@ -131,10 +131,7 @@ export const auth = betterAuth({
 });
 
 /** Extracts the attempt details from a sign-in request, or null if malformed. */
-function readAttempt(ctx: {
-  body?: unknown;
-  headers?: Headers | undefined;
-}): SignInAttempt | null {
+function readAttempt(ctx: { body?: unknown; headers?: Headers | undefined }): SignInAttempt | null {
   const body = ctx.body as { email?: unknown } | undefined;
   if (typeof body?.email !== "string" || body.email.length === 0) return null;
 

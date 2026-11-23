@@ -1,5 +1,4 @@
 import "server-only";
-import type { BillStatus } from "@/generated/prisma/enums";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere } from "@/server/auth/guards";
 import { prisma } from "@/server/db/client";
@@ -31,23 +30,22 @@ export async function dashboardKpis(ctx: ActorContext): Promise<DashboardKpis> {
 
   const scope = companyScopeWhere(ctx);
 
-  const [totalEmployees, activeEmployees, expiredDocuments, expiringIn30Days] =
-    await Promise.all([
-      canViewEmployees ? prisma.employee.count({ where: scope }) : Promise.resolve(0),
-      canViewEmployees
-        ? prisma.employee.count({ where: { status: "ACTIVE", ...scope } })
-        : Promise.resolve(0),
-      prisma.expiryIndex.count({
-        where: { isActive: true, expiryDate: { lt: todayStart }, ...scope },
-      }),
-      prisma.expiryIndex.count({
-        where: {
-          isActive: true,
-          expiryDate: { gte: todayStart, lte: in30Days },
-          ...scope,
-        },
-      }),
-    ]);
+  const [totalEmployees, activeEmployees, expiredDocuments, expiringIn30Days] = await Promise.all([
+    canViewEmployees ? prisma.employee.count({ where: scope }) : Promise.resolve(0),
+    canViewEmployees
+      ? prisma.employee.count({ where: { status: "ACTIVE", ...scope } })
+      : Promise.resolve(0),
+    prisma.expiryIndex.count({
+      where: { isActive: true, expiryDate: { lt: todayStart }, ...scope },
+    }),
+    prisma.expiryIndex.count({
+      where: {
+        isActive: true,
+        expiryDate: { gte: todayStart, lte: in30Days },
+        ...scope,
+      },
+    }),
+  ]);
 
   return { totalEmployees, activeEmployees, expiredDocuments, expiringIn30Days };
 }
@@ -61,13 +59,8 @@ export async function dashboardKpis(ctx: ActorContext): Promise<DashboardKpis> {
  * five services' scoping rules on the dashboard.
  */
 export type PendingWork = {
-  pettyCash: number;
   leave: number;
-  increments: number;
-  openTickets: number;
   maintenanceDue: number;
-  onboarding: number;
-  offboarding: number;
 };
 
 export async function pendingWork(ctx: ActorContext): Promise<PendingWork> {
@@ -75,64 +68,30 @@ export async function pendingWork(ctx: ActorContext): Promise<PendingWork> {
   const scope = companyScopeWhere(ctx);
   const has = (key: Parameters<typeof ctx.permissions.has>[0]) => ctx.permissions.has(key);
 
-  const [pettyCash, leave, increments, openTickets, maintenanceDue, onboarding, offboarding] =
-    await Promise.all([
-      has("pettycash.approve")
-        ? prisma.pettyCashTransaction.count({ where: { status: "PENDING", ...scope } })
-        : Promise.resolve(0),
+  const [leave, maintenanceDue] = await Promise.all([
+    has("hr.leave.approve")
+      ? prisma.leaveRequest.count({
+          where: { status: "PENDING", employee: { ...scope, deletedAt: null } },
+        })
+      : Promise.resolve(0),
 
-      has("hr.leave.approve")
-        ? prisma.leaveRequest.count({
-            where: { status: "PENDING", employee: { ...scope, deletedAt: null } },
-          })
-        : Promise.resolve(0),
-
-      has("hr.increments.approve")
-        ? prisma.increment.count({
-            where: { status: "PENDING", employee: { ...scope, deletedAt: null } },
-          })
-        : Promise.resolve(0),
-
-      has("it.tickets.view")
-        ? prisma.iTTicket.count({
-            where: { status: { notIn: ["RESOLVED", "CLOSED"] }, ...scope },
-          })
-        : Promise.resolve(0),
-
-      // Maintenance has no "scheduled" state — its status is an approval
-      // status. What matters operationally is the next service falling due,
-      // so that is what is counted: due within 30 days, or already past.
-      has("vehicles.maintenance.view")
-        ? prisma.vehicleMaintenance.count({
-            where: {
-              status: { not: "CANCELLED" },
-              nextDueDate: { not: null, lte: expiryCutoff(30, now) },
-              vehicle: scope,
-            },
-          })
-        : Promise.resolve(0),
-
-      has("hr.onboarding.view")
-        ? prisma.checklistInstance.count({
-            where: { type: "ONBOARDING", status: "IN_PROGRESS", ...scope },
-          })
-        : Promise.resolve(0),
-
-      has("hr.offboarding.view")
-        ? prisma.checklistInstance.count({
-            where: { type: { not: "ONBOARDING" }, status: "IN_PROGRESS", ...scope },
-          })
-        : Promise.resolve(0),
-    ]);
+    // Maintenance has no "scheduled" state — its status is an approval
+    // status. What matters operationally is the next service falling due,
+    // so that is what is counted: due within 30 days, or already past.
+    has("vehicles.maintenance.view")
+      ? prisma.vehicleMaintenance.count({
+          where: {
+            status: { not: "CANCELLED" },
+            nextDueDate: { not: null, lte: expiryCutoff(30, now) },
+            vehicle: scope,
+          },
+        })
+      : Promise.resolve(0),
+  ]);
 
   return {
-    pettyCash,
     leave,
-    increments,
-    openTickets,
     maintenanceDue,
-    onboarding,
-    offboarding,
   };
 }
 
@@ -187,9 +146,7 @@ export async function headcountByDepartment(
     _count: { _all: true },
   });
 
-  const ids = grouped
-    .map((g) => g.departmentId)
-    .filter((id): id is string => id !== null);
+  const ids = grouped.map((g) => g.departmentId).filter((id): id is string => id !== null);
 
   const departments =
     ids.length > 0
@@ -239,37 +196,20 @@ export async function openWorkByModule(
   const scope = companyScopeWhere(ctx);
   const has = (key: Parameters<typeof ctx.permissions.has>[0]) => ctx.permissions.has(key);
 
-  const [overdueTaskCount, documentsExpiring] = await Promise.all([
-    has("tasks.view")
-      ? prisma.task.count({
-          where: {
-            status: { notIn: ["COMPLETED", "CANCELLED"] },
-            dueDate: { lt: new Date() },
-            ...scope,
-          },
-        })
-      : Promise.resolve(0),
-    has("documents.view")
-      ? prisma.expiryIndex.count({
-          where: {
-            isActive: true,
-            source: "DOCUMENT",
-            expiryDate: { lte: expiryCutoff(30, new Date()) },
-            ...scope,
-          },
-        })
-      : Promise.resolve(0),
-  ]);
+  const documentsExpiring = has("documents.view")
+    ? await prisma.expiryIndex.count({
+        where: {
+          isActive: true,
+          source: "DOCUMENT",
+          expiryDate: { lte: expiryCutoff(30, new Date()) },
+          ...scope,
+        },
+      })
+    : 0;
 
   return [
-    { label: "Petty cash", count: work.pettyCash, href: "/admin/petty-cash" },
     { label: "Leave", count: work.leave, href: "/people/leave" },
-    { label: "Increments", count: work.increments, href: "/hr/increments" },
-    { label: "IT tickets", count: work.openTickets, href: "/it/helpdesk" },
-    { label: "Overdue tasks", count: overdueTaskCount, href: "/tasks?overdue=1" },
     { label: "Vehicle service", count: work.maintenanceDue, href: "/vehicles/maintenance" },
-    { label: "Onboarding", count: work.onboarding, href: "/people/onboarding" },
-    { label: "Offboarding", count: work.offboarding, href: "/people/offboarding" },
     { label: "Documents expiring", count: documentsExpiring, href: "/documents" },
   ].filter((row) => row.count > 0);
 }
@@ -278,7 +218,7 @@ export async function openWorkByModule(
  * One number per module, for the modules that do not warrant a chart.
  *
  * The dashboard previously showed nothing at all for fleet, accommodation,
- * insurance, vendors, or letters — a strip of counts is the honest amount of
+ * insurance, subcontractors, or letters — a strip of counts is the honest amount of
  * space those deserve on a page about what needs attention today.
  */
 export type ModuleTotals = {
@@ -288,7 +228,6 @@ export type ModuleTotals = {
   documents: number | null;
   letters: number | null;
   policies: number | null;
-  suppliers: number | null;
   subcontractors: number | null;
   certificates: number | null;
 };
@@ -306,7 +245,6 @@ export async function moduleTotals(ctx: ActorContext): Promise<ModuleTotals> {
     documents,
     letters,
     policies,
-    suppliers,
     subcontractors,
     certificates,
   ] = await Promise.all([
@@ -322,14 +260,9 @@ export async function moduleTotals(ctx: ActorContext): Promise<ModuleTotals> {
     has("documents.view")
       ? prisma.document.count({ where: { deletedAt: null, ...scope } })
       : Promise.resolve(null),
-    has("letters.view")
-      ? prisma.generatedLetter.count({ where: scope })
-      : Promise.resolve(null),
+    has("letters.view") ? prisma.generatedLetter.count({ where: scope }) : Promise.resolve(null),
     has("insurance.view")
       ? prisma.medicalInsurancePolicy.count({ where: { status: "ACTIVE", ...scope } })
-      : Promise.resolve(null),
-    has("suppliers.view")
-      ? prisma.supplier.count({ where: { deletedAt: null, status: "ACTIVE" } })
       : Promise.resolve(null),
     has("subcontractors.view")
       ? prisma.subcontractor.count({ where: { deletedAt: null, status: "ACTIVE" } })
@@ -346,12 +279,10 @@ export async function moduleTotals(ctx: ActorContext): Promise<ModuleTotals> {
     documents,
     letters,
     policies,
-    suppliers,
     subcontractors,
     certificates,
   };
 }
-
 
 // --- Operational deadlines ---------------------------------------------------
 
@@ -361,8 +292,8 @@ export async function moduleTotals(ctx: ActorContext): Promise<ModuleTotals> {
  * `null` means NOT PERMITTED, which the dashboard renders as an absent card
  * rather than a zero. A zero is a fact about the business ("nothing is due");
  * a missing permission is a fact about the viewer, and showing it as 0 would
- * quietly tell someone the company has no overdue bills when really they just
- * cannot see bills.
+ * quietly tell someone the company has no expired certificates when really
+ * they just cannot see certificates.
  */
 export type DeadlinePanel = {
   count: number;
@@ -372,7 +303,6 @@ export type DeadlinePanel = {
 export type OperationalDeadlines = {
   leaveUpcoming: DeadlinePanel;
   certificatesExpired: DeadlinePanel;
-  billsDue: DeadlinePanel;
   subcontractsExpired: DeadlinePanel;
   rentDue: DeadlinePanel;
   employeeContracts: DeadlinePanel;
@@ -381,7 +311,6 @@ export type OperationalDeadlines = {
 /** How far ahead each panel looks. Stated here so the cards can say so too. */
 export const DEADLINE_WINDOWS = {
   leaveDays: 30,
-  billsDays: 30,
   rentDays: 30,
   contractDays: 90,
 } as const;
@@ -389,16 +318,14 @@ export const DEADLINE_WINDOWS = {
 const PANEL_ITEMS = 5;
 
 /**
- * The six operational deadlines the dashboard calls out.
+ * The five operational deadlines the dashboard calls out.
  *
  * Three of them (certificates, subcontracts, employee contracts) read from
  * ExpiryIndex rather than their own tables — that projection exists precisely
  * so "what expires soon" is one indexed query per source instead of a union
  * across five modules (ADR-005).
  */
-export async function operationalDeadlines(
-  ctx: ActorContext,
-): Promise<OperationalDeadlines> {
+export async function operationalDeadlines(ctx: ActorContext): Promise<OperationalDeadlines> {
   const now = new Date();
   const todayStart = businessStartOfDay(now);
   const scope = companyScopeWhere(ctx);
@@ -424,142 +351,105 @@ export async function operationalDeadlines(
     };
   };
 
-  const [
-    leaveUpcoming,
-    certificatesExpired,
-    billsDue,
-    subcontractsExpired,
-    rentDue,
-    employeeContracts,
-  ] = await Promise.all([
-    // 1. Submitted leave whose travel date is close. PENDING only: an approved
-    //    request is somebody else's problem, a pending one with travel next
-    //    week is this dashboard's.
-    has("hr.leave.view")
-      ? (async (): Promise<NonNullable<DeadlinePanel>> => {
-          const filter = {
-            status: "PENDING" as const,
-            startDate: { gte: todayStart, lte: expiryCutoff(DEADLINE_WINDOWS.leaveDays, now) },
-            employee: { ...scope, deletedAt: null },
-          };
-          const [count, rows] = await Promise.all([
-            prisma.leaveRequest.count({ where: filter }),
-            prisma.leaveRequest.findMany({
-              where: filter,
-              orderBy: { startDate: "asc" },
-              take: PANEL_ITEMS,
-              select: {
-                id: true,
-                startDate: true,
-                employee: { select: { fullName: true } },
-                leaveType: { select: { name: true } },
-              },
-            }),
-          ]);
-          return {
-            count,
-            items: rows.map((r) => ({
-              id: r.id,
-              label: r.employee.fullName,
-              sub: r.leaveType.name,
-              date: r.startDate,
-            })),
-          };
-        })()
-      : Promise.resolve(null),
+  const [leaveUpcoming, certificatesExpired, subcontractsExpired, rentDue, employeeContracts] =
+    await Promise.all([
+      // 1. Submitted leave whose travel date is close. PENDING only: an approved
+      //    request is somebody else's problem, a pending one with travel next
+      //    week is this dashboard's.
+      has("hr.leave.view")
+        ? (async (): Promise<NonNullable<DeadlinePanel>> => {
+            const filter = {
+              status: "PENDING" as const,
+              startDate: { gte: todayStart, lte: expiryCutoff(DEADLINE_WINDOWS.leaveDays, now) },
+              employee: { ...scope, deletedAt: null },
+            };
+            const [count, rows] = await Promise.all([
+              prisma.leaveRequest.count({ where: filter }),
+              prisma.leaveRequest.findMany({
+                where: filter,
+                orderBy: { startDate: "asc" },
+                take: PANEL_ITEMS,
+                select: {
+                  id: true,
+                  startDate: true,
+                  employee: { select: { fullName: true } },
+                  leaveType: { select: { name: true } },
+                },
+              }),
+            ]);
+            return {
+              count,
+              items: rows.map((r) => ({
+                id: r.id,
+                label: r.employee.fullName,
+                sub: r.leaveType.name,
+                date: r.startDate,
+              })),
+            };
+          })()
+        : Promise.resolve(null),
 
-    // 2. Certificates already expired — not "expiring", expired. A lapsed CR or
-    //    licence is an operating problem today.
-    has("certificates.view")
-      ? expirySource("COMPANY_CERTIFICATE", { lt: todayStart })
-      : Promise.resolve(null),
+      // 2. Certificates already expired — not "expiring", expired. A lapsed CR or
+      //    licence is an operating problem today.
+      has("certificates.view")
+        ? expirySource("COMPANY_CERTIFICATE", { lt: todayStart })
+        : Promise.resolve(null),
 
-    // 3. Electricity bills due or already overdue. PAID is excluded by status
-    //    rather than by date, so a bill paid early stops appearing at once.
-    has("bills.view")
-      ? (async (): Promise<NonNullable<DeadlinePanel>> => {
-          const filter = {
-            status: { in: ["PENDING", "OVERDUE"] satisfies BillStatus[] },
-            dueDate: { lte: expiryCutoff(DEADLINE_WINDOWS.billsDays, now) },
-            ...scope,
-          };
-          const [count, rows] = await Promise.all([
-            prisma.electricityBill.count({ where: filter }),
-            prisma.electricityBill.findMany({
-              where: filter,
-              orderBy: { dueDate: "asc" },
-              take: PANEL_ITEMS,
-              select: { id: true, location: true, amount: true, currency: true, dueDate: true },
-            }),
-          ]);
-          return {
-            count,
-            items: rows.map((r) => ({
-              id: r.id,
-              label: r.location,
-              sub: `${r.amount.toString()} ${r.currency}`,
-              date: r.dueDate,
-            })),
-          };
-        })()
-      : Promise.resolve(null),
+      // 3. Subcontractor contracts already expired.
+      has("subcontractors.view")
+        ? expirySource("SUBCONTRACTOR_CONTRACT", { lt: todayStart })
+        : Promise.resolve(null),
 
-    // 4. Subcontractor contracts already expired.
-    has("subcontractors.view")
-      ? expirySource("SUBCONTRACTOR_CONTRACT", { lt: todayStart })
-      : Promise.resolve(null),
+      // 4. Rent falling due. Includes dates already past, because rent that was
+      //    due last week is more urgent than rent due next week, not less.
+      has("accommodation.view")
+        ? (async (): Promise<NonNullable<DeadlinePanel>> => {
+            const filter = {
+              status: "ACTIVE" as const,
+              rentDueDate: { not: null, lte: expiryCutoff(DEADLINE_WINDOWS.rentDays, now) },
+              ...scope,
+            };
+            const [count, rows] = await Promise.all([
+              prisma.accommodation.count({ where: filter }),
+              prisma.accommodation.findMany({
+                where: filter,
+                orderBy: { rentDueDate: "asc" },
+                take: PANEL_ITEMS,
+                select: {
+                  id: true,
+                  name: true,
+                  city: true,
+                  rentAmount: true,
+                  rentCurrency: true,
+                  rentDueDate: true,
+                },
+              }),
+            ]);
+            return {
+              count,
+              items: rows.map((r) => ({
+                id: r.id,
+                label: r.name,
+                sub: r.rentAmount ? `${r.rentAmount.toString()} ${r.rentCurrency}` : r.city,
+                // Non-null by the filter above; the type does not know that.
+                date: r.rentDueDate ?? new Date(),
+              })),
+            };
+          })()
+        : Promise.resolve(null),
 
-    // 5. Rent falling due. Includes dates already past, because rent that was
-    //    due last week is more urgent than rent due next week, not less.
-    has("accommodation.view")
-      ? (async (): Promise<NonNullable<DeadlinePanel>> => {
-          const filter = {
-            status: "ACTIVE" as const,
-            rentDueDate: { not: null, lte: expiryCutoff(DEADLINE_WINDOWS.rentDays, now) },
-            ...scope,
-          };
-          const [count, rows] = await Promise.all([
-            prisma.accommodation.count({ where: filter }),
-            prisma.accommodation.findMany({
-              where: filter,
-              orderBy: { rentDueDate: "asc" },
-              take: PANEL_ITEMS,
-              select: {
-                id: true,
-                name: true,
-                city: true,
-                rentAmount: true,
-                rentCurrency: true,
-                rentDueDate: true,
-              },
-            }),
-          ]);
-          return {
-            count,
-            items: rows.map((r) => ({
-              id: r.id,
-              label: r.name,
-              sub: r.rentAmount ? `${r.rentAmount.toString()} ${r.rentCurrency}` : r.city,
-              // Non-null by the filter above; the type does not know that.
-              date: r.rentDueDate ?? new Date(),
-            })),
-          };
-        })()
-      : Promise.resolve(null),
-
-    // 6. Employee contracts expiring inside the notice window.
-    has("hr.contracts.view")
-      ? expirySource("EMPLOYEE_CONTRACT", {
-          gte: todayStart,
-          lte: expiryCutoff(DEADLINE_WINDOWS.contractDays, now),
-        })
-      : Promise.resolve(null),
-  ]);
+      // 5. Employee contracts expiring inside the notice window.
+      has("hr.contracts.view")
+        ? expirySource("EMPLOYEE_CONTRACT", {
+            gte: todayStart,
+            lte: expiryCutoff(DEADLINE_WINDOWS.contractDays, now),
+          })
+        : Promise.resolve(null),
+    ]);
 
   return {
     leaveUpcoming,
     certificatesExpired,
-    billsDue,
     subcontractsExpired,
     rentDue,
     employeeContracts,

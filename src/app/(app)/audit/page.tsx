@@ -10,6 +10,7 @@ import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
+import { PRINT_PAGE_SIZE } from "@/lib/list-query";
 import {
   auditActors,
   auditCounts,
@@ -44,6 +45,7 @@ export default async function AuditPage({
     to?: string;
     q?: string;
     page?: string;
+    print?: string;
   }>;
 }) {
   const ctx = await requirePagePermission("audit.view");
@@ -62,14 +64,20 @@ export default async function AuditPage({
   // The export link carries the same filters, so what downloads is what the
   // screen shows rather than the whole log.
   const canExport = ctx.permissions.has("audit.export");
+  // Printing the whole filtered log is an export in all but name, so it sits
+  // behind the same permission.
+  const printAll = canExport && params.print === "1";
   const exportQuery = new URLSearchParams(
     Object.entries(params).filter(
-      (entry): entry is [string, string] => entry[0] !== "page" && Boolean(entry[1]),
+      (entry): entry is [string, string] =>
+        entry[0] !== "page" && entry[0] !== "print" && Boolean(entry[1]),
     ),
   ).toString();
 
   const [result, actors, counts] = await Promise.all([
-    listAuditEntries(ctx, filters, Number.isFinite(page) ? page : 1),
+    printAll
+      ? listAuditEntries(ctx, filters, 1, PRINT_PAGE_SIZE)
+      : listAuditEntries(ctx, filters, Number.isFinite(page) ? page : 1),
     auditActors(ctx),
     auditCounts(ctx),
   ]);
@@ -77,7 +85,7 @@ export default async function AuditPage({
   const queryFor = (nextPage: number): string => {
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
-      if (typeof value === "string" && value && key !== "page") qs.set(key, value);
+      if (typeof value === "string" && value && key !== "page" && key !== "print") qs.set(key, value);
     }
     qs.set("page", String(nextPage));
     return `?${qs.toString()}`;
@@ -87,6 +95,7 @@ export default async function AuditPage({
     <PageShell>
       <PageHeader
         title="Audit Log"
+        printable={canExport}
         description="Who did what, and when. Entries are written by the system and can never be edited or deleted from here — that is what makes the trail worth having."
         action={
           canExport ? (

@@ -21,7 +21,10 @@ import { ASSET_CONDITIONS } from "@/lib/schemas/it";
 import { assignAssetAction, returnAssetAction } from "@/server/actions/it";
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 type Current = {
   employeeId: string;
@@ -50,7 +53,7 @@ export function AssetHandover({
   assetId: string;
   assetCode: string;
   canAssign: boolean;
-  employees: { id: string; fullName: string; employeeNo: string }[];
+  employees: { id: string; fullName: string; employeeNo: string; companyCode: string }[];
   current: Current | null;
 }) {
   const router = useRouter();
@@ -215,7 +218,7 @@ export function AssetHandover({
                 required
                 options={employees.map((e) => ({
                   value: e.id,
-                  label: `${e.fullName} (${e.employeeNo})`,
+                  label: `${e.fullName} (${e.employeeNo} · ${e.companyCode})`,
                 }))}
                 errors={errors.employeeId}
               />

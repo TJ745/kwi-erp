@@ -25,7 +25,10 @@ import {
 } from "@/server/actions/fleet";
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 /**
  * Driver assignment and handover.
@@ -37,14 +40,17 @@ const titleCase = (v: string) =>
 export function DriverPanel({
   vehicleId,
   plateNumber,
+  vehicleLabel,
   canAssign,
   drivers,
   current,
 }: {
   vehicleId: string;
   plateNumber: string;
+  /** Default wording for the handover letter, e.g. "bus" or "vehicle". */
+  vehicleLabel: string;
   canAssign: boolean;
-  drivers: { id: string; fullName: string; employeeNo: string }[];
+  drivers: { id: string; fullName: string; employeeNo: string; companyCode: string }[];
   current: { id: string; name: string; employeeNo: string } | null;
 }) {
   const router = useRouter();
@@ -105,6 +111,7 @@ export function DriverPanel({
         condition: readString(fd, "condition") || "GOOD",
         accessories: readString(fd, "accessories"),
         damages: readString(fd, "damages"),
+        vehicleLabel: readString(fd, "vehicleLabel"),
         remarks: readString(fd, "remarks"),
       });
       if (!result.success) {
@@ -126,10 +133,7 @@ export function DriverPanel({
       <CardContent className="space-y-3">
         {current ? (
           <div>
-            <Link
-              href={`/people/employees/${current.id}`}
-              className="font-medium hover:underline"
-            >
+            <Link href={`/people/employees/${current.id}`} className="font-medium hover:underline">
               {current.name}
             </Link>
             <p className="text-muted-foreground font-mono text-xs">{current.employeeNo}</p>
@@ -200,7 +204,7 @@ export function DriverPanel({
                 required
                 options={drivers.map((d) => ({
                   value: d.id,
-                  label: `${d.fullName} (${d.employeeNo})`,
+                  label: `${d.fullName} (${d.employeeNo} · ${d.companyCode})`,
                 }))}
                 errors={errors.employeeId}
               />
@@ -255,7 +259,10 @@ export function DriverPanel({
                   { value: "none", label: "— Return to pool —" },
                   ...drivers
                     .filter((d) => d.id !== current?.id)
-                    .map((d) => ({ value: d.id, label: `${d.fullName} (${d.employeeNo})` })),
+                    .map((d) => ({
+                      value: d.id,
+                      label: `${d.fullName} (${d.employeeNo} · ${d.companyCode})`,
+                    })),
                 ]}
                 errors={errors.toEmployeeId}
               />
@@ -294,7 +301,20 @@ export function DriverPanel({
                 hint="e.g. spare tyre, jack, first-aid kit"
                 errors={errors.accessories}
               />
-              <TextField name="damages" label="Damage noted" errors={errors.damages} />
+              <TextField
+                name="vehicleLabel"
+                label="The letter calls it “the company …”"
+                defaultValue={vehicleLabel}
+                hint="e.g. bus, car, pickup."
+                errors={errors.vehicleLabel}
+              />
+              <TextAreaField
+                name="damages"
+                label="Damage noted / notes for the letter"
+                hint="One per line, e.g. “Left door back mirror is broken.” Each prints as a numbered note."
+                rows={4}
+                errors={errors.damages}
+              />
               <TextAreaField name="remarks" label="Remarks" errors={errors.remarks} />
             </div>
 

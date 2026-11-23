@@ -1,161 +1,94 @@
 import { describe, expect, it } from "vitest";
 import {
-  datesInRange,
-  summarise,
-  validateHours,
-  type TimesheetDay,
+  applyBrush,
+  delayLabel,
+  initialDays,
+  monthLabel,
+  periodDays,
+  rowTotals,
+  type DayCode,
 } from "./timesheet";
 
-const day = (over: Partial<TimesheetDay> = {}): TimesheetDay => ({
-  normalHours: "8",
-  overtimeHours: "0",
-  delayedHours: "0",
-  absent: false,
-  status: "APPROVED",
-  ...over,
-});
+const d = (s: string) => new Date(`${s}T00:00:00Z`);
 
-describe("summarise", () => {
-  it("returns zeros for an empty period", () => {
-    const s = summarise([]);
-    expect(s.daysRecorded).toBe(0);
-    expect(s.normalHours).toBe(0);
+describe("timesheet", () => {
+  it("runs from the 16th of the previous month to the 15th", () => {
+    const days = periodDays("2026-11");
+    expect(days).toHaveLength(31);
+    expect(days[0]!.toISOString().slice(0, 10)).toBe("2026-10-16");
+    expect(days[30]!.toISOString().slice(0, 10)).toBe("2026-11-15");
+    expect(periodDays("2026-03")).toHaveLength(28); // 16 Feb – 15 Mar
+    expect(periodDays("2026-01")[0]!.toISOString().slice(0, 10)).toBe("2025-12-16");
+    expect(monthLabel("2026-11")).toBe("Nov-26");
   });
 
-  it("totals approved hours", () => {
-    const s = summarise([day(), day(), day({ overtimeHours: "2" })]);
-    expect(s.normalHours).toBe(24);
-    expect(s.overtimeHours).toBe(2);
-    expect(s.daysRecorded).toBe(3);
-  });
-
-  // Payroll acts on approved hours; a pending day is still a claim.
-  it("keeps pending hours out of the approved totals", () => {
-    const s = summarise([day(), day({ status: "PENDING", overtimeHours: "3" })]);
-    expect(s.normalHours).toBe(8);
-    expect(s.overtimeHours).toBe(0);
-    expect(s.pendingHours).toBe(11);
-  });
-
-  it("treats rejected and cancelled as history, not claims", () => {
-    const s = summarise([
-      day({ status: "REJECTED" }),
-      day({ status: "CANCELLED", overtimeHours: "5" }),
-    ]);
-    expect(s.normalHours).toBe(0);
-    expect(s.pendingHours).toBe(0);
-    expect(s.daysRecorded).toBe(2);
-  });
-
-  it("counts absences regardless of status", () => {
-    const s = summarise([
-      day({ absent: true, normalHours: "0" }),
-      day({ absent: true, normalHours: "0", status: "PENDING" }),
-    ]);
-    expect(s.daysAbsent).toBe(2);
-  });
-
-  it("accumulates delayed hours from approved days only", () => {
-    const s = summarise([
-      day({ delayedHours: "0.5" }),
-      day({ delayedHours: "1.25" }),
-      day({ delayedHours: "9", status: "PENDING" }),
-    ]);
-    expect(s.delayedHours).toBe(1.75);
-  });
-
-  // Quarter-hours summed across a month are where float drift shows up.
-  it("does not drift across a month of quarter-hours", () => {
-    const days = Array.from({ length: 30 }, () => day({ normalHours: "7.25" }));
-    expect(summarise(days).normalHours).toBe(217.5);
-  });
-
-  it("ignores malformed hours rather than producing NaN", () => {
-    const s = summarise([day({ normalHours: "abc" }), day()]);
-    expect(s.normalHours).toBe(8);
-  });
-});
-
-describe("validateHours", () => {
-  const base = {
-    normalHours: "8",
-    overtimeHours: "0",
-    delayedHours: "0",
-    absent: false,
-  };
-
-  it("accepts an ordinary day", () => {
-    expect(validateHours(base)).toEqual([]);
-  });
-
-  it("rejects negative hours on any field", () => {
-    expect(validateHours({ ...base, normalHours: "-1" })).toHaveLength(1);
-    expect(validateHours({ ...base, overtimeHours: "-1" })).toHaveLength(1);
-    expect(validateHours({ ...base, delayedHours: "-1" })).toHaveLength(1);
-  });
-
-  // Usually a date typed into the hours box; it would inflate overtime pay.
-  it("rejects more than 24 hours worked in a day", () => {
-    const problems = validateHours({ ...base, normalHours: "20", overtimeHours: "5" });
-    expect(problems.some((p) => p.message.includes("24"))).toBe(true);
-  });
-
-  it("accepts exactly 24 hours", () => {
-    expect(validateHours({ ...base, normalHours: "16", overtimeHours: "8" })).toEqual([]);
-  });
-
-  it("rejects an absent day that also has hours", () => {
-    const problems = validateHours({ ...base, absent: true, normalHours: "8" });
-    expect(problems.some((p) => p.message.includes("absent"))).toBe(true);
-  });
-
-  it("accepts an absent day with no hours", () => {
-    expect(
-      validateHours({ ...base, absent: true, normalHours: "0", overtimeHours: "0" }),
-    ).toEqual([]);
-  });
-
-  // A form should mark every bad field at once, not one per submit.
-  it("reports every problem, not just the first", () => {
-    const problems = validateHours({
-      normalHours: "-1",
-      overtimeHours: "-2",
-      delayedHours: "-3",
-      absent: false,
+  it("starts with P, Fridays off, and leave over the top", () => {
+    const days = periodDays("2026-11");
+    const codes = initialDays({
+      days,
+      weekend: "FRI",
+      joiningDate: d("2020-01-01"),
+      lastWorkingDate: null,
+      leave: [{ start: d("2026-11-03"), end: d("2026-11-04"), typeKey: "SICK" }],
     });
-    expect(problems).toHaveLength(3);
-  });
-});
-
-describe("datesInRange", () => {
-  it("is inclusive of both ends", () => {
-    const days = datesInRange(new Date("2026-03-01"), new Date("2026-03-03"));
-    expect(days).toEqual(["2026-03-01", "2026-03-02", "2026-03-03"]);
-  });
-
-  it("returns a single day when from equals to", () => {
-    expect(datesInRange(new Date("2026-03-01"), new Date("2026-03-01"))).toEqual([
-      "2026-03-01",
-    ]);
+    expect(codes[0]).toBe("FRI"); // 16 Oct 2026 is a Friday
+    expect(codes[1]).toBe("P");
+    expect(codes[18]).toBe("S"); // 3 Nov
+    const two = initialDays({
+      days,
+      weekend: "FRI_SAT",
+      joiningDate: d("2020-01-01"),
+      lastWorkingDate: null,
+      leave: [],
+    });
+    expect(two.slice(0, 3)).toEqual(["FRI", "SAT", "P"]);
   });
 
-  it("returns nothing when the range is backwards", () => {
-    expect(datesInRange(new Date("2026-03-05"), new Date("2026-03-01"))).toEqual([]);
+  it("blanks the days after a last working day", () => {
+    const codes = initialDays({
+      days: periodDays("2026-11"),
+      weekend: "FRI",
+      joiningDate: d("2020-01-01"),
+      lastWorkingDate: d("2026-10-28"),
+      leave: [],
+    });
+    expect(codes[12]).toBe("P"); // 28 Oct
+    expect(codes[13]).toBe(""); // 29 Oct
   });
 
-  it("crosses a month boundary", () => {
-    const days = datesInRange(new Date("2026-01-30"), new Date("2026-02-02"));
-    expect(days).toEqual(["2026-01-30", "2026-01-31", "2026-02-01", "2026-02-02"]);
+  it("adds up a row like the company's sheet (RAM PRATAP, Nov-26)", () => {
+    // 22 P, 3 A, 1 S, 5 FRI → 22 / 0 / 3 / 6 / 28
+    const codes: DayCode[] = [
+      ...Array<DayCode>(22).fill("P"),
+      ...Array<DayCode>(3).fill("A"),
+      "S",
+      ...Array<DayCode>(5).fill("FRI"),
+    ];
+    const t = rowTotals(codes, [2, null, 2]);
+    expect(t).toEqual({
+      working: 22,
+      absent: 3,
+      vacation: 0,
+      fridaysHolidays: 6,
+      monthDays: 28,
+      extra: 4,
+    });
   });
 
-  it("handles a leap day", () => {
-    const days = datesInRange(new Date("2028-02-28"), new Date("2028-03-01"));
-    expect(days).toContain("2028-02-29");
+  it("counts LWOP as absent and a full month's vacation as no paid days", () => {
+    expect(rowTotals(Array<DayCode>(31).fill("L"), []).absent).toBe(31);
+    const v = rowTotals(Array<DayCode>(31).fill("V"), []);
+    expect([v.vacation, v.monthDays]).toEqual([31, 0]);
   });
 
-  // A mistyped year must not spin the request forever.
-  it("is bounded so a hostile range cannot run away", () => {
-    const days = datesInRange(new Date("2026-01-01"), new Date("2999-01-01"));
-    expect(days).toHaveLength(366);
+  it("marks days by clicking", () => {
+    expect(applyBrush("P", "TOGGLE", null)).toBe("A");
+    expect(applyBrush("A", "TOGGLE", null)).toBe("P");
+    expect(applyBrush("FRI", "TOGGLE", "FRI")).toBe("FRI");
+    expect(applyBrush("P", "V", null)).toBe("V");
+    expect(applyBrush("V", "V", null)).toBe("P");
+    expect(applyBrush("V", "V", "FRI")).toBe("FRI");
+    expect(applyBrush("", "V", null)).toBe("");
+    expect(delayLabel(85)).toBe("1 Hrs 25 Mins");
   });
 });

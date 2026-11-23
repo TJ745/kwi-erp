@@ -13,7 +13,6 @@ import {
   IdCard,
   Layers,
   ListChecks,
-  Plug,
   UserPlus,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -37,7 +36,6 @@ import { CategoryBars, OrdinalBars } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { expiryBuckets, listExpiring } from "@/server/services/expiry";
 import { IQAMA_BUCKETS } from "@/lib/expiry";
-import { overdueTasks } from "@/server/services/tasks";
 import type { ActorContext } from "@/server/auth/context";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -104,17 +102,9 @@ export default async function DashboardPage() {
         <ModuleStrip ctx={ctx} />
       </Suspense>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Suspense fallback={<CardLoadingState count={1} />}>
-          <ExpiringSoon ctx={ctx} />
-        </Suspense>
-
-        {ctx.permissions.has("tasks.view") ? (
-          <Suspense fallback={<CardLoadingState count={1} />}>
-            <OverdueTasks ctx={ctx} />
-          </Suspense>
-        ) : null}
-      </div>
+      <Suspense fallback={<CardLoadingState count={1} />}>
+        <ExpiringSoon ctx={ctx} />
+      </Suspense>
     </PageShell>
   );
 }
@@ -130,13 +120,8 @@ async function NeedsAttention({ ctx }: { ctx: ActorContext }) {
   const work = await pendingWork(ctx);
 
   const rows = ([
-    { label: "Petty cash awaiting approval", count: work.pettyCash, href: "/admin/petty-cash", tone: "warning" },
     { label: "Leave requests awaiting approval", count: work.leave, href: "/people/leave", tone: "warning" },
-    { label: "Increments awaiting approval", count: work.increments, href: "/hr/increments", tone: "warning" },
-    { label: "Open IT tickets", count: work.openTickets, href: "/it/helpdesk", tone: "neutral" },
     { label: "Vehicle services due", count: work.maintenanceDue, href: "/vehicles/maintenance", tone: "neutral" },
-    { label: "Onboarding in progress", count: work.onboarding, href: "/people/onboarding", tone: "neutral" },
-    { label: "Offboarding in progress", count: work.offboarding, href: "/people/offboarding", tone: "neutral" },
   ] as const).filter((row) => row.count > 0);
 
   if (rows.length === 0) return null;
@@ -174,52 +159,6 @@ async function NeedsAttention({ ctx }: { ctx: ActorContext }) {
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-async function OverdueTasks({ ctx }: { ctx: ActorContext }) {
-  const tasks = await overdueTasks(ctx, 8);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <ListChecks className="size-4" />
-          Overdue tasks
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {tasks.length === 0 ? (
-          <EmptyState
-            title="Nothing overdue"
-            description="Tasks past their due date appear here."
-            className="border-0 py-6"
-          />
-        ) : (
-          <ul className="divide-y">
-            {tasks.map((task) => (
-              <li key={task.id} className="flex items-center justify-between gap-4 py-2">
-                <div className="min-w-0">
-                  <Link
-                    href={`/tasks/${task.id}`}
-                    className="truncate text-sm font-medium hover:underline"
-                  >
-                    {task.title}
-                  </Link>
-                  <p className="text-muted-foreground text-xs">
-                    {task.taskNo}
-                    {task.assignedToName ? ` · ${task.assignedToName}` : " · unassigned"}
-                  </p>
-                </div>
-                <span className="text-status-expired shrink-0 text-xs font-medium tabular-nums">
-                  {task.dueDate ? task.dueDate.toISOString().slice(0, 10) : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </CardContent>
     </Card>
   );
@@ -347,7 +286,6 @@ async function ModuleStrip({ ctx }: { ctx: ActorContext }) {
   push("Documents", totals.documents, "/documents");
   push("Letters issued", totals.letters, "/hr/letters");
   push("Active policies", totals.policies, "/insurance");
-  push("Suppliers", totals.suppliers, "/admin/suppliers");
   push("Subcontractors", totals.subcontractors, "/admin/subcontractors");
   push("Certificates", totals.certificates, "/admin/certificates");
 
@@ -507,16 +445,16 @@ function BucketTile({
 }
 
 /**
- * The six operational deadlines, one card each.
+ * The operational deadlines, one card each.
  *
  * Each card is independent because each is somebody's job: the HR officer
- * chasing leave, the admin clerk paying bills, the person renewing the CR. A
- * single merged list would make everyone read all six to find their one.
+ * chasing leave, the admin clerk paying rent, the person renewing the CR. A
+ * single merged list would make everyone read all of them to find their one.
  *
  * A card the viewer lacks permission for is ABSENT, not zero — see
  * DeadlinePanel. A zero means "nothing is due"; hiding a permission behind a
- * zero would tell someone the company has no overdue bills when in fact they
- * simply cannot see bills.
+ * zero would tell someone the company has no expired certificates when in fact
+ * they simply cannot see certificates.
  */
 async function OperationalDeadlines({ ctx }: { ctx: ActorContext }) {
   const d = await operationalDeadlines(ctx);
@@ -539,15 +477,6 @@ async function OperationalDeadlines({ ctx }: { ctx: ActorContext }) {
       href: "/admin/certificates",
       tone: "expired" as const,
       panel: d.certificatesExpired,
-    },
-    {
-      key: "bills",
-      title: "Electricity bills due",
-      hint: `Unpaid, due within ${String(DEADLINE_WINDOWS.billsDays)} days or already overdue`,
-      icon: Plug,
-      href: "/admin/electricity-bills",
-      tone: "warning" as const,
-      panel: d.billsDue,
     },
     {
       key: "subcontracts",

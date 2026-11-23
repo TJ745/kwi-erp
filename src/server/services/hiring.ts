@@ -1,6 +1,8 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { offerTotal } from "@/lib/job-offer";
+import { nextOfferRef } from "./counter";
 import type { ActorContext } from "@/server/auth/context";
 import {
   companyScopeWhere,
@@ -8,16 +10,11 @@ import {
   requireCompanyAccess,
 } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
-import { summarise, validateHours, type TimesheetDay } from "@/lib/timesheet";
-import type {
-  JobDescriptionInput,
-  JobOfferInput,
-  TimesheetEntryInput,
-} from "@/lib/schemas/hiring";
+import type { JobDescriptionInput, JobOfferInput } from "@/lib/schemas/hiring";
 import { assertEmployeeNoFree } from "./employees";
 
 /**
- * Hiring and timesheets — brief §17, §18, §23.
+ * Hiring — job descriptions and offers, brief §17, §18.
  *
  * The load-bearing operation here is converting an accepted offer into an
  * employee: it is the one place this system creates a person, and doing it
@@ -34,17 +31,21 @@ export async function listJobDescriptions(
     where: {
       // Company-optional: a shared description is visible to everyone.
       ...optionalCompanyScopeWhere(ctx),
-      ...(filters.q
-        ? { title: { contains: filters.q, mode: "insensitive" as const } }
-        : {}),
+      ...(filters.q ? { title: { contains: filters.q, mode: "insensitive" as const } } : {}),
     },
     orderBy: [{ isActive: "desc" }, { title: "asc" }],
     select: {
       id: true,
       title: true,
-      summary: true,
-      responsibilities: true,
-      requirements: true,
+      department: true,
+      reportsTo: true,
+      oversees: true,
+      organizational: true,
+      departmental: true,
+      education: true,
+      experience: true,
+      skills: true,
+      others: true,
       isActive: true,
       version: true,
       companyId: true,
@@ -56,10 +57,7 @@ export async function listJobDescriptions(
   });
 }
 
-export async function createJobDescription(
-  ctx: ActorContext,
-  input: JobDescriptionInput,
-) {
+export async function createJobDescription(ctx: ActorContext, input: JobDescriptionInput) {
   if (input.companyId) requireCompanyAccess(ctx, input.companyId);
 
   return prisma.jobDescription.create({
@@ -67,9 +65,15 @@ export async function createJobDescription(
       companyId: input.companyId ?? null,
       positionId: input.positionId ?? null,
       title: input.title,
-      summary: input.summary ?? null,
-      responsibilities: input.responsibilities ?? null,
-      requirements: input.requirements ?? null,
+      department: input.department ?? null,
+      reportsTo: input.reportsTo ?? null,
+      oversees: input.oversees ?? null,
+      organizational: input.organizational ?? null,
+      departmental: input.departmental ?? null,
+      education: input.education ?? null,
+      experience: input.experience ?? null,
+      skills: input.skills ?? null,
+      others: input.others ?? null,
       isActive: input.isActive,
     },
     select: { id: true, title: true, companyId: true, version: true },
@@ -93,9 +97,15 @@ export async function updateJobDescription(
       companyId: input.companyId ?? null,
       positionId: input.positionId ?? null,
       title: input.title,
-      summary: input.summary ?? null,
-      responsibilities: input.responsibilities ?? null,
-      requirements: input.requirements ?? null,
+      department: input.department ?? null,
+      reportsTo: input.reportsTo ?? null,
+      oversees: input.oversees ?? null,
+      organizational: input.organizational ?? null,
+      departmental: input.departmental ?? null,
+      education: input.education ?? null,
+      experience: input.experience ?? null,
+      skills: input.skills ?? null,
+      others: input.others ?? null,
       isActive: input.isActive,
       // Offers already made keep pointing at this row, so the version is what
       // distinguishes "the description as it was quoted" from today's text.
@@ -128,6 +138,29 @@ export async function deleteJobDescription(ctx: ActorContext, id: string) {
   return description;
 }
 
+/** One description for printing. */
+export async function getJobDescription(ctx: ActorContext, id: string) {
+  const jd = await prisma.jobDescription.findFirst({
+    where: { id, ...optionalCompanyScopeWhere(ctx) },
+    select: {
+      id: true,
+      title: true,
+      department: true,
+      reportsTo: true,
+      oversees: true,
+      organizational: true,
+      departmental: true,
+      education: true,
+      experience: true,
+      skills: true,
+      others: true,
+      version: true,
+    },
+  });
+  if (!jd) throw new NotFoundError("Job description not found.");
+  return jd;
+}
+
 // --- Job offers --------------------------------------------------------------
 
 export async function listJobOffers(
@@ -157,6 +190,24 @@ export async function listJobOffers(
       decidedAt: true,
       convertedEmployeeId: true,
       notes: true,
+      interviewId: true,
+      salutation: true,
+      candidateIdType: true,
+      candidateIdNumber: true,
+      candidateAddress: true,
+      offerDate: true,
+      refNo: true,
+      basicSalary: true,
+      housingAllowance: true,
+      transportAllowance: true,
+      mobileAllowance: true,
+      contractYears: true,
+      probationDays: true,
+      familyStatus: true,
+      leavePlan: true,
+      ticketCover: true,
+      ticketDestination: true,
+      medicalCover: true,
       companyId: true,
       positionId: true,
       jobDescriptionId: true,
@@ -167,33 +218,85 @@ export async function listJobOffers(
   });
 }
 
+/**
+ * The letter's fields; the total is the sum of the parts when they are given.
+ * Someone without employees.salary.view never sees the amounts, so their save
+ * must not overwrite them with blanks: `keepSalary` leaves them as stored.
+ */
+function offerLetterData(input: JobOfferInput, keepSalary = false) {
+  const parts = {
+    basicSalary: input.basicSalary ?? null,
+    housingAllowance: input.housingAllowance ?? null,
+    transportAllowance: input.transportAllowance ?? null,
+    mobileAllowance: input.mobileAllowance ?? null,
+  };
+  return {
+    salutation: input.salutation,
+    candidateIdType: input.candidateIdType ?? null,
+    candidateIdNumber: input.candidateIdNumber ?? null,
+    candidateAddress: input.candidateAddress ?? null,
+    offerDate: input.offerDate ?? null,
+    ...(keepSalary
+      ? {}
+      : { ...parts, proposedSalary: offerTotal(parts) ?? input.proposedSalary ?? null }),
+    contractYears: input.contractYears,
+    probationDays: input.probationDays,
+    familyStatus: input.familyStatus,
+    leavePlan: input.leavePlan,
+    ticketCover: input.ticketCover,
+    ticketDestination: input.ticketDestination ?? null,
+    medicalCover: input.medicalCover,
+  };
+}
+
+/** An offer can only be made from an interview held for the same company. */
+async function assertInterviewInCompany(
+  ctx: ActorContext,
+  interviewId: string | undefined,
+  companyId: string,
+) {
+  if (!interviewId) return;
+  const interview = await prisma.interviewEvaluation.findFirst({
+    where: { id: interviewId, companyId, ...companyScopeWhere(ctx) },
+    select: { id: true },
+  });
+  if (!interview) throw new NotFoundError("That interview is not one of this company's.");
+}
+
 export async function createJobOffer(ctx: ActorContext, input: JobOfferInput) {
   requireCompanyAccess(ctx, input.companyId);
+  await assertInterviewInCompany(ctx, input.interviewId, input.companyId);
+  const company = await prisma.company.findUnique({
+    where: { id: input.companyId },
+    select: { code: true },
+  });
+  if (!company) throw new NotFoundError("Company not found.");
+  // "Our Ref." is numbered per company and year unless one is typed in.
+  const refNo = input.refNo ?? (await nextOfferRef(company.code, input.offerDate ?? new Date()));
 
   return prisma.jobOffer.create({
     data: {
+      refNo,
       companyId: input.companyId,
       candidateName: input.candidateName,
       candidateEmail: input.candidateEmail ?? null,
       candidatePhone: input.candidatePhone ?? null,
       positionId: input.positionId ?? null,
       jobDescriptionId: input.jobDescriptionId ?? null,
-      proposedSalary: input.proposedSalary ?? null,
+      ...offerLetterData(input),
       currency: input.currency,
       proposedJoiningDate: input.proposedJoiningDate ?? null,
       status: input.status as "DRAFT",
       sentAt: input.sentAt ?? null,
       notes: input.notes ?? null,
+      interviewId: input.interviewId ?? null,
       createdById: ctx.userId,
     },
     select: { id: true, candidateName: true, status: true, companyId: true },
   });
 }
 
-export async function updateJobOffer(
-  ctx: ActorContext,
-  input: JobOfferInput & { id: string },
-) {
+export async function updateJobOffer(ctx: ActorContext, input: JobOfferInput & { id: string }) {
   const before = await prisma.jobOffer.findFirst({
     where: { id: input.id, ...companyScopeWhere(ctx) },
     select: {
@@ -207,6 +310,7 @@ export async function updateJobOffer(
   });
   if (!before) throw new NotFoundError("Offer not found.");
   requireCompanyAccess(ctx, input.companyId);
+  await assertInterviewInCompany(ctx, input.interviewId, input.companyId);
 
   // Once an offer produced an employee, its terms are what that person was
   // hired on. Editing them afterwards rewrites history.
@@ -217,9 +321,7 @@ export async function updateJobOffer(
   }
 
   const decided =
-    input.status === "ACCEPTED" ||
-    input.status === "DECLINED" ||
-    input.status === "WITHDRAWN";
+    input.status === "ACCEPTED" || input.status === "DECLINED" || input.status === "WITHDRAWN";
 
   const after = await prisma.jobOffer.update({
     where: { id: input.id },
@@ -230,12 +332,14 @@ export async function updateJobOffer(
       candidatePhone: input.candidatePhone ?? null,
       positionId: input.positionId ?? null,
       jobDescriptionId: input.jobDescriptionId ?? null,
-      proposedSalary: input.proposedSalary ?? null,
+      ...offerLetterData(input, !ctx.permissions.has("employees.salary.view")),
+      ...(input.refNo ? { refNo: input.refNo } : {}),
       currency: input.currency,
       proposedJoiningDate: input.proposedJoiningDate ?? null,
       status: input.status as "DRAFT",
       sentAt: input.sentAt ?? null,
       notes: input.notes ?? null,
+      interviewId: input.interviewId ?? null,
       ...(decided && before.status !== input.status ? { decidedAt: new Date() } : {}),
     },
     select: { id: true, candidateName: true, status: true, companyId: true },
@@ -352,16 +456,41 @@ export async function convertOffer(
   } catch (error) {
     // workEmail is unique; a candidate re-entered with a colliding value
     // should read as a conflict, not a 500.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       throw new ConflictError(
         "An employee with those details already exists. Check the directory before converting.",
       );
     }
     throw error;
   }
+}
+
+/** One offer, with everything the printed letter needs. */
+export async function getJobOfferForPrint(ctx: ActorContext, id: string) {
+  const offer = await prisma.jobOffer.findFirst({
+    where: { id, ...companyScopeWhere(ctx) },
+    include: {
+      position: { select: { title: true } },
+      company: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          addressLine: true,
+          city: true,
+          crNumber: true,
+          vatNumber: true,
+          phone: true,
+          email: true,
+          website: true,
+          headerImageFileId: true,
+          footerImageFileId: true,
+        },
+      },
+    },
+  });
+  if (!offer) throw new NotFoundError("Offer not found.");
+  return offer;
 }
 
 export async function deleteJobOffer(ctx: ActorContext, id: string) {
@@ -376,9 +505,7 @@ export async function deleteJobOffer(ctx: ActorContext, id: string) {
   });
   if (!offer) throw new NotFoundError("Offer not found.");
   if (offer.convertedEmployeeId) {
-    throw new ConflictError(
-      "This offer produced an employee record and cannot be deleted.",
-    );
+    throw new ConflictError("This offer produced an employee record and cannot be deleted.");
   }
 
   await prisma.jobOffer.delete({ where: { id } });
@@ -393,266 +520,4 @@ export async function offerCounts(ctx: ActorContext) {
     prisma.jobOffer.count({ where: { status: "CONVERTED", ...scope } }),
   ]);
   return { open, accepted, converted };
-}
-
-// --- Timesheets --------------------------------------------------------------
-
-function employeeScope(ctx: ActorContext) {
-  return { employee: { ...companyScopeWhere(ctx), deletedAt: null } };
-}
-
-export async function listTimesheet(
-  ctx: ActorContext,
-  filters: { employeeId?: string | undefined; from?: Date | undefined; to?: Date | undefined },
-) {
-  const entries = await prisma.timesheetEntry.findMany({
-    where: {
-      ...employeeScope(ctx),
-      ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
-      ...(filters.from || filters.to
-        ? {
-            date: {
-              ...(filters.from ? { gte: filters.from } : {}),
-              ...(filters.to ? { lte: filters.to } : {}),
-            },
-          }
-        : {}),
-    },
-    orderBy: [{ date: "desc" }],
-    take: 500,
-    select: {
-      id: true,
-      date: true,
-      normalHours: true,
-      overtimeHours: true,
-      delayedHours: true,
-      absent: true,
-      status: true,
-      notes: true,
-      employeeId: true,
-      employee: {
-        select: {
-          id: true,
-          fullName: true,
-          employeeNo: true,
-          company: { select: { code: true } },
-        },
-      },
-    },
-  });
-
-  const days: TimesheetDay[] = entries.map((e) => ({
-    normalHours: e.normalHours.toString(),
-    overtimeHours: e.overtimeHours.toString(),
-    delayedHours: e.delayedHours.toString(),
-    absent: e.absent,
-    status: e.status,
-  }));
-
-  return { entries, summary: summarise(days) };
-}
-
-export async function createTimesheetEntry(
-  ctx: ActorContext,
-  input: TimesheetEntryInput,
-) {
-  const employee = await prisma.employee.findFirst({
-    where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-    select: { id: true, fullName: true, companyId: true },
-  });
-  if (!employee) throw new NotFoundError("Employee not found.");
-
-  // Same rules the form applies, enforced where they cannot be skipped.
-  const problems = validateHours(input);
-  if (problems.length > 0) {
-    throw new ConflictError(problems[0]?.message ?? "Invalid hours.");
-  }
-
-  try {
-    const entry = await prisma.timesheetEntry.create({
-      data: {
-        employeeId: input.employeeId,
-        date: input.date,
-        normalHours: input.normalHours,
-        overtimeHours: input.overtimeHours,
-        delayedHours: input.delayedHours,
-        absent: input.absent,
-        notes: input.notes ?? null,
-        status: "PENDING",
-      },
-      select: { id: true, date: true, normalHours: true, overtimeHours: true },
-    });
-
-    return { ...entry, employeeName: employee.fullName, companyId: employee.companyId };
-  } catch (error) {
-    // @@unique([employeeId, date]) — one row per person per day.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      throw new ConflictError(
-        `${employee.fullName} already has an entry for ${input.date.toISOString().slice(0, 10)}. Edit that one instead.`,
-      );
-    }
-    throw error;
-  }
-}
-
-export async function updateTimesheetEntry(
-  ctx: ActorContext,
-  input: TimesheetEntryInput & { id: string },
-) {
-  const before = await prisma.timesheetEntry.findFirst({
-    where: { id: input.id, ...employeeScope(ctx) },
-    select: {
-      id: true,
-      date: true,
-      normalHours: true,
-      overtimeHours: true,
-      delayedHours: true,
-      absent: true,
-      status: true,
-      employee: { select: { fullName: true, companyId: true } },
-    },
-  });
-  if (!before) throw new NotFoundError("Entry not found.");
-
-  // Approved hours have been signed off for payroll.
-  if (before.status !== "PENDING") {
-    throw new ConflictError(
-      `This entry is ${before.status.toLowerCase()} and can no longer be edited.`,
-    );
-  }
-
-  const problems = validateHours(input);
-  if (problems.length > 0) {
-    throw new ConflictError(problems[0]?.message ?? "Invalid hours.");
-  }
-
-  const after = await prisma.timesheetEntry.update({
-    where: { id: input.id },
-    data: {
-      date: input.date,
-      normalHours: input.normalHours,
-      overtimeHours: input.overtimeHours,
-      delayedHours: input.delayedHours,
-      absent: input.absent,
-      notes: input.notes ?? null,
-    },
-    select: {
-      id: true,
-      date: true,
-      normalHours: true,
-      overtimeHours: true,
-      delayedHours: true,
-      absent: true,
-    },
-  });
-
-  return {
-    before: {
-      normalHours: before.normalHours.toString(),
-      overtimeHours: before.overtimeHours.toString(),
-      absent: before.absent,
-    },
-    after: {
-      id: after.id,
-      normalHours: after.normalHours.toString(),
-      overtimeHours: after.overtimeHours.toString(),
-      absent: after.absent,
-    },
-    employeeName: before.employee.fullName,
-    companyId: before.employee.companyId,
-  };
-}
-
-export async function decideTimesheetEntry(
-  ctx: ActorContext,
-  input: { id: string; decision: "APPROVED" | "REJECTED" },
-) {
-  const entry = await prisma.timesheetEntry.findFirst({
-    where: { id: input.id, ...employeeScope(ctx) },
-    select: {
-      id: true,
-      date: true,
-      status: true,
-      employee: { select: { fullName: true, companyId: true } },
-    },
-  });
-  if (!entry) throw new NotFoundError("Entry not found.");
-  if (entry.status !== "PENDING") {
-    throw new ConflictError(`Already ${entry.status.toLowerCase()}.`);
-  }
-
-  await prisma.timesheetEntry.update({
-    where: { id: input.id },
-    data: { status: input.decision, approvedById: ctx.userId, approvedAt: new Date() },
-  });
-
-  return {
-    id: entry.id,
-    date: entry.date,
-    employeeName: entry.employee.fullName,
-    companyId: entry.employee.companyId,
-    before: entry.status,
-    after: input.decision,
-  };
-}
-
-/** Approves every pending day in a period — the end-of-month action. */
-export async function approvePeriod(
-  ctx: ActorContext,
-  input: { employeeId: string; from: Date; to: Date },
-) {
-  const employee = await prisma.employee.findFirst({
-    where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-    select: { id: true, fullName: true, companyId: true },
-  });
-  if (!employee) throw new NotFoundError("Employee not found.");
-
-  const { count } = await prisma.timesheetEntry.updateMany({
-    where: {
-      employeeId: input.employeeId,
-      status: "PENDING",
-      date: { gte: input.from, lte: input.to },
-    },
-    data: { status: "APPROVED", approvedById: ctx.userId, approvedAt: new Date() },
-  });
-
-  if (count === 0) {
-    throw new ConflictError("No pending entries in that period.");
-  }
-
-  return {
-    employeeId: employee.id,
-    employeeName: employee.fullName,
-    companyId: employee.companyId,
-    approved: count,
-  };
-}
-
-export async function deleteTimesheetEntry(ctx: ActorContext, id: string) {
-  const entry = await prisma.timesheetEntry.findFirst({
-    where: { id, ...employeeScope(ctx) },
-    select: {
-      id: true,
-      date: true,
-      status: true,
-      employee: { select: { fullName: true, companyId: true } },
-    },
-  });
-  if (!entry) throw new NotFoundError("Entry not found.");
-  if (entry.status === "APPROVED") {
-    throw new ConflictError(
-      "An approved entry has been signed off for payroll and cannot be deleted.",
-    );
-  }
-
-  await prisma.timesheetEntry.delete({ where: { id } });
-  return {
-    id: entry.id,
-    date: entry.date,
-    employeeName: entry.employee.fullName,
-    companyId: entry.employee.companyId,
-  };
 }

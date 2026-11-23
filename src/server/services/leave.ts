@@ -2,7 +2,6 @@ import "server-only";
 import type { LeaveStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { notifyApprovalRequired } from "./notifications";
 import { companyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/result";
 import {
@@ -13,11 +12,9 @@ import {
   type Paginated,
 } from "@/lib/list-query";
 import type { LeaveRequestInput } from "@/lib/schemas/hr";
-import {
-  BLOCKING_LEAVE_STATUSES,
-  canTransition,
-  countLeaveDays,
-} from "@/lib/leave-rules";
+import { contractParticularsSchema } from "@/lib/schemas/hr";
+import { dmy, readLeaveForm, type LeaveForm } from "@/lib/leave-form";
+import { BLOCKING_LEAVE_STATUSES, canTransition, countLeaveDays } from "@/lib/leave-rules";
 
 /**
  * Leave requests.
@@ -42,6 +39,9 @@ export type LeaveListRow = {
   reason: string | null;
   decidedAt: Date | null;
   companyCode: string;
+  leaveTypeId: string;
+  handoverToId: string | null;
+  form: LeaveForm;
 };
 
 /**
@@ -66,9 +66,7 @@ export async function listLeaveRequests(
     ...visibilityWhere(ctx),
     ...(filters.status ? { status: filters.status as LeaveStatus } : {}),
     ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
-    ...(query.q
-      ? { employee: { fullName: { contains: query.q, mode: "insensitive" } } }
-      : {}),
+    ...(query.q ? { employee: { fullName: { contains: query.q, mode: "insensitive" } } } : {}),
   };
 
   const [rows, total] = await Promise.all([
@@ -85,6 +83,9 @@ export async function listLeaveRequests(
         status: true,
         reason: true,
         decidedAt: true,
+        leaveTypeId: true,
+        handoverToId: true,
+        form: true,
         leaveType: { select: { name: true } },
         employee: {
           select: { fullName: true, employeeNo: true, company: { select: { code: true } } },
@@ -108,6 +109,9 @@ export async function listLeaveRequests(
       reason: l.reason,
       decidedAt: l.decidedAt,
       companyCode: l.employee.company.code,
+      leaveTypeId: l.leaveTypeId,
+      handoverToId: l.handoverToId,
+      form: readLeaveForm(l.form),
     })),
     total,
     query,
@@ -153,6 +157,8 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
 
   const days = countLeaveDays(input.startDate, input.endDate);
 
+  // Leave is recorded by HR once it is agreed, so it is approved as it is
+  // entered — there is no one else to approve it.
   const created = await prisma.leaveRequest.create({
     data: {
       employeeId: input.employeeId,
@@ -162,21 +168,12 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
       days,
       reason: input.reason ?? null,
       handoverToId: input.handoverToId ?? null,
-      status: "PENDING",
+      form: (input.form ?? {}) as Prisma.InputJsonValue,
+      status: "APPROVED",
+      decidedAt: new Date(),
       createdById: ctx.userId,
     },
     select: { id: true, days: true },
-  });
-
-  await notifyApprovalRequired({
-    permission: "hr.leave.approve",
-    companyId: employee.companyId,
-    title: `Leave request needs approval: ${employee.fullName}`,
-    body: `${leaveType.name} — ${input.startDate.toISOString().slice(0, 10)} to ${input.endDate.toISOString().slice(0, 10)} (${String(days)} day${days === 1 ? "" : "s"})`,
-    entityType: "LEAVE_REQUEST",
-    entityId: created.id,
-    dedupeKeyPrefix: `APPROVAL_REQUIRED:LEAVE:${created.id}`,
-    requestedById: ctx.userId,
   });
 
   return {
@@ -185,6 +182,184 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
     companyId: employee.companyId,
     leaveTypeName: leaveType.name,
   };
+}
+
+export async function updateLeaveRequest(
+  ctx: ActorContext,
+  input: LeaveRequestInput & { id: string },
+) {
+  const before = await prisma.leaveRequest.findFirst({
+    where: { id: input.id, employee: companyScopeWhere(ctx) },
+    select: { id: true, employeeId: true },
+  });
+  if (!before) throw new NotFoundError("Leave request not found.");
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: input.employeeId, ...companyScopeWhere(ctx) },
+    select: { id: true, fullName: true, companyId: true },
+  });
+  if (!employee) throw new NotFoundError("Employee not found.");
+
+  const overlap = await prisma.leaveRequest.findFirst({
+    where: {
+      id: { not: input.id },
+      employeeId: input.employeeId,
+      status: { in: BLOCKING_LEAVE_STATUSES },
+      startDate: { lte: input.endDate },
+      endDate: { gte: input.startDate },
+    },
+    select: { startDate: true, endDate: true },
+  });
+  if (overlap) {
+    throw new ConflictError(
+      `This overlaps another leave (${overlap.startDate.toISOString().slice(0, 10)} to ${overlap.endDate.toISOString().slice(0, 10)}).`,
+    );
+  }
+
+  await prisma.leaveRequest.update({
+    where: { id: input.id },
+    data: {
+      employeeId: input.employeeId,
+      leaveTypeId: input.leaveTypeId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      days: countLeaveDays(input.startDate, input.endDate),
+      reason: input.reason ?? null,
+      handoverToId: input.handoverToId ?? null,
+      form: (input.form ?? {}) as Prisma.InputJsonValue,
+    },
+  });
+  return { id: input.id, employeeName: employee.fullName, companyId: employee.companyId };
+}
+
+export async function deleteLeaveRequest(ctx: ActorContext, id: string) {
+  const request = await prisma.leaveRequest.findFirst({
+    where: { id, employee: companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      employee: { select: { fullName: true, companyId: true } },
+    },
+  });
+  if (!request) throw new NotFoundError("Leave request not found.");
+  await prisma.leaveRequest.delete({ where: { id } });
+  return {
+    id,
+    employeeName: request.employee.fullName,
+    companyId: request.employee.companyId,
+    dates: `${request.startDate.toISOString().slice(0, 10)} to ${request.endDate.toISOString().slice(0, 10)}`,
+  };
+}
+
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countryName = (code: string) => {
+  try {
+    return regionNames.of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+/**
+ * What a new leave form starts from, out of the employee's record: contact
+ * details from their contract and emergency contacts, entitlement from their
+ * offer or contract, the tickets on their contract, and when they came back
+ * from their last leave. Every value is a suggestion the form can change.
+ */
+export async function leaveDefaults(ctx: ActorContext, employeeId: string): Promise<LeaveForm> {
+  const e = await prisma.employee.findFirst({
+    where: { id: employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: {
+      nationality: true,
+      mobile: true,
+      personalEmail: true,
+      workEmail: true,
+      emergencyContacts: {
+        orderBy: { createdAt: "asc" },
+        take: 1,
+        select: { phone: true, relation: true },
+      },
+      contracts: {
+        orderBy: { startDate: "desc" },
+        take: 1,
+        select: { termYears: true, particulars: true },
+      },
+      jobOfferOrigin: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { leavePlan: true, candidateAddress: true, ticketDestination: true },
+      },
+      leaveRequests: {
+        where: { status: "APPROVED" },
+        orderBy: { endDate: "desc" },
+        take: 1,
+        select: { endDate: true },
+      },
+    },
+  });
+  if (!e) throw new NotFoundError("Employee not found.");
+
+  const contract = e.contracts[0];
+  const p = contract
+    ? contractParticularsSchema.safeParse(contract.particulars ?? {}).data
+    : undefined;
+  const offer = e.jobOfferOrigin[0];
+  const relative = e.emergencyContacts[0];
+  const lastLeave = e.leaveRequests[0];
+  const twoYears = offer?.leavePlan === "42_AFTER_2Y" || contract?.termYears === 2;
+  const returned = lastLeave ? new Date(lastLeave.endDate.getTime() + 24 * 60 * 60 * 1000) : null;
+
+  return readLeaveForm({
+    country: countryName(e.nationality),
+    destination: p?.ticketDestinationEn || offer?.ticketDestination || "",
+    homeAddress: p?.homeAddressEn || offer?.candidateAddress || "",
+    cityCountry: "",
+    telHome: p?.homePhone || e.mobile || "",
+    telRelative: relative ? `${relative.phone} (${relative.relation})` : "",
+    email: e.personalEmail || e.workEmail || "",
+    leaveDueEvery: contract || offer ? (twoYears ? "2 years" : "1 year") : "",
+    lastArrival: dmy(returned),
+    ticketsSelf: contract ? "1" : "",
+    ticketsWife: p?.ticketWife ? "1" : "",
+    ticketsChildren: p && p.ticketChildren > 0 ? String(p.ticketChildren) : "",
+  });
+}
+
+/** Everything the printed Leave Request needs. */
+export async function getLeaveForPrint(ctx: ActorContext, id: string) {
+  const leave = await prisma.leaveRequest.findFirst({
+    where: { id, employee: companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      days: true,
+      createdAt: true,
+      form: true,
+      leaveType: { select: { key: true, name: true } },
+      handoverTo: { select: { fullName: true } },
+      employee: {
+        select: {
+          fullName: true,
+          employeeNo: true,
+          joiningDate: true,
+          department: { select: { name: true } },
+          position: { select: { title: true } },
+          company: {
+            select: {
+              id: true,
+              name: true,
+              headerImageFileId: true,
+              footerImageFileId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!leave) throw new NotFoundError("Leave request not found.");
+  return { ...leave, form: readLeaveForm(leave.form) };
 }
 
 export async function decideLeaveRequest(
@@ -273,19 +448,23 @@ export async function leaveTypes() {
   });
 }
 
-export type LeaveCounts = { pending: number; approvedUpcoming: number };
+export type LeaveCounts = { onLeaveNow: number; upcoming: number };
 
 export async function leaveCounts(ctx: ActorContext): Promise<LeaveCounts> {
   const scope = { employee: companyScopeWhere(ctx), ...visibilityWhere(ctx) };
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-  const [pending, approvedUpcoming] = await Promise.all([
-    prisma.leaveRequest.count({ where: { ...scope, status: "PENDING" } }),
+  const [onLeaveNow, upcoming] = await Promise.all([
     prisma.leaveRequest.count({
-      where: { ...scope, status: "APPROVED", startDate: { gte: new Date() } },
+      where: { ...scope, status: "APPROVED", startDate: { lte: today }, endDate: { gte: today } },
+    }),
+    prisma.leaveRequest.count({
+      where: { ...scope, status: "APPROVED", startDate: { gt: today } },
     }),
   ]);
 
-  return { pending, approvedUpcoming };
+  return { onLeaveNow, upcoming };
 }
 
 /** Leave for one employee — powers the profile tab. */

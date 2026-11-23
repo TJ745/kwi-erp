@@ -164,17 +164,10 @@ export function BedCell({
 
             {occupied && bed.occupant ? (
               <div className="mt-1 flex items-start gap-1.5">
-                <User
-                  className="text-muted-foreground mt-0.5 size-3 shrink-0"
-                  aria-hidden="true"
-                />
+                <User className="text-muted-foreground mt-0.5 size-3 shrink-0" aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-medium">
-                    {bed.occupant.employeeName}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    since {bed.occupant.checkInDate}
-                  </p>
+                  <p className="truncate text-xs font-medium">{bed.occupant.employeeName}</p>
+                  <p className="text-muted-foreground text-xs">since {bed.occupant.checkInDate}</p>
                 </div>
               </div>
             ) : (
@@ -247,8 +240,7 @@ export function BedCell({
             <DialogHeader>
               <DialogTitle>Check in to bed {bed.bedLabel}</DialogTitle>
               <DialogDescription>
-                Only employees who are not already housed are listed — one person, one
-                bed.
+                Only employees who are not already housed are listed — one person, one bed.
               </DialogDescription>
             </DialogHeader>
 
@@ -312,8 +304,7 @@ export function BedCell({
             <DialogHeader>
               <DialogTitle>Check out {bed.occupant?.employeeName}</DialogTitle>
               <DialogDescription>
-                This frees bed {bed.bedLabel} for the next occupant. The stay stays on
-                record.
+                This frees bed {bed.bedLabel} for the next occupant. The stay stays on record.
               </DialogDescription>
             </DialogHeader>
 
@@ -357,9 +348,7 @@ export function BedCell({
           <form onSubmit={onEdit} noValidate>
             <DialogHeader>
               <DialogTitle>Edit bed {bed.bedLabel}</DialogTitle>
-              <DialogDescription>
-                An occupied bed cannot be taken out of service.
-              </DialogDescription>
+              <DialogDescription>An occupied bed cannot be taken out of service.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
@@ -371,12 +360,7 @@ export function BedCell({
                   {error}
                 </div>
               ) : null}
-              <TextField
-                name="bedLabel"
-                label="Bed label"
-                required
-                defaultValue={bed.bedLabel}
-              />
+              <TextField name="bedLabel" label="Bed label" required defaultValue={bed.bedLabel} />
               <SelectField
                 name="status"
                 label="Status"

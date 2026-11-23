@@ -8,7 +8,7 @@ import { decideEmail, type RoutingInput } from "./notification-routing";
  * reading the rows back; these tests make the decision checkable directly.
  */
 
-const DEFAULTS = new Set(["APPROVAL_REQUIRED", "TICKET_ASSIGNED"]);
+const DEFAULTS = new Set(["APPROVAL_REQUIRED"]);
 
 const input = (over: Partial<RoutingInput> = {}): RoutingInput => ({
   kind: "APPROVAL_REQUIRED",
@@ -58,7 +58,7 @@ describe("decideEmail — the rule is authoritative", () => {
   });
 
   it("lets a rule enable a kind that is not in the defaults", () => {
-    expect(decideEmail(input({ kind: "TASK_DUE", ruleChannels: ["EMAIL"] }))).toEqual({
+    expect(decideEmail(input({ kind: "SYSTEM", ruleChannels: ["EMAIL"] }))).toEqual({
       email: true,
     });
   });
@@ -75,9 +75,6 @@ describe("decideEmail — the rule is authoritative", () => {
 describe("decideEmail — defaults apply only without a rule", () => {
   it("emails a default kind when no rule governs it", () => {
     expect(decideEmail(input({ kind: "APPROVAL_REQUIRED", ruleChannels: null }))).toEqual({
-      email: true,
-    });
-    expect(decideEmail(input({ kind: "TICKET_ASSIGNED", ruleChannels: null }))).toEqual({
       email: true,
     });
   });

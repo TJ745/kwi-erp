@@ -5,15 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import {
-  credentialCategories,
-  listCredentials,
-} from "@/server/services/vault/credentials";
+import { credentialCategories, listCredentials } from "@/server/services/vault/credentials";
 import { isVaultUnlocked, VAULT_IDLE_MINUTES } from "@/server/services/vault/session";
 import { orgOptions } from "@/server/services/org";
 import { listCredentialGrants } from "@/server/services/vault/grants";
-import { assignableUsers } from "@/server/services/tasks";
-import { listRolesForAssignment } from "@/server/services/users";
+import { activeUserOptions, listRolesForAssignment } from "@/server/services/users";
 import { CredentialDialog } from "./credential-dialog";
 import { CredentialList } from "./credential-list";
 import { VaultLock } from "./vault-lock";
@@ -57,7 +53,7 @@ export default async function VaultPage({
   // an access-control map, not something to hand out with the page.
   const [grantSubjects, grantsByCredential] = await Promise.all([
     canGrant
-      ? Promise.all([assignableUsers(ctx), listRolesForAssignment(ctx)])
+      ? Promise.all([activeUserOptions(), listRolesForAssignment(ctx)])
       : Promise.resolve([[], []] as const),
     canGrant
       ? Promise.all(
@@ -126,9 +122,7 @@ export default async function VaultPage({
               username: c.username,
               url: c.url,
               isFavorite: c.isFavorite,
-              lastRotatedAt: c.lastRotatedAt
-                ? c.lastRotatedAt.toISOString().slice(0, 10)
-                : null,
+              lastRotatedAt: c.lastRotatedAt ? c.lastRotatedAt.toISOString().slice(0, 10) : null,
               categoryId: c.categoryId,
               companyId: c.companyId,
               email: c.email,
@@ -136,6 +130,7 @@ export default async function VaultPage({
             categories={categoryOptions}
             companies={options.companies}
             canUpdate={canUpdate}
+            canDelete={ctx.permissions.has("vault.delete")}
             canGrant={canGrant}
             grants={credentials.map((c) => {
               const entry = grantMap.get(c.id);

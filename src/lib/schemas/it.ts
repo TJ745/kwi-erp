@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIp, normaliseMac } from "./infrastructure";
 
 const optionalText = (max: number) =>
   z
@@ -20,6 +21,22 @@ const optionalMoney = z
   .transform((v) => (v === "" || v === undefined ? undefined : v))
   .refine((v) => v === undefined || /^\d+(\.\d{1,2})?$/.test(v), "Enter a valid amount");
 
+/** Accepts the usual separators; stored uppercase and colon-delimited. */
+const optionalMac = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : v))
+  .refine((v) => v === undefined || normaliseMac(v) !== null, "Enter a valid MAC address")
+  .transform((v) => (v === undefined ? undefined : (normaliseMac(v) ?? undefined)));
+
+const optionalIp = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : v))
+  .refine((v) => v === undefined || isValidIp(v), "Enter a valid IP address");
+
 // --- Assets ------------------------------------------------------------------
 
 export const ASSET_TYPES = [
@@ -30,11 +47,34 @@ export const ASSET_TYPES = [
   "MOBILE",
   "TABLET",
   "IP_PHONE",
+  "CCTV_CAMERA",
+  "CCTV_RECORDER",
   "NETWORK",
   "SERVER",
   "PERIPHERAL",
   "OTHER",
 ] as const;
+
+/** How each type reads on screen. "Cctv camera" is what a naive title-case gives. */
+export const ASSET_TYPE_LABELS: Record<(typeof ASSET_TYPES)[number], string> = {
+  LAPTOP: "Laptop",
+  DESKTOP: "Desktop",
+  MONITOR: "Monitor",
+  PRINTER: "Printer",
+  MOBILE: "Mobile",
+  TABLET: "Tablet",
+  IP_PHONE: "IP Phone",
+  CCTV_CAMERA: "CCTV Camera",
+  CCTV_RECORDER: "CCTV Recorder (NVR/DVR)",
+  NETWORK: "Network",
+  SERVER: "Server",
+  PERIPHERAL: "Peripheral",
+  OTHER: "Other",
+};
+
+export function assetTypeLabel(type: string): string {
+  return ASSET_TYPE_LABELS[type as (typeof ASSET_TYPES)[number]] ?? type;
+}
 
 export const ASSET_STATUSES = [
   "AVAILABLE",
@@ -55,6 +95,8 @@ const assetSchemaObject = z
     model: z.string().trim().min(1, "Model is required").max(120),
     serialNumber: optionalText(120),
     assetTag: optionalText(60),
+    macAddress: optionalMac,
+    ipAddress: optionalIp,
     purchaseDate: optionalDate,
     purchaseCost: optionalMoney,
     warrantyExpiry: optionalDate,
@@ -121,69 +163,5 @@ export const assetStatusSchema = z
   .object({
     id: z.string().min(1),
     status: z.enum(ASSET_STATUSES),
-  })
-  .strict();
-
-// --- Helpdesk ----------------------------------------------------------------
-
-export const TICKET_STATUSES = [
-  "OPEN",
-  "IN_PROGRESS",
-  "WAITING",
-  "RESOLVED",
-  "CLOSED",
-] as const;
-
-export const TICKET_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
-
-export const ticketSchema = z
-  .object({
-    companyId: z.string().min(1, "Company is required"),
-    categoryId: z.string().min(1, "Select a category"),
-    subject: z.string().trim().min(3, "Subject is required").max(200),
-    description: z.string().trim().min(1, "Describe the problem").max(4000),
-    priority: z.enum(TICKET_PRIORITIES).default("MEDIUM"),
-    departmentId: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" || v === "none" ? undefined : v)),
-    relatedAssetId: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" || v === "none" ? undefined : v)),
-  })
-  .strict();
-
-export type TicketInput = z.infer<typeof ticketSchema>;
-
-export const ticketAssignSchema = z
-  .object({
-    id: z.string().min(1),
-    assignedToId: z
-      .string()
-      .optional()
-      .transform((v) => (v === "" || v === "none" ? undefined : v)),
-  })
-  .strict();
-
-export const ticketStatusSchema = z
-  .object({
-    id: z.string().min(1),
-    status: z.enum(TICKET_STATUSES),
-    resolution: optionalText(2000),
-  })
-  .strict()
-  // Closing a ticket without recording what fixed it destroys the value of
-  // having a helpdesk at all.
-  .refine((d) => (d.status !== "RESOLVED" && d.status !== "CLOSED") || Boolean(d.resolution), {
-    message: "Record what resolved the issue",
-    path: ["resolution"],
-  });
-
-export const ticketCommentSchema = z
-  .object({
-    ticketId: z.string().min(1),
-    body: z.string().trim().min(1, "Comment cannot be empty").max(2000),
-    isInternal: z.boolean().default(false),
   })
   .strict();

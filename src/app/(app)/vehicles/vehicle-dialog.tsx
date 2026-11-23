@@ -13,13 +13,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DateField, FieldSet, SelectField, TextAreaField, TextField } from "@/components/forms/field";
+import {
+  DateField,
+  FieldSet,
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { VEHICLE_STATUSES } from "@/lib/schemas/fleet";
 import { createVehicleAction, updateVehicleAction } from "@/server/actions/fleet";
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 export type VehicleFormValues = {
   id: string;
@@ -115,8 +124,8 @@ export function VehicleDialog({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "Add vehicle" : "Edit vehicle"}</DialogTitle>
             <DialogDescription>
-              Registration and insurance expiry dates each raise their own alert, so both are
-              worth filling in.
+              Registration and insurance expiry dates each raise their own alert, so both are worth
+              filling in.
             </DialogDescription>
           </DialogHeader>
 

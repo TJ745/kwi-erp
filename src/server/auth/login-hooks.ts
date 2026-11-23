@@ -53,10 +53,7 @@ export async function beforeSignIn({ email, ip }: SignInAttempt): Promise<void> 
 }
 
 /** Runs AFTER the credentials are checked, for both outcomes. */
-export async function afterSignIn(
-  attempt: SignInAttempt,
-  succeeded: boolean,
-): Promise<void> {
+export async function afterSignIn(attempt: SignInAttempt, succeeded: boolean): Promise<void> {
   const email = attempt.email.toLowerCase();
 
   const user = await prisma.user.findUnique({

@@ -1,185 +1,17 @@
 import "server-only";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere, optionalCompanyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
+import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
-import type {
-  SubcontractorContractInput,
-  SubcontractorInput,
-  SupplierInput,
-} from "@/lib/schemas/vendors";
+import type { SubcontractorContractInput, SubcontractorInput } from "@/lib/schemas/vendors";
 import { deactivateExpiry, syncExpiry } from "./expiry";
 
 /**
- * Suppliers and subcontractors — brief §29, §30.
+ * Subcontractors — brief §30.
  *
  * A subcontractor's *contracts* carry the expiry date, not the subcontractor
- * itself, so the projection is written per contract (ADR-005). Suppliers have
- * no term and therefore never reach the expiry register.
+ * itself, so the projection is written per contract (ADR-005).
  */
-
-// --- Suppliers ---------------------------------------------------------------
-
-export async function listSuppliers(
-  ctx: ActorContext,
-  filters: { status?: string | undefined; q?: string | undefined } = {},
-) {
-  return prisma.supplier.findMany({
-    where: {
-      deletedAt: null,
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      // Composed under AND, never spread side by side.
-      //
-      // Both halves emit `OR`, and two `OR` keys in one object literal do not
-      // merge — the second silently replaces the first. Spreading them left
-      // the company scope out of every searched query, so typing a name
-      // returned suppliers from companies the caller cannot otherwise see.
-      // Verified by reproduction before this was changed.
-      //
-      // Suppliers may be shared across companies, so a null companyId is
-      // visible to everyone — same rule as positions and letter templates.
-      AND: [
-        optionalCompanyScopeWhere(ctx),
-        ...(filters.q
-          ? [
-              {
-                OR: [
-                  { name: { contains: filters.q, mode: "insensitive" as const } },
-                  { code: { contains: filters.q, mode: "insensitive" as const } },
-                  {
-                    contactPerson: {
-                      contains: filters.q,
-                      mode: "insensitive" as const,
-                    },
-                  },
-                ],
-              },
-            ]
-          : []),
-      ],
-    },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      contactPerson: true,
-      phone: true,
-      email: true,
-      paymentType: true,
-      creditDays: true,
-      status: true,
-      companyId: true,
-      categoryId: true,
-      notes: true,
-      company: { select: { code: true } },
-      category: { select: { name: true } },
-    },
-  });
-}
-
-export async function supplierCategories() {
-  return prisma.supplierCategory.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
-}
-
-async function assertSupplierCodeFree(code: string, excludeId?: string) {
-  const clash = await prisma.supplier.findFirst({
-    // Codes are globally unique in the schema, so this check must be too —
-    // scoping it would let two companies claim the same code and fail at insert.
-    where: { code, ...(excludeId ? { id: { not: excludeId } } : {}) },
-    select: { id: true },
-  });
-  if (clash) throw new ConflictError(`A supplier with code ${code} already exists.`);
-}
-
-export async function createSupplier(ctx: ActorContext, input: SupplierInput) {
-  if (input.companyId) requireCompanyAccess(ctx, input.companyId);
-  await assertSupplierCodeFree(input.code);
-
-  return prisma.supplier.create({
-    data: {
-      code: input.code,
-      name: input.name,
-      contactPerson: input.contactPerson ?? null,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      companyId: input.companyId ?? null,
-      categoryId: input.categoryId ?? null,
-      paymentType: input.paymentType,
-      creditDays: input.creditDays ?? null,
-      status: input.status,
-      notes: input.notes ?? null,
-    },
-    select: { id: true, code: true, name: true, companyId: true },
-  });
-}
-
-export async function updateSupplier(
-  ctx: ActorContext,
-  input: SupplierInput & { id: string },
-) {
-  const before = await prisma.supplier.findFirst({
-    where: { id: input.id, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      status: true,
-      paymentType: true,
-      creditDays: true,
-      companyId: true,
-    },
-  });
-  if (!before) throw new NotFoundError("Supplier not found.");
-  if (input.companyId) requireCompanyAccess(ctx, input.companyId);
-  await assertSupplierCodeFree(input.code, input.id);
-
-  const after = await prisma.supplier.update({
-    where: { id: input.id },
-    data: {
-      code: input.code,
-      name: input.name,
-      contactPerson: input.contactPerson ?? null,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      companyId: input.companyId ?? null,
-      categoryId: input.categoryId ?? null,
-      paymentType: input.paymentType,
-      creditDays: input.creditDays ?? null,
-      status: input.status,
-      notes: input.notes ?? null,
-    },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      status: true,
-      paymentType: true,
-      creditDays: true,
-      companyId: true,
-    },
-  });
-
-  return { before, after };
-}
-
-export async function deleteSupplier(ctx: ActorContext, id: string) {
-  const supplier = await prisma.supplier.findFirst({
-    where: { id, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
-    select: { id: true, code: true, name: true, companyId: true },
-  });
-  if (!supplier) throw new NotFoundError("Supplier not found.");
-
-  // Soft delete: purchase history elsewhere still references this row.
-  await prisma.supplier.update({
-    where: { id },
-    data: { deletedAt: new Date(), status: "ARCHIVED" },
-  });
-  return supplier;
-}
 
 // --- Subcontractors ----------------------------------------------------------
 
@@ -212,6 +44,7 @@ export async function listSubcontractors(
       phone: true,
       email: true,
       crNumber: true,
+      address: true,
       status: true,
       notes: true,
       _count: { select: { contracts: true } },
@@ -230,6 +63,7 @@ export async function getSubcontractor(ctx: ActorContext, id: string) {
       phone: true,
       email: true,
       crNumber: true,
+      address: true,
       status: true,
       notes: true,
       contracts: {
@@ -246,8 +80,15 @@ export async function getSubcontractor(ctx: ActorContext, id: string) {
           value: true,
           currency: true,
           status: true,
+          notes: true,
+          agreementDate: true,
+          terms: true,
           companyId: true,
           company: { select: { code: true } },
+          rates: {
+            orderBy: { sortOrder: "asc" },
+            select: { category: true, rate: true, unit: true },
+          },
         },
       },
     },
@@ -274,6 +115,7 @@ export async function createSubcontractor(_ctx: ActorContext, input: Subcontract
       phone: input.phone ?? null,
       email: input.email ?? null,
       crNumber: input.crNumber ?? null,
+      address: input.address ?? null,
       status: input.status,
       notes: input.notes ?? null,
     },
@@ -301,6 +143,7 @@ export async function updateSubcontractor(
       phone: input.phone ?? null,
       email: input.email ?? null,
       crNumber: input.crNumber ?? null,
+      address: input.address ?? null,
       status: input.status,
       notes: input.notes ?? null,
     },
@@ -364,6 +207,23 @@ export async function listSubcontractorContracts(
   });
 }
 
+async function writeRates(
+  tx: Pick<typeof prisma, "subcontractorContractRate">,
+  contractId: string,
+  rates: SubcontractorContractInput["rates"],
+) {
+  if (rates.length === 0) return;
+  await tx.subcontractorContractRate.createMany({
+    data: rates.map((r, index) => ({
+      contractId,
+      sortOrder: index,
+      category: r.category,
+      rate: r.rate,
+      unit: r.unit,
+    })),
+  });
+}
+
 /** The label the expiry register and reminders will show. */
 function contractLabel(subcontractorName: string, contractNo: string): string {
   return `Subcontract ${contractNo} — ${subcontractorName}`;
@@ -404,9 +264,12 @@ export async function createSubcontractorContract(
         currency: input.currency,
         status: input.status,
         notes: input.notes ?? null,
+        agreementDate: input.agreementDate ?? null,
+        terms: input.terms ?? null,
       },
       select: { id: true, contractNo: true, endDate: true, companyId: true, status: true },
     });
+    await writeRates(tx, contract.id, input.rates);
 
     // Written inside the transaction (ADR-005), so the projection cannot
     // disagree with the row that produced it.
@@ -471,6 +334,8 @@ export async function updateSubcontractorContract(
         currency: input.currency,
         status: input.status,
         notes: input.notes ?? null,
+        agreementDate: input.agreementDate ?? null,
+        terms: input.terms ?? null,
       },
       select: {
         id: true,
@@ -483,6 +348,10 @@ export async function updateSubcontractorContract(
         subcontractor: { select: { name: true } },
       },
     });
+    // The schedule is replaced as a whole: rows have no identity a person
+    // would track, only an order.
+    await tx.subcontractorContractRate.deleteMany({ where: { contractId: after.id } });
+    await writeRates(tx, after.id, input.rates);
 
     // A terminated or expired contract must stop generating reminders; an
     // active one must reflect the new date.
@@ -528,12 +397,10 @@ export async function deleteSubcontractorContract(ctx: ActorContext, id: string)
 /** Counts for the page header. */
 export async function vendorCounts(ctx: ActorContext) {
   const scope = companyScopeWhere(ctx);
-  const optional = optionalCompanyScopeWhere(ctx);
   const now = new Date();
   const in60 = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
 
-  const [suppliers, subcontractors, activeContracts, expiringContracts] = await Promise.all([
-    prisma.supplier.count({ where: { deletedAt: null, status: "ACTIVE", ...optional } }),
+  const [subcontractors, activeContracts, expiringContracts] = await Promise.all([
     prisma.subcontractor.count({ where: { deletedAt: null, status: "ACTIVE" } }),
     prisma.subcontractorContract.count({ where: { status: "ACTIVE", ...scope } }),
     prisma.subcontractorContract.count({
@@ -541,7 +408,73 @@ export async function vendorCounts(ctx: ActorContext) {
     }),
   ]);
 
-  return { suppliers, subcontractors, activeContracts, expiringContracts };
+  return { subcontractors, activeContracts, expiringContracts };
 }
 
-export type SupplierRow = Awaited<ReturnType<typeof listSuppliers>>[number];
+/**
+ * Everything the printed agreement needs: the contract, its rate schedule,
+ * both parties, and the company letterhead.
+ */
+export async function getSubcontractorContractForPrint(ctx: ActorContext, id: string) {
+  const contract = await prisma.subcontractorContract.findFirst({
+    where: { id, ...companyScopeWhere(ctx), subcontractor: { deletedAt: null } },
+    select: {
+      id: true,
+      contractNo: true,
+      scope: true,
+      startDate: true,
+      endDate: true,
+      agreementDate: true,
+      createdAt: true,
+      currency: true,
+      status: true,
+      terms: true,
+      rates: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, category: true, rate: true, unit: true },
+      },
+      subcontractor: { select: { id: true, name: true, address: true, crNumber: true } },
+      company: {
+        select: {
+          id: true,
+          name: true,
+          addressLine: true,
+          city: true,
+          country: true,
+          crNumber: true,
+          vatNumber: true,
+          phone: true,
+          email: true,
+          website: true,
+          headerImageFileId: true,
+          footerImageFileId: true,
+        },
+      },
+    },
+  });
+  if (!contract) throw new NotFoundError("Contract not found.");
+  return contract;
+}
+
+// --- Default terms -------------------------------------------------------------
+
+const DEFAULTS_ID = "default";
+
+/** The shared terms a new agreement starts from, one per line. */
+export async function getSubcontractDefaultTerms(): Promise<string> {
+  const row = await prisma.subcontractDefaults.findUnique({
+    where: { id: DEFAULTS_ID },
+    select: { terms: true },
+  });
+  return row?.terms ?? "";
+}
+
+export async function updateSubcontractDefaultTerms(_ctx: ActorContext, terms: string) {
+  const before = await getSubcontractDefaultTerms();
+  await prisma.subcontractDefaults.upsert({
+    where: { id: DEFAULTS_ID },
+    create: { id: DEFAULTS_ID, terms },
+    update: { terms },
+  });
+  return { before, after: terms };
+}

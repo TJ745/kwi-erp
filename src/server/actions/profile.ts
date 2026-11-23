@@ -16,9 +16,7 @@ import { revokeOtherSessions, updateOwnName } from "@/server/services/profile";
 
 export const updateOwnNameAction = defineAction({
   permission: "dashboard.view",
-  schema: z
-    .object({ name: z.string().trim().min(2, "Name is required").max(120) })
-    .strict(),
+  schema: z.object({ name: z.string().trim().min(2, "Name is required").max(120) }).strict(),
   audit: { action: "UPDATE", entity: "USER" },
   handler: async ({ input, ctx, audit }) => {
     const { before, after } = await updateOwnName(ctx, input.name);

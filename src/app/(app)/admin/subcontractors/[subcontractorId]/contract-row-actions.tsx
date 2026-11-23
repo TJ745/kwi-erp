@@ -93,8 +93,8 @@ export function ContractRowActions({
           <DialogHeader>
             <DialogTitle>Delete contract {contract.contractNo}?</DialogTitle>
             <DialogDescription>
-              This removes the contract and takes it off the expiry register, so it stops
-              generating renewal reminders. It cannot be undone.
+              This removes the contract and takes it off the expiry register, so it stops generating
+              renewal reminders. It cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

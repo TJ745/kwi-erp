@@ -23,10 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  createCredentialGrantAction,
-  revokeCredentialGrantAction,
-} from "@/server/actions/vault";
+import { createCredentialGrantAction, revokeCredentialGrantAction } from "@/server/actions/vault";
 
 export type GrantRow = {
   id: string;
@@ -142,9 +139,9 @@ export function GrantsDialog({
             <Users className="text-muted-foreground mt-0.5 size-3.5 shrink-0" />
           )}
           <p className="text-muted-foreground">
-            A grant narrows access rather than widening it. There is no administrator
-            override, so at least one person must always keep <strong>Manage</strong> — the
-            server refuses any change that would leave nobody.
+            A grant narrows access rather than widening it. There is no administrator override, so
+            at least one person must always keep <strong>Manage</strong> — the server refuses any
+            change that would leave nobody.
           </p>
         </div>
 
@@ -239,12 +236,12 @@ export function GrantsDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="grant-subject">
-              {subjectKind === "USER" ? "Person" : "Role"}
-            </Label>
+            <Label htmlFor="grant-subject">{subjectKind === "USER" ? "Person" : "Role"}</Label>
             <Select value={selectedSubject} onValueChange={setSubjectId}>
               <SelectTrigger id="grant-subject" className="w-full">
-                <SelectValue placeholder={subjectKind === "USER" ? "Select a person" : "Select a role"} />
+                <SelectValue
+                  placeholder={subjectKind === "USER" ? "Select a person" : "Select a role"}
+                />
               </SelectTrigger>
               <SelectContent>
                 {choices.map((c) => (
@@ -267,8 +264,8 @@ export function GrantsDialog({
               }}
             />
             <p className="text-muted-foreground text-xs">
-              Optional. An expired grant stops applying on its own, which may return the
-              credential to open if it was the only one.
+              Optional. An expired grant stops applying on its own, which may return the credential
+              to open if it was the only one.
             </p>
           </div>
 

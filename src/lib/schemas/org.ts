@@ -28,6 +28,14 @@ export const companySchema = z
     vatNumber: optionalText(50),
     addressLine: optionalText(300),
     city: optionalText(100),
+    addressAr: optionalText(300),
+    cityAr: optionalText(100),
+    headOfficeCity: optionalText(100),
+    headOfficeCityAr: optionalText(100),
+    signatoryName: optionalText(150),
+    signatoryNameAr: optionalText(150),
+    signatoryTitle: optionalText(100),
+    signatoryTitleAr: optionalText(100),
     country: z.string().trim().length(2, "Use a 2-letter country code").default("SA"),
     phone: optionalText(50),
     email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
@@ -39,9 +47,7 @@ export const companySchema = z
 
 export type CompanyInput = z.infer<typeof companySchema>;
 
-export const updateCompanySchema = companySchema
-  .extend({ id: z.string().min(1) })
-  .strict();
+export const updateCompanySchema = companySchema.extend({ id: z.string().min(1) }).strict();
 
 /** Which piece of letterhead is being set. Mirrors LETTERHEAD_SLOTS, which is
  *  where the slot's meaning lives. */
@@ -71,7 +77,10 @@ export const departmentSchema = z
       .regex(/^[A-Z0-9-]+$/, "Uppercase letters, digits, and hyphens only"),
     name: z.string().trim().min(2, "Name is required").max(150),
     nameAr: optionalText(150),
-    parentId: z.string().optional().transform((v) => (v === "" || v === "none" ? undefined : v)),
+    parentId: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" || v === "none" ? undefined : v)),
     headEmployeeId: z
       .string()
       .optional()
@@ -82,14 +91,15 @@ export const departmentSchema = z
 
 export type DepartmentInput = z.infer<typeof departmentSchema>;
 
-export const updateDepartmentSchema = departmentSchema
-  .extend({ id: z.string().min(1) })
-  .strict();
+export const updateDepartmentSchema = departmentSchema.extend({ id: z.string().min(1) }).strict();
 
 export const positionSchema = z
   .object({
     // Null/absent means the position is shared across every company.
-    companyId: z.string().optional().transform((v) => (v === "" || v === "all" ? undefined : v)),
+    companyId: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" || v === "all" ? undefined : v)),
     title: z.string().trim().min(2, "Title is required").max(150),
     titleAr: optionalText(150),
     grade: optionalText(50),
@@ -111,6 +121,4 @@ export const positionSchema = z
 
 export type PositionInput = z.infer<typeof positionSchema>;
 
-export const updatePositionSchema = positionSchema
-  .extend({ id: z.string().min(1) })
-  .strict();
+export const updatePositionSchema = positionSchema.extend({ id: z.string().min(1) }).strict();

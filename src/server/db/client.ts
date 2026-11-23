@@ -17,7 +17,10 @@ function createPrismaClient() {
     adapter,
     log:
       env.NODE_ENV === "development"
-        ? [{ emit: "stdout", level: "warn" }, { emit: "stdout", level: "error" }]
+        ? [
+            { emit: "stdout", level: "warn" },
+            { emit: "stdout", level: "error" },
+          ]
         : [{ emit: "stdout", level: "error" }],
   }).$extends(softDeleteExtension);
 }

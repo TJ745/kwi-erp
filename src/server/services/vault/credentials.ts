@@ -87,9 +87,7 @@ async function grantedCredentialIds(
     for (const credential of inCategories) {
       restricted.add(credential.id);
       const categoryGrants = byCategory.get(credential.categoryId) ?? [];
-      if (
-        categoryGrants.some((g) => isForActor(g) && ranks[g.level] >= ranks[level])
-      ) {
+      if (categoryGrants.some((g) => isForActor(g) && ranks[g.level] >= ranks[level])) {
         allowed.add(credential.id);
       }
     }
@@ -98,10 +96,7 @@ async function grantedCredentialIds(
   return { restricted, allowed };
 }
 
-function visibleWhere(
-  restricted: Set<string>,
-  allowed: Set<string>,
-): Prisma.CredentialWhereInput {
+function visibleWhere(restricted: Set<string>, allowed: Set<string>): Prisma.CredentialWhereInput {
   const blocked = [...restricted].filter((id) => !allowed.has(id));
   return blocked.length > 0 ? { id: { notIn: blocked } } : {};
 }

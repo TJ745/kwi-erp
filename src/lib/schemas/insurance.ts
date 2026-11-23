@@ -26,12 +26,7 @@ const optionalMoney = z
   .transform((v) => (v === "" || v === undefined ? undefined : v))
   .refine((v) => v === undefined || /^\d+(\.\d{1,2})?$/.test(v), "Enter a valid amount");
 
-export const POLICY_STATUSES = [
-  "ACTIVE",
-  "EXPIRED",
-  "CANCELLED",
-  "PENDING_RENEWAL",
-] as const;
+export const POLICY_STATUSES = ["ACTIVE", "EXPIRED", "CANCELLED", "PENDING_RENEWAL"] as const;
 
 export const providerSchema = z
   .object({
@@ -78,10 +73,7 @@ const policySchemaObject = z
  * intersection of a bare object with a strict one silently stops rejecting
  * unknown keys (verified — see storage of Phase 13 findings).
  */
-function checkPolicyDates(
-  d: { startDate: Date; expiryDate: Date },
-  ctx: z.RefinementCtx,
-): void {
+function checkPolicyDates(d: { startDate: Date; expiryDate: Date }, ctx: z.RefinementCtx): void {
   if (d.expiryDate.getTime() < d.startDate.getTime()) {
     ctx.addIssue({
       code: "custom",
@@ -95,7 +87,9 @@ export const policySchema = policySchemaObject.superRefine(checkPolicyDates);
 
 export type PolicyInput = z.infer<typeof policySchema>;
 
-export const updatePolicySchema = policySchemaObject.extend({ id: z.string().min(1) }).superRefine(checkPolicyDates);
+export const updatePolicySchema = policySchemaObject
+  .extend({ id: z.string().min(1) })
+  .superRefine(checkPolicyDates);
 
 /** Putting an employee on a policy. */
 export const enrolmentSchema = z
@@ -117,6 +111,17 @@ export const enrolmentSchema = z
       });
     }
   });
+
+/** Putting several employees on a policy at once. */
+export const bulkEnrolmentSchema = z
+  .object({
+    policyId: z.string().min(1),
+    employeeIds: z.array(z.string().min(1)).min(1, "Select at least one employee").max(2000),
+    memberNumber: optionalText(50),
+    className: optionalText(50),
+    startDate: requiredDate,
+  })
+  .strict();
 
 export const endEnrolmentSchema = z
   .object({ id: z.string().min(1), policyId: z.string().min(1), endDate: requiredDate })

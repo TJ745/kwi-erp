@@ -128,8 +128,8 @@ function DeleteButton({ doc }: { doc: DocumentRow }) {
           <DialogHeader>
             <DialogTitle>Delete this document?</DialogTitle>
             <DialogDescription>
-              “{doc.title}” will be removed and the stored file destroyed. The audit trail keeps
-              a record that it existed and who deleted it. This cannot be undone.
+              “{doc.title}” will be removed and the stored file destroyed. The audit trail keeps a
+              record that it existed and who deleted it. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

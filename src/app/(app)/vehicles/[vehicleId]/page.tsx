@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExpiryAlert } from "@/components/shared/expiry-alert";
@@ -14,6 +15,7 @@ import { VehicleDialog } from "../vehicle-dialog";
 import { DriverPanel } from "./driver-panel";
 import { MaintenanceDialog } from "./maintenance-dialog";
 import { DocumentsPanel } from "@/components/shared/documents-panel";
+import { vehicleKind } from "@/lib/vehicle-maintenance";
 
 export const metadata: Metadata = { title: "Vehicle" };
 
@@ -31,7 +33,7 @@ export default async function VehicleDetailPage({
   const canMaintain = ctx.permissions.has("vehicles.maintenance.manage");
 
   const [drivers, options] = await Promise.all([
-    canAssign ? driverOptions(ctx, vehicle.companyId) : Promise.resolve([]),
+    canAssign || canMaintain ? driverOptions(ctx, vehicle.companyId) : Promise.resolve([]),
     canManage ? orgOptions(ctx) : Promise.resolve(null),
   ]);
 
@@ -122,6 +124,7 @@ export default async function VehicleDetailPage({
         <DriverPanel
           vehicleId={vehicle.id}
           plateNumber={vehicle.plateNumber}
+          vehicleLabel={vehicleKind(vehicle.model)}
           canAssign={canAssign}
           drivers={drivers}
           current={
@@ -139,7 +142,8 @@ export default async function VehicleDetailPage({
       <Tabs defaultValue="maintenance">
         <TabsList>
           <TabsTrigger value="maintenance">
-            Maintenance{vehicle.maintenance.length > 0 ? ` (${String(vehicle.maintenance.length)})` : ""}
+            Maintenance
+            {vehicle.maintenance.length > 0 ? ` (${String(vehicle.maintenance.length)})` : ""}
           </TabsTrigger>
           <TabsTrigger value="handovers">
             Handovers{vehicle.handovers.length > 0 ? ` (${String(vehicle.handovers.length)})` : ""}
@@ -154,6 +158,8 @@ export default async function VehicleDetailPage({
               <MaintenanceDialog
                 vehicleId={vehicle.id}
                 currentMileage={vehicle.currentMileage}
+                drivers={drivers}
+                currentDriverId={vehicle.currentDriver?.id ?? null}
               />
             </div>
           ) : null}
@@ -175,6 +181,7 @@ export default async function VehicleDetailPage({
                     <th className="px-4 py-2 font-medium">Mileage</th>
                     <th className="px-4 py-2 font-medium">Workshop</th>
                     <th className="px-4 py-2 font-medium">Next due</th>
+                    <th className="px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -183,14 +190,20 @@ export default async function VehicleDetailPage({
                       <td className="px-4 py-2 tabular-nums">
                         {m.date.toISOString().slice(0, 10)}
                       </td>
-                      <td className="px-4 py-2">
-                        {m.type.replace(/_/g, " ").toLowerCase()}
-                      </td>
+                      <td className="px-4 py-2">{m.type.replace(/_/g, " ").toLowerCase()}</td>
                       <td className="px-4 py-2">{m.description}</td>
                       <td className="px-4 py-2 tabular-nums">{m.mileage ?? "—"}</td>
                       <td className="text-muted-foreground px-4 py-2">{m.workshop ?? "—"}</td>
                       <td className="px-4 py-2 tabular-nums">
                         {m.nextDueDate ? m.nextDueDate.toISOString().slice(0, 10) : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/vehicles/maintenance/${m.id}`}>
+                            <Printer />
+                            {m.requestNo ?? "Print"}
+                          </Link>
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -224,6 +237,12 @@ export default async function VehicleDetailPage({
                     {h.condition.toLowerCase()}
                   </p>
                   {h.remarks ? <p className="mt-1 text-sm">{h.remarks}</p> : null}
+                  <Button asChild size="sm" variant="outline" className="mt-2">
+                    <Link href={`/vehicles/handovers/${h.id}`}>
+                      <Printer />
+                      Print handover letter
+                    </Link>
+                  </Button>
                 </li>
               ))}
             </ul>

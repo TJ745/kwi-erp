@@ -2,492 +2,257 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
-import { allOf, pooledOrScoped } from "@/lib/scope-filters";
+import { companyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
-import { deactivateExpiry, syncExpiry } from "./expiry";
-import type {
-  AdRecordInput,
-  CctvInput,
-  IpAddressInput,
-  IpPhoneInput,
-  LicenceInput,
-  NetworkDeviceInput,
-  ServerInput,
-} from "@/lib/schemas/infrastructure";
+import type { CctvInput, IpPhoneInput } from "@/lib/schemas/infrastructure";
 
-/**
- * IT infrastructure — brief §24–§26.
- *
- * Two schema comments govern this module and are worth restating:
- *
- *   SoftwareLicense — "Licence keys are never stored here — they reference a
- *   Credential row." There is no key column and no key field in the schema;
- *   a licence points at the vault (docs/SECURITY.md §5).
- *
- *   AdRecord — "Deliberately stores no credentials." It is directory metadata:
- *   account name, OU, groups, enabled. Never a password.
- */
+/** IT infrastructure: device IPs, IP phones, CCTV — all layered over IT assets. */
 
 const UNIQUE_VIOLATION = "P2002";
 
 /** Turns a unique-constraint violation into a sentence naming the field. */
 function asConflict(error: unknown, message: string): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === UNIQUE_VIOLATION
-  ) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_VIOLATION) {
     throw new ConflictError(message);
   }
   throw error;
 }
 
-// --- Servers -----------------------------------------------------------------
+// --- Device IPs --------------------------------------------------------------
 
-export async function listServers(
-  ctx: ActorContext,
-  filters: { q?: string | undefined; status?: string | undefined } = {},
-) {
-  return prisma.server.findMany({
+/**
+ * Every asset that has an IP address. Read-only: the address is edited on the
+ * asset, so it is recorded in exactly one place.
+ */
+export async function listDeviceIps(ctx: ActorContext, filters: { q?: string | undefined } = {}) {
+  const rows = await prisma.iTAsset.findMany({
     where: {
-      ...companyScopeWhere(ctx),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
-              { ipAddress: { contains: filters.q, mode: "insensitive" as const } },
-              { role: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      ipAddress: true,
-      os: true,
-      role: true,
-      location: true,
-      cpuSpec: true,
-      ramGb: true,
-      storageGb: true,
-      status: true,
-      notes: true,
-      companyId: true,
-      company: { select: { code: true } },
-    },
-  });
-}
-
-export async function createServer(ctx: ActorContext, input: ServerInput) {
-  requireCompanyAccess(ctx, input.companyId);
-  try {
-    return await prisma.server.create({
-      data: {
-        companyId: input.companyId,
-        name: input.name,
-        ipAddress: input.ipAddress ?? null,
-        os: input.os ?? null,
-        role: input.role ?? null,
-        location: input.location ?? null,
-        cpuSpec: input.cpuSpec ?? null,
-        ramGb: input.ramGb ?? null,
-        storageGb: input.storageGb ?? null,
-        status: input.status,
-        notes: input.notes ?? null,
-      },
-      select: { id: true, name: true, companyId: true, ipAddress: true },
-    });
-  } catch (error) {
-    asConflict(error, `A server named "${input.name}" already exists.`);
-  }
-}
-
-export async function updateServer(ctx: ActorContext, input: ServerInput & { id: string }) {
-  const before = await prisma.server.findFirst({
-    where: { id: input.id, ...companyScopeWhere(ctx) },
-    select: { id: true, name: true, ipAddress: true, status: true, companyId: true },
-  });
-  if (!before) throw new NotFoundError("Server not found.");
-  requireCompanyAccess(ctx, input.companyId);
-
-  try {
-    const after = await prisma.server.update({
-      where: { id: input.id },
-      data: {
-        companyId: input.companyId,
-        name: input.name,
-        ipAddress: input.ipAddress ?? null,
-        os: input.os ?? null,
-        role: input.role ?? null,
-        location: input.location ?? null,
-        cpuSpec: input.cpuSpec ?? null,
-        ramGb: input.ramGb ?? null,
-        storageGb: input.storageGb ?? null,
-        status: input.status,
-        notes: input.notes ?? null,
-      },
-      select: { id: true, name: true, ipAddress: true, status: true, companyId: true },
-    });
-    return { before, after };
-  } catch (error) {
-    asConflict(error, `A server named "${input.name}" already exists.`);
-  }
-}
-
-export async function deleteServer(ctx: ActorContext, id: string) {
-  const server = await prisma.server.findFirst({
-    where: { id, ...companyScopeWhere(ctx) },
-    select: { id: true, name: true, companyId: true },
-  });
-  if (!server) throw new NotFoundError("Server not found.");
-  await prisma.server.delete({ where: { id } });
-  return server;
-}
-
-// --- Network devices and IP addresses ----------------------------------------
-
-export async function listNetworkDevices(
-  ctx: ActorContext,
-  filters: { q?: string | undefined } = {},
-) {
-  return prisma.networkDevice.findMany({
-    where: {
+      ipAddress: { not: null },
+      deletedAt: null,
       ...companyScopeWhere(ctx),
       ...(filters.q
         ? {
             OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
               { ipAddress: { contains: filters.q, mode: "insensitive" as const } },
+              { assetCode: { contains: filters.q, mode: "insensitive" as const } },
+              { brand: { contains: filters.q, mode: "insensitive" as const } },
+              { model: { contains: filters.q, mode: "insensitive" as const } },
+              { location: { contains: filters.q, mode: "insensitive" as const } },
               { macAddress: { contains: filters.q, mode: "insensitive" as const } },
             ],
           }
         : {}),
     },
-    orderBy: { name: "asc" },
+    take: 5000,
     select: {
       id: true,
-      name: true,
+      assetCode: true,
       type: true,
+      brand: true,
       model: true,
       ipAddress: true,
       macAddress: true,
       location: true,
-      vlan: true,
-      portCount: true,
       status: true,
-      notes: true,
-      companyId: true,
       company: { select: { code: true } },
-      _count: { select: { ipAddresses: true } },
-    },
-  });
-}
-
-export async function createNetworkDevice(ctx: ActorContext, input: NetworkDeviceInput) {
-  requireCompanyAccess(ctx, input.companyId);
-  return prisma.networkDevice.create({
-    data: {
-      companyId: input.companyId,
-      name: input.name,
-      type: input.type,
-      model: input.model ?? null,
-      ipAddress: input.ipAddress ?? null,
-      macAddress: input.macAddress ?? null,
-      location: input.location ?? null,
-      vlan: input.vlan ?? null,
-      portCount: input.portCount ?? null,
-      status: input.status,
-      notes: input.notes ?? null,
-    },
-    select: { id: true, name: true, type: true, companyId: true },
-  });
-}
-
-export async function updateNetworkDevice(
-  ctx: ActorContext,
-  input: NetworkDeviceInput & { id: string },
-) {
-  const before = await prisma.networkDevice.findFirst({
-    where: { id: input.id, ...companyScopeWhere(ctx) },
-    select: { id: true, name: true, ipAddress: true, status: true, companyId: true },
-  });
-  if (!before) throw new NotFoundError("Device not found.");
-  requireCompanyAccess(ctx, input.companyId);
-
-  const after = await prisma.networkDevice.update({
-    where: { id: input.id },
-    data: {
-      companyId: input.companyId,
-      name: input.name,
-      type: input.type,
-      model: input.model ?? null,
-      ipAddress: input.ipAddress ?? null,
-      macAddress: input.macAddress ?? null,
-      location: input.location ?? null,
-      vlan: input.vlan ?? null,
-      portCount: input.portCount ?? null,
-      status: input.status,
-      notes: input.notes ?? null,
-    },
-    select: { id: true, name: true, ipAddress: true, status: true, companyId: true },
-  });
-
-  return { before, after };
-}
-
-export async function deleteNetworkDevice(ctx: ActorContext, id: string) {
-  const device = await prisma.networkDevice.findFirst({
-    where: { id, ...companyScopeWhere(ctx) },
-    select: {
-      id: true,
-      name: true,
-      companyId: true,
-      _count: { select: { ipAddresses: true } },
-    },
-  });
-  if (!device) throw new NotFoundError("Device not found.");
-  if (device._count.ipAddresses > 0) {
-    throw new ConflictError(
-      `${device._count.ipAddresses} IP address(es) are assigned to this device. Reassign them first.`,
-    );
-  }
-
-  await prisma.networkDevice.delete({ where: { id } });
-  return device;
-}
-
-/**
- * IP addresses are globally unique in the schema, and deliberately not company
- * scoped: an address collision is a network fact, not an org-chart one, and
- * scoping the check would let two companies both claim 10.0.0.5.
- */
-export async function listIpAddresses(
-  ctx: ActorContext,
-  filters: { q?: string | undefined } = {},
-) {
-  const devices = await prisma.networkDevice.findMany({
-    where: { ...companyScopeWhere(ctx) },
-    select: { id: true },
-  });
-  const deviceIds = devices.map((d) => d.id);
-
-  return prisma.ipAddress.findMany({
-    where: {
-      // Unassigned addresses are visible to everyone; assigned ones follow
-      // their device's company.
-      OR: [{ deviceId: null }, { deviceId: { in: deviceIds } }],
-      ...(filters.q
-        ? {
-            OR: [
-              { address: { contains: filters.q, mode: "insensitive" as const } },
-              { assignedTo: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { address: "asc" },
-    take: 1000,
-    select: {
-      id: true,
-      address: true,
-      subnet: true,
-      assignedTo: true,
-      isStatic: true,
-      notes: true,
-      deviceId: true,
-      device: { select: { id: true, name: true, company: { select: { code: true } } } },
-    },
-  });
-}
-
-export async function createIpAddress(ctx: ActorContext, input: IpAddressInput) {
-  if (input.deviceId) {
-    const device = await prisma.networkDevice.findFirst({
-      where: { id: input.deviceId, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!device) throw new NotFoundError("Device not found.");
-  }
-
-  try {
-    return await prisma.ipAddress.create({
-      data: {
-        address: input.address,
-        subnet: input.subnet ?? null,
-        assignedTo: input.assignedTo ?? null,
-        deviceId: input.deviceId ?? null,
-        isStatic: input.isStatic,
-        notes: input.notes ?? null,
+      assignments: {
+        where: { returnedAt: null },
+        take: 1,
+        select: { employee: { select: { fullName: true, employeeNo: true } } },
       },
-      select: { id: true, address: true, deviceId: true },
-    });
-  } catch (error) {
-    // Two devices on one address is the classic cause of an outage nobody
-    // can explain, so the message says what is already using it.
-    asConflict(error, `${input.address} is already recorded.`);
-  }
+    },
+  });
+
+  // Sorted numerically (10.0.0.9 before 10.0.0.10), which the database's text
+  // ordering would get wrong.
+  return rows
+    .map((r) => ({
+      id: r.id,
+      assetCode: r.assetCode,
+      type: r.type,
+      device: `${r.brand} ${r.model}`,
+      ipAddress: r.ipAddress ?? "",
+      macAddress: r.macAddress,
+      location: r.location,
+      status: r.status,
+      companyCode: r.company.code,
+      holder: r.assignments[0]?.employee ?? null,
+    }))
+    .sort((a, b) => compareIp(a.ipAddress, b.ipAddress));
 }
 
-export async function updateIpAddress(
-  ctx: ActorContext,
-  input: IpAddressInput & { id: string },
-) {
-  const before = await prisma.ipAddress.findUnique({
-    where: { id: input.id },
-    select: { id: true, address: true, deviceId: true, assignedTo: true },
-  });
-  if (!before) throw new NotFoundError("Address not found.");
-
-  if (input.deviceId) {
-    const device = await prisma.networkDevice.findFirst({
-      where: { id: input.deviceId, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!device) throw new NotFoundError("Device not found.");
+function compareIp(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  if (pa.length === 4 && pb.length === 4 && [...pa, ...pb].every(Number.isFinite)) {
+    for (let k = 0; k < 4; k++) {
+      const diff = (pa[k] ?? 0) - (pb[k] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
   }
-
-  try {
-    const after = await prisma.ipAddress.update({
-      where: { id: input.id },
-      data: {
-        address: input.address,
-        subnet: input.subnet ?? null,
-        assignedTo: input.assignedTo ?? null,
-        deviceId: input.deviceId ?? null,
-        isStatic: input.isStatic,
-        notes: input.notes ?? null,
-      },
-      select: { id: true, address: true, deviceId: true, assignedTo: true },
-    });
-    return { before, after };
-  } catch (error) {
-    asConflict(error, `${input.address} is already recorded.`);
-  }
-}
-
-export async function deleteIpAddress(_ctx: ActorContext, id: string) {
-  const address = await prisma.ipAddress.findUnique({
-    where: { id },
-    select: { id: true, address: true },
-  });
-  if (!address) throw new NotFoundError("Address not found.");
-  await prisma.ipAddress.delete({ where: { id } });
-  return address;
+  return a.localeCompare(b);
 }
 
 // --- IP phones ---------------------------------------------------------------
 
-export async function listIpPhones(
-  ctx: ActorContext,
-  filters: { q?: string | undefined } = {},
-) {
-  return prisma.ipPhone.findMany({
-    // Two independent OR conditions, composed under AND rather than spread:
-    // spreading keeps only the last, which would drop company scoping the
-    // moment someone typed in the search box.
-    where: allOf(
-      // A phone reaches a company through its employee; unassigned handsets
-      // are pool stock and visible to everyone.
-      { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
-      filters.q
+/** The handset fields shown with an extension, all read from the asset. */
+const HANDSET_SELECT = {
+  id: true,
+  assetCode: true,
+  brand: true,
+  model: true,
+  macAddress: true,
+  location: true,
+  status: true,
+  deletedAt: true,
+  company: { select: { code: true } },
+  // The open handover, if any, is who holds the handset today.
+  assignments: {
+    where: { returnedAt: null },
+    take: 1,
+    select: { employee: { select: { id: true, fullName: true, employeeNo: true } } },
+  },
+} as const;
+
+export async function listIpPhones(ctx: ActorContext, filters: { q?: string | undefined } = {}) {
+  const rows = await prisma.ipPhone.findMany({
+    // A phone belongs to the company that owns its handset.
+    where: {
+      asset: companyScopeWhere(ctx),
+      ...(filters.q
         ? {
             OR: [
               { extension: { contains: filters.q } },
-              { macAddress: { contains: filters.q, mode: "insensitive" as const } },
+              { asset: { assetCode: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { macAddress: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { model: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { location: { contains: filters.q, mode: "insensitive" as const } } },
             ],
           }
-        : undefined,
-    ),
+        : {}),
+    },
     orderBy: { extension: "asc" },
+    select: { id: true, extension: true, assetId: true, asset: { select: HANDSET_SELECT } },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    extension: r.extension,
+    assetId: r.assetId,
+    handset: {
+      id: r.asset.id,
+      assetCode: r.asset.assetCode,
+      label: `${r.asset.brand} ${r.asset.model}`,
+      macAddress: r.asset.macAddress,
+      location: r.asset.location,
+      status: r.asset.status,
+      removed: r.asset.deletedAt !== null,
+      companyCode: r.asset.company.code,
+    },
+    holder: r.asset.assignments[0]?.employee ?? null,
+  }));
+}
+
+/**
+ * IP-phone assets for the picker, each marked with the extension already on
+ * it. The dialog offers only free handsets, plus the one an entry already uses.
+ */
+export async function ipPhoneHandsetOptions(ctx: ActorContext) {
+  const assets = await prisma.iTAsset.findMany({
+    where: {
+      type: "IP_PHONE",
+      deletedAt: null,
+      status: { notIn: ["DISPOSED", "LOST"] },
+      ...companyScopeWhere(ctx),
+    },
+    orderBy: { assetCode: "asc" },
     select: {
       id: true,
-      extension: true,
-      deviceModel: true,
-      macAddress: true,
+      assetCode: true,
+      brand: true,
+      model: true,
       location: true,
-      status: true,
-      employeeId: true,
-      employee: {
-        select: {
-          id: true,
-          fullName: true,
-          employeeNo: true,
-          company: { select: { code: true } },
-        },
-      },
+      ipPhone: { select: { id: true } },
     },
   });
+  return assets.map((a) => ({
+    id: a.id,
+    label: `${a.assetCode} · ${a.brand} ${a.model}${a.location ? ` · ${a.location}` : ""}`,
+    usedByPhoneId: a.ipPhone?.id ?? null,
+  }));
+}
+
+/** The handset must be an IP-phone asset the actor can see. */
+async function requireHandset(ctx: ActorContext, assetId: string) {
+  const asset = await prisma.iTAsset.findFirst({
+    where: { id: assetId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      type: true,
+      assetCode: true,
+      ipPhone: { select: { id: true, extension: true } },
+    },
+  });
+  if (!asset) throw new NotFoundError("Handset not found.");
+  if (asset.type !== "IP_PHONE") {
+    throw new ConflictError(
+      `${asset.assetCode} is not an IP phone. Set its type to IP Phone in Assets first.`,
+    );
+  }
+  return asset;
 }
 
 export async function createIpPhone(ctx: ActorContext, input: IpPhoneInput) {
-  if (input.employeeId) {
-    const employee = await prisma.employee.findFirst({
-      where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!employee) throw new NotFoundError("Employee not found.");
+  const handset = await requireHandset(ctx, input.assetId);
+  if (handset.ipPhone) {
+    throw new ConflictError(
+      `${handset.assetCode} already rings on extension ${handset.ipPhone.extension}.`,
+    );
   }
 
   try {
     return await prisma.ipPhone.create({
-      data: {
-        extension: input.extension,
-        employeeId: input.employeeId ?? null,
-        deviceModel: input.deviceModel ?? null,
-        macAddress: input.macAddress ?? null,
-        location: input.location ?? null,
-        status: input.status,
-      },
-      select: { id: true, extension: true, employeeId: true },
+      data: { extension: input.extension, assetId: input.assetId },
+      select: { id: true, extension: true, asset: { select: { assetCode: true } } },
     });
   } catch (error) {
     asConflict(error, `Extension ${input.extension} is already in use.`);
   }
 }
 
-export async function updateIpPhone(
-  ctx: ActorContext,
-  input: IpPhoneInput & { id: string },
-) {
-  const before = await prisma.ipPhone.findUnique({
-    where: { id: input.id },
-    select: { id: true, extension: true, employeeId: true, status: true },
+export async function updateIpPhone(ctx: ActorContext, input: IpPhoneInput & { id: string }) {
+  const before = await prisma.ipPhone.findFirst({
+    where: { id: input.id, asset: companyScopeWhere(ctx) },
+    select: { id: true, extension: true, asset: { select: { assetCode: true } } },
   });
   if (!before) throw new NotFoundError("Phone not found.");
 
-  if (input.employeeId) {
-    const employee = await prisma.employee.findFirst({
-      where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!employee) throw new NotFoundError("Employee not found.");
+  const handset = await requireHandset(ctx, input.assetId);
+  if (handset.ipPhone && handset.ipPhone.id !== input.id) {
+    throw new ConflictError(
+      `${handset.assetCode} already rings on extension ${handset.ipPhone.extension}.`,
+    );
   }
 
   try {
     const after = await prisma.ipPhone.update({
       where: { id: input.id },
-      data: {
-        extension: input.extension,
-        employeeId: input.employeeId ?? null,
-        deviceModel: input.deviceModel ?? null,
-        macAddress: input.macAddress ?? null,
-        location: input.location ?? null,
-        status: input.status,
-      },
-      select: { id: true, extension: true, employeeId: true, status: true },
+      data: { extension: input.extension, assetId: input.assetId },
+      select: { id: true, extension: true, asset: { select: { assetCode: true } } },
     });
-    return { before, after };
+    return {
+      before: { extension: before.extension, handset: before.asset.assetCode },
+      after: { id: after.id, extension: after.extension, handset: after.asset.assetCode },
+    };
   } catch (error) {
     asConflict(error, `Extension ${input.extension} is already in use.`);
   }
 }
 
-export async function deleteIpPhone(_ctx: ActorContext, id: string) {
-  const phone = await prisma.ipPhone.findUnique({
-    where: { id },
+export async function deleteIpPhone(ctx: ActorContext, id: string) {
+  const phone = await prisma.ipPhone.findFirst({
+    where: { id, asset: companyScopeWhere(ctx) },
     select: { id: true, extension: true },
   });
   if (!phone) throw new NotFoundError("Phone not found.");
@@ -497,481 +262,223 @@ export async function deleteIpPhone(_ctx: ActorContext, id: string) {
 
 // --- CCTV --------------------------------------------------------------------
 
+const RECORDER_CCTV_TYPES = new Set(["NVR", "DVR"]);
+
+/** The device fields shown on the CCTV page, all read from the asset. */
+const CCTV_ASSET_SELECT = {
+  id: true,
+  assetCode: true,
+  brand: true,
+  model: true,
+  location: true,
+  ipAddress: true,
+  status: true,
+  deletedAt: true,
+  companyId: true,
+  company: { select: { code: true } },
+} as const;
+
 export async function listCctv(ctx: ActorContext) {
-  return prisma.cctvDevice.findMany({
-    where: { ...companyScopeWhere(ctx) },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
+  const rows = await prisma.cctvDevice.findMany({
+    // A CCTV device belongs to the company that owns its asset.
+    where: { asset: companyScopeWhere(ctx) },
+    orderBy: [{ type: "asc" }, { asset: { location: "asc" } }],
     select: {
       id: true,
-      name: true,
       type: true,
-      location: true,
-      ipAddress: true,
-      status: true,
       lastMaintenanceAt: true,
       notes: true,
-      companyId: true,
+      assetId: true,
       recorderId: true,
-      company: { select: { code: true } },
-      recorder: { select: { id: true, name: true } },
+      asset: { select: CCTV_ASSET_SELECT },
+      recorder: { select: { id: true, asset: { select: { assetCode: true, location: true } } } },
       _count: { select: { cameras: true } },
     },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    lastMaintenanceAt: r.lastMaintenanceAt,
+    notes: r.notes,
+    assetId: r.assetId,
+    recorderId: r.recorderId,
+    device: {
+      id: r.asset.id,
+      assetCode: r.asset.assetCode,
+      label: `${r.asset.brand} ${r.asset.model}`,
+      location: r.asset.location,
+      ipAddress: r.asset.ipAddress,
+      status: r.asset.status,
+      removed: r.asset.deletedAt !== null,
+      companyCode: r.asset.company.code,
+    },
+    recorder: r.recorder
+      ? {
+          id: r.recorder.id,
+          label: `${r.recorder.asset.assetCode}${r.recorder.asset.location ? ` · ${r.recorder.asset.location}` : ""}`,
+        }
+      : null,
+    cameraCount: r._count.cameras,
+  }));
+}
+
+/**
+ * Camera and recorder assets for the picker, each marked with the CCTV entry
+ * already using it, so the dialog can offer only free ones.
+ */
+export async function cctvAssetOptions(ctx: ActorContext) {
+  const assets = await prisma.iTAsset.findMany({
+    where: {
+      type: { in: ["CCTV_CAMERA", "CCTV_RECORDER"] },
+      deletedAt: null,
+      status: { notIn: ["DISPOSED", "LOST"] },
+      ...companyScopeWhere(ctx),
+    },
+    orderBy: { assetCode: "asc" },
+    select: {
+      id: true,
+      assetCode: true,
+      type: true,
+      brand: true,
+      model: true,
+      location: true,
+      cctv: { select: { id: true } },
+    },
+  });
+  return assets.map((a) => ({
+    id: a.id,
+    kind: a.type === "CCTV_RECORDER" ? ("recorder" as const) : ("camera" as const),
+    label: `${a.assetCode} · ${a.brand} ${a.model}${a.location ? ` · ${a.location}` : ""}`,
+    usedByCctvId: a.cctv?.id ?? null,
+  }));
+}
+
+/** The asset must be visible, and its type must match the CCTV type chosen. */
+async function requireCctvAsset(ctx: ActorContext, assetId: string, cctvType: string) {
+  const asset = await prisma.iTAsset.findFirst({
+    where: { id: assetId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      type: true,
+      assetCode: true,
+      companyId: true,
+      cctv: { select: { id: true, type: true } },
+    },
+  });
+  if (!asset) throw new NotFoundError("Device not found in Assets.");
+
+  const wantsRecorder = RECORDER_CCTV_TYPES.has(cctvType);
+  const needed = wantsRecorder ? "CCTV_RECORDER" : "CCTV_CAMERA";
+  if (asset.type !== needed) {
+    throw new ConflictError(
+      wantsRecorder
+        ? `${asset.assetCode} is not a recorder. An NVR or DVR must be an asset of type CCTV Recorder.`
+        : `${asset.assetCode} is not a camera. A ${cctvType} camera must be an asset of type CCTV Camera.`,
+    );
+  }
+  return asset;
+}
+
+async function requireRecorder(
+  ctx: ActorContext,
+  recorderId: string,
+  companyId: string,
+  selfId?: string,
+) {
+  if (recorderId === selfId) throw new ConflictError("A device cannot record itself.");
+  const recorder = await prisma.cctvDevice.findFirst({
+    where: { id: recorderId, asset: companyScopeWhere(ctx) },
+    select: { id: true, type: true, asset: { select: { assetCode: true, companyId: true } } },
+  });
+  if (!recorder) throw new NotFoundError("Recorder not found.");
+  if (!RECORDER_CCTV_TYPES.has(recorder.type)) {
+    throw new ConflictError(`${recorder.asset.assetCode} is a camera, not a recorder.`);
+  }
+  if (recorder.asset.companyId !== companyId) {
+    throw new ConflictError("The recorder belongs to a different company.");
+  }
 }
 
 export async function createCctv(ctx: ActorContext, input: CctvInput) {
-  requireCompanyAccess(ctx, input.companyId);
-
-  if (input.recorderId) {
-    const recorder = await prisma.cctvDevice.findFirst({
-      where: { id: input.recorderId, ...companyScopeWhere(ctx) },
-      select: { id: true, type: true, companyId: true, name: true },
-    });
-    if (!recorder) throw new NotFoundError("Recorder not found.");
-    if (recorder.type !== "NVR" && recorder.type !== "DVR") {
-      throw new ConflictError(`${recorder.name} is a camera, not a recorder.`);
-    }
-    if (recorder.companyId !== input.companyId) {
-      throw new ConflictError("The recorder belongs to a different company.");
-    }
+  const asset = await requireCctvAsset(ctx, input.assetId, input.type);
+  if (asset.cctv) {
+    throw new ConflictError(`${asset.assetCode} is already on the CCTV page.`);
   }
+  if (input.recorderId) await requireRecorder(ctx, input.recorderId, asset.companyId);
 
-  return prisma.cctvDevice.create({
+  const created = await prisma.cctvDevice.create({
     data: {
-      companyId: input.companyId,
-      name: input.name,
+      assetId: input.assetId,
       type: input.type,
-      location: input.location,
-      ipAddress: input.ipAddress ?? null,
       recorderId: input.recorderId ?? null,
-      status: input.status,
       lastMaintenanceAt: input.lastMaintenanceAt ?? null,
       notes: input.notes ?? null,
     },
-    select: { id: true, name: true, type: true, companyId: true },
+    select: { id: true, type: true },
   });
+  return { ...created, assetCode: asset.assetCode, companyId: asset.companyId };
 }
 
 export async function updateCctv(ctx: ActorContext, input: CctvInput & { id: string }) {
   const before = await prisma.cctvDevice.findFirst({
-    where: { id: input.id, ...companyScopeWhere(ctx) },
+    where: { id: input.id, asset: companyScopeWhere(ctx) },
     select: {
       id: true,
-      name: true,
       type: true,
-      status: true,
-      companyId: true,
+      recorderId: true,
+      asset: { select: { assetCode: true } },
       _count: { select: { cameras: true } },
     },
   });
   if (!before) throw new NotFoundError("Device not found.");
-  requireCompanyAccess(ctx, input.companyId);
+
+  const asset = await requireCctvAsset(ctx, input.assetId, input.type);
+  if (asset.cctv && asset.cctv.id !== input.id) {
+    throw new ConflictError(`${asset.assetCode} is already on the CCTV page.`);
+  }
 
   // Demoting a recorder that still has cameras would orphan them.
-  const stillRecorder = input.type === "NVR" || input.type === "DVR";
-  if (!stillRecorder && before._count.cameras > 0) {
+  if (!RECORDER_CCTV_TYPES.has(input.type) && before._count.cameras > 0) {
     throw new ConflictError(
-      `${before.name} has ${String(before._count.cameras)} camera(s) attached. Reassign them before changing its type.`,
+      `${before.asset.assetCode} has ${String(before._count.cameras)} camera(s) attached. Reassign them before changing its type.`,
     );
   }
-
-  if (input.recorderId) {
-    if (input.recorderId === input.id) {
-      throw new ConflictError("A device cannot record itself.");
-    }
-    const recorder = await prisma.cctvDevice.findFirst({
-      where: { id: input.recorderId, ...companyScopeWhere(ctx) },
-      select: { id: true, type: true, name: true, companyId: true },
-    });
-    if (!recorder) throw new NotFoundError("Recorder not found.");
-    if (recorder.type !== "NVR" && recorder.type !== "DVR") {
-      throw new ConflictError(`${recorder.name} is a camera, not a recorder.`);
-    }
-    if (recorder.companyId !== input.companyId) {
-      throw new ConflictError("The recorder belongs to a different company.");
-    }
-  }
+  if (input.recorderId) await requireRecorder(ctx, input.recorderId, asset.companyId, input.id);
 
   const after = await prisma.cctvDevice.update({
     where: { id: input.id },
     data: {
-      companyId: input.companyId,
-      name: input.name,
+      assetId: input.assetId,
       type: input.type,
-      location: input.location,
-      ipAddress: input.ipAddress ?? null,
       recorderId: input.recorderId ?? null,
-      status: input.status,
       lastMaintenanceAt: input.lastMaintenanceAt ?? null,
       notes: input.notes ?? null,
     },
-    select: { id: true, name: true, type: true, status: true, companyId: true },
+    select: { id: true, type: true, recorderId: true },
   });
 
-  return { before, after };
+  return {
+    before: { type: before.type, device: before.asset.assetCode, recorderId: before.recorderId },
+    after: { ...after, device: asset.assetCode, companyId: asset.companyId },
+  };
 }
 
 export async function deleteCctv(ctx: ActorContext, id: string) {
   const device = await prisma.cctvDevice.findFirst({
-    where: { id, ...companyScopeWhere(ctx) },
+    where: { id, asset: companyScopeWhere(ctx) },
     select: {
       id: true,
-      name: true,
-      companyId: true,
+      asset: { select: { assetCode: true, companyId: true } },
       _count: { select: { cameras: true } },
     },
   });
   if (!device) throw new NotFoundError("Device not found.");
   if (device._count.cameras > 0) {
     throw new ConflictError(
-      `${device._count.cameras} camera(s) record to this device. Reassign them first.`,
+      `${String(device._count.cameras)} camera(s) record to this device. Reassign them first.`,
     );
   }
 
   await prisma.cctvDevice.delete({ where: { id } });
-  return device;
-}
-
-// --- Software licences -------------------------------------------------------
-
-export async function listLicences(ctx: ActorContext) {
-  return prisma.softwareLicense.findMany({
-    where: { ...companyScopeWhere(ctx) },
-    orderBy: [{ expiryDate: { sort: "asc", nulls: "last" } }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      vendor: true,
-      seats: true,
-      seatsUsed: true,
-      purchaseDate: true,
-      expiryDate: true,
-      notes: true,
-      companyId: true,
-      licenseKeyCredentialId: true,
-      company: { select: { code: true } },
-      // The credential's NAME only. The key itself is never read here — the
-      // vault's own reveal flow is the only path to it (SECURITY.md §5).
-      licenseKey: { select: { id: true, name: true } },
-    },
-  });
-}
-
-/** Credentials that can be linked as a licence key, by name only. */
-export async function licenceKeyOptions(ctx: ActorContext) {
-  if (!ctx.permissions.has("vault.view")) return [];
-  return prisma.credential.findMany({
-    where: { deletedAt: null, ...companyScopeWhere(ctx) },
-    orderBy: { name: "asc" },
-    take: 500,
-    select: { id: true, name: true },
-  });
-}
-
-function licenceLabel(name: string, vendor: string | null): string {
-  return `Licence — ${name}${vendor ? ` (${vendor})` : ""}`;
-}
-
-export async function createLicence(ctx: ActorContext, input: LicenceInput) {
-  requireCompanyAccess(ctx, input.companyId);
-
-  if (input.licenseKeyCredentialId) {
-    const credential = await prisma.credential.findFirst({
-      where: {
-        id: input.licenseKeyCredentialId,
-        deletedAt: null,
-        ...companyScopeWhere(ctx),
-      },
-      select: { id: true },
-    });
-    if (!credential) throw new NotFoundError("Credential not found.");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const licence = await tx.softwareLicense.create({
-      data: {
-        companyId: input.companyId,
-        name: input.name,
-        vendor: input.vendor ?? null,
-        licenseKeyCredentialId: input.licenseKeyCredentialId ?? null,
-        seats: input.seats,
-        seatsUsed: input.seatsUsed,
-        purchaseDate: input.purchaseDate ?? null,
-        expiryDate: input.expiryDate ?? null,
-        notes: input.notes ?? null,
-      },
-      select: {
-        id: true,
-        name: true,
-        vendor: true,
-        seats: true,
-        expiryDate: true,
-        companyId: true,
-      },
-    });
-
-    if (licence.expiryDate) {
-      await syncExpiry(
-        {
-          source: "SOFTWARE_LICENSE",
-          sourceId: licence.id,
-          companyId: licence.companyId,
-          label: licenceLabel(licence.name, licence.vendor),
-          expiryDate: licence.expiryDate,
-        },
-        tx,
-      );
-    }
-
-    return licence;
-  });
-}
-
-export async function updateLicence(
-  ctx: ActorContext,
-  input: LicenceInput & { id: string },
-) {
-  const before = await prisma.softwareLicense.findFirst({
-    where: { id: input.id, ...companyScopeWhere(ctx) },
-    select: {
-      id: true,
-      name: true,
-      seats: true,
-      seatsUsed: true,
-      expiryDate: true,
-      companyId: true,
-    },
-  });
-  if (!before) throw new NotFoundError("Licence not found.");
-  requireCompanyAccess(ctx, input.companyId);
-
-  if (input.licenseKeyCredentialId) {
-    const credential = await prisma.credential.findFirst({
-      where: {
-        id: input.licenseKeyCredentialId,
-        deletedAt: null,
-        ...companyScopeWhere(ctx),
-      },
-      select: { id: true },
-    });
-    if (!credential) throw new NotFoundError("Credential not found.");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const after = await tx.softwareLicense.update({
-      where: { id: input.id },
-      data: {
-        companyId: input.companyId,
-        name: input.name,
-        vendor: input.vendor ?? null,
-        licenseKeyCredentialId: input.licenseKeyCredentialId ?? null,
-        seats: input.seats,
-        seatsUsed: input.seatsUsed,
-        purchaseDate: input.purchaseDate ?? null,
-        expiryDate: input.expiryDate ?? null,
-        notes: input.notes ?? null,
-      },
-      select: {
-        id: true,
-        name: true,
-        vendor: true,
-        seats: true,
-        seatsUsed: true,
-        expiryDate: true,
-        companyId: true,
-      },
-    });
-
-    // A licence that loses its expiry date leaves the register; one that gains
-    // or changes it updates in place.
-    if (after.expiryDate) {
-      await syncExpiry(
-        {
-          source: "SOFTWARE_LICENSE",
-          sourceId: after.id,
-          companyId: after.companyId,
-          label: licenceLabel(after.name, after.vendor),
-          expiryDate: after.expiryDate,
-        },
-        tx,
-      );
-    } else {
-      await deactivateExpiry("SOFTWARE_LICENSE", after.id, tx);
-    }
-
-    return { before, after };
-  });
-}
-
-export async function deleteLicence(ctx: ActorContext, id: string) {
-  const licence = await prisma.softwareLicense.findFirst({
-    where: { id, ...companyScopeWhere(ctx) },
-    select: { id: true, name: true, companyId: true },
-  });
-  if (!licence) throw new NotFoundError("Licence not found.");
-
-  await prisma.$transaction(async (tx) => {
-    await deactivateExpiry("SOFTWARE_LICENSE", id, tx);
-    await tx.softwareLicense.delete({ where: { id } });
-  });
-
-  return licence;
-}
-
-// --- Active Directory --------------------------------------------------------
-
-export async function listAdRecords(
-  ctx: ActorContext,
-  filters: { q?: string | undefined } = {},
-) {
-  return prisma.adRecord.findMany({
-    where: allOf(
-      // An AD account reaches a company through its employee; accounts with no
-      // employee are service or shared accounts and visible to everyone.
-      { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
-      filters.q
-        ? { samAccountName: { contains: filters.q, mode: "insensitive" as const } }
-        : undefined,
-    ),
-    orderBy: { samAccountName: "asc" },
-    take: 1000,
-    select: {
-      id: true,
-      samAccountName: true,
-      ou: true,
-      groups: true,
-      enabled: true,
-      lastSyncedAt: true,
-      notes: true,
-      employeeId: true,
-      employee: {
-        select: {
-          id: true,
-          fullName: true,
-          employeeNo: true,
-          status: true,
-          company: { select: { code: true } },
-        },
-      },
-    },
-  });
-}
-
-/** Groups are free text in the form and stored as a JSON array. */
-function parseGroups(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[\n,]/)
-    .map((g) => g.trim())
-    .filter((g) => g.length > 0)
-    .slice(0, 100);
-}
-
-export async function createAdRecord(ctx: ActorContext, input: AdRecordInput) {
-  if (input.employeeId) {
-    const employee = await prisma.employee.findFirst({
-      where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!employee) throw new NotFoundError("Employee not found.");
-  }
-
-  try {
-    return await prisma.adRecord.create({
-      data: {
-        samAccountName: input.samAccountName,
-        employeeId: input.employeeId ?? null,
-        ou: input.ou ?? null,
-        groups: parseGroups(input.groups),
-        enabled: input.enabled,
-        notes: input.notes ?? null,
-      },
-      select: { id: true, samAccountName: true, enabled: true, employeeId: true },
-    });
-  } catch (error) {
-    asConflict(error, `The account ${input.samAccountName} is already recorded.`);
-  }
-}
-
-export async function updateAdRecord(
-  ctx: ActorContext,
-  input: AdRecordInput & { id: string },
-) {
-  const before = await prisma.adRecord.findUnique({
-    where: { id: input.id },
-    select: { id: true, samAccountName: true, enabled: true, employeeId: true, ou: true },
-  });
-  if (!before) throw new NotFoundError("Record not found.");
-
-  if (input.employeeId) {
-    const employee = await prisma.employee.findFirst({
-      where: { id: input.employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
-      select: { id: true },
-    });
-    if (!employee) throw new NotFoundError("Employee not found.");
-  }
-
-  try {
-    const after = await prisma.adRecord.update({
-      where: { id: input.id },
-      data: {
-        samAccountName: input.samAccountName,
-        employeeId: input.employeeId ?? null,
-        ou: input.ou ?? null,
-        groups: parseGroups(input.groups),
-        enabled: input.enabled,
-        notes: input.notes ?? null,
-      },
-      select: { id: true, samAccountName: true, enabled: true, employeeId: true, ou: true },
-    });
-    return { before, after };
-  } catch (error) {
-    asConflict(error, `The account ${input.samAccountName} is already recorded.`);
-  }
-}
-
-export async function deleteAdRecord(_ctx: ActorContext, id: string) {
-  const record = await prisma.adRecord.findUnique({
-    where: { id },
-    select: { id: true, samAccountName: true },
-  });
-  if (!record) throw new NotFoundError("Record not found.");
-  await prisma.adRecord.delete({ where: { id } });
-  return record;
-}
-
-/**
- * AD accounts still enabled for someone who has left.
- *
- * The single most useful thing this table can answer, and the reason it is
- * worth recording directory metadata in an HR system at all.
- */
-export async function orphanedAdAccounts(ctx: ActorContext) {
-  return prisma.adRecord.findMany({
-    where: {
-      enabled: true,
-      employee: {
-        ...companyScopeWhere(ctx),
-        status: { in: ["RESIGNED", "TERMINATED", "EXITED", "INACTIVE"] },
-      },
-    },
-    select: {
-      id: true,
-      samAccountName: true,
-      employee: { select: { fullName: true, status: true } },
-    },
-  });
-}
-
-export async function infrastructureCounts(ctx: ActorContext) {
-  const scope = companyScopeWhere(ctx);
-  const [servers, network, cctv, licences, orphaned] = await Promise.all([
-    prisma.server.count({ where: { status: "ACTIVE", ...scope } }),
-    prisma.networkDevice.count({ where: { status: "ACTIVE", ...scope } }),
-    prisma.cctvDevice.count({ where: { status: "ACTIVE", ...scope } }),
-    prisma.softwareLicense.count({ where: scope }),
-    orphanedAdAccounts(ctx),
-  ]);
-
-  return { servers, network, cctv, licences, orphanedAd: orphaned.length };
+  return { id: device.id, assetCode: device.asset.assetCode, companyId: device.asset.companyId };
 }

@@ -7,10 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/shared/page-header";
 import { AppError } from "@/lib/result";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import {
-  getAccommodation,
-  unhousedEmployees,
-} from "@/server/services/accommodation";
+import { getAccommodation, unhousedEmployees } from "@/server/services/accommodation";
 import { orgOptions } from "@/server/services/org";
 import { AccommodationEditButton } from "./accommodation-edit-button";
 import { BedCell } from "./bed-cell";
@@ -29,17 +26,13 @@ export default async function AccommodationDetailPage({
   const { accommodationId } = await params;
   const canManage = ctx.permissions.has("accommodation.manage");
 
-  const accommodation = await getAccommodation(ctx, accommodationId).catch(
-    (error: unknown) => {
-      if (error instanceof AppError) notFound();
-      throw error;
-    },
-  );
+  const accommodation = await getAccommodation(ctx, accommodationId).catch((error: unknown) => {
+    if (error instanceof AppError) notFound();
+    throw error;
+  });
 
   const [employees, options] = await Promise.all([
-    canManage
-      ? unhousedEmployees(ctx, accommodation.companyId)
-      : Promise.resolve([]),
+    canManage ? unhousedEmployees(ctx, accommodation.companyId) : Promise.resolve([]),
     orgOptions(ctx),
   ]);
 
@@ -60,8 +53,8 @@ export default async function AccommodationDetailPage({
             <h1 className="text-lg font-semibold">{accommodation.name}</h1>
             <p className="text-muted-foreground text-xs">
               {accommodation.company.code} · {accommodation.type.toLowerCase()}
-              {accommodation.city ? ` · ${accommodation.city}` : ""} · {occupied}/
-              {beds.length} beds occupied
+              {accommodation.city ? ` · ${accommodation.city}` : ""} · {occupied}/{beds.length} beds
+              occupied
             </p>
           </div>
         </div>
@@ -88,8 +81,7 @@ export default async function AccommodationDetailPage({
                   rentCurrency: accommodation.rentCurrency,
                   rentFrequency: accommodation.rentFrequency,
                   rentDueDate: accommodation.rentDueDate?.toISOString().slice(0, 10) ?? null,
-                  leaseStartDate:
-                    accommodation.leaseStartDate?.toISOString().slice(0, 10) ?? null,
+                  leaseStartDate: accommodation.leaseStartDate?.toISOString().slice(0, 10) ?? null,
                   leaseEndDate: accommodation.leaseEndDate?.toISOString().slice(0, 10) ?? null,
                   notes: accommodation.notes,
                 }}
@@ -136,9 +128,7 @@ export default async function AccommodationDetailPage({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {room.status !== "ACTIVE" ? (
-                    <Badge variant="outline">{room.status}</Badge>
-                  ) : null}
+                  {room.status !== "ACTIVE" ? <Badge variant="outline">{room.status}</Badge> : null}
                   {canManage ? (
                     <RoomActions
                       room={{

@@ -1,27 +1,24 @@
 "use server";
 
+import { z } from "zod";
 import { defineAction } from "./define-action";
 import {
-  checklistItemSchema,
-  completeChecklistSchema,
   contractSchema,
   leaveCancelSchema,
   leaveDecisionSchema,
   leaveRequestSchema,
-  startChecklistSchema,
+  updateLeaveRequestSchema,
   updateContractSchema,
 } from "@/lib/schemas/hr";
-import { createContract, updateContract } from "@/server/services/contracts";
+import { contractDefaults, createContract, updateContract } from "@/server/services/contracts";
 import {
   cancelLeaveRequest,
   createLeaveRequest,
   decideLeaveRequest,
+  deleteLeaveRequest,
+  leaveDefaults,
+  updateLeaveRequest,
 } from "@/server/services/leave";
-import {
-  completeChecklist,
-  setChecklistItemStatus,
-  startChecklist,
-} from "@/server/services/checklists";
 
 // --- Contracts ---------------------------------------------------------------
 
@@ -46,11 +43,7 @@ export const createContractAction = defineAction({
     });
     return { id: contract.id };
   },
-  revalidate: (input) => [
-    "/hr/contracts",
-    `/people/employees/${input.employeeId}`,
-    "/dashboard",
-  ],
+  revalidate: (input) => ["/hr/contracts", `/people/employees/${input.employeeId}`, "/dashboard"],
 });
 
 export const updateContractAction = defineAction({
@@ -76,18 +69,25 @@ export const updateContractAction = defineAction({
     });
     return { id: after.id };
   },
-  revalidate: (input) => [
-    "/hr/contracts",
-    `/people/employees/${input.employeeId}`,
-    "/dashboard",
-  ],
+  revalidate: (input) => ["/hr/contracts", `/people/employees/${input.employeeId}`, "/dashboard"],
+});
+
+/**
+ * What a new contract starts from, once the employee is picked on the
+ * Contracts page. Read-only, so nothing is audited.
+ */
+export const contractDefaultsAction = defineAction({
+  permission: "hr.contracts.manage",
+  schema: z.object({ employeeId: z.string().min(1) }),
+  handler: async ({ input, ctx }) => contractDefaults(ctx, input.employeeId),
 });
 
 // --- Leave -------------------------------------------------------------------
 
 export const createLeaveRequestAction = defineAction({
-  // Anyone may request; requesting for someone else is checked in the service.
-  permission: "hr.leave.request",
+  // Leave is recorded by HR and approved as it is entered, so recording it is
+  // an HR permission — a self-service request would approve itself.
+  permission: "hr.leave.view",
   schema: leaveRequestSchema,
   audit: { action: "CREATE", entity: "LEAVE_REQUEST" },
   handler: async ({ input, ctx, audit }) => {
@@ -95,12 +95,12 @@ export const createLeaveRequestAction = defineAction({
     audit.record({
       entityId: request.id,
       companyId: request.companyId,
-      summary: `Leave requested for ${request.employeeName}: ${request.leaveTypeName}, ${String(request.days)} day(s)`,
+      summary: `Leave recorded for ${request.employeeName}: ${request.leaveTypeName}, ${String(request.days)} day(s)`,
       after: {
         startDate: input.startDate,
         endDate: input.endDate,
         days: request.days.toString(),
-        status: "PENDING",
+        status: "APPROVED",
       },
     });
     return { id: request.id };
@@ -146,64 +146,41 @@ export const cancelLeaveRequestAction = defineAction({
   revalidate: () => ["/people/leave", "/dashboard"],
 });
 
-// --- Checklists --------------------------------------------------------------
-
-export const startChecklistAction = defineAction({
-  permission: "hr.onboarding.manage",
-  schema: startChecklistSchema,
-  audit: { action: "CREATE", entity: "CHECKLIST_INSTANCE" },
-  handler: async ({ input, ctx, audit }) => {
-    const instance = await startChecklist(ctx, input);
-    audit.record({
-      entityId: instance.id,
-      summary: `Started ${instance.type.toLowerCase()} checklist "${instance.templateName}" for ${instance.employeeName}`,
-    });
-    return { id: instance.id, type: instance.type };
-  },
-  revalidate: (input) => [
-    "/people/onboarding",
-    "/people/offboarding",
-    `/people/employees/${input.employeeId}`,
-  ],
+/** What a new leave form starts from, once the employee is picked. */
+export const leaveDefaultsAction = defineAction({
+  permission: "hr.leave.view",
+  schema: z.object({ employeeId: z.string().min(1) }).strict(),
+  handler: async ({ input, ctx }) => leaveDefaults(ctx, input.employeeId),
 });
 
-export const setChecklistItemStatusAction = defineAction({
-  permission: "hr.onboarding.manage",
-  schema: checklistItemSchema,
-  audit: { action: "UPDATE", entity: "CHECKLIST_ITEM" },
+export const updateLeaveRequestAction = defineAction({
+  permission: "hr.leave.view",
+  schema: updateLeaveRequestSchema,
+  audit: { action: "UPDATE", entity: "LEAVE_REQUEST" },
   handler: async ({ input, ctx, audit }) => {
-    const result = await setChecklistItemStatus(ctx, input);
+    const r = await updateLeaveRequest(ctx, input);
     audit.record({
-      entityId: input.itemId,
-      companyId: result.instance.companyId,
-      // An override means a departmental step was signed off from outside the
-      // department that owns it. That is allowed, so that a system whose
-      // administrators have no employee record is not deadlocked — but it is
-      // never silent.
-      summary:
-        `Checklist step "${result.label}": ${result.before.status} → ${result.after.status}` +
-        (result.viaOverride ? " (administrative override — not the responsible department)" : ""),
-      before: result.before,
-      after: { ...result.after, viaOverride: result.viaOverride },
+      entityId: r.id,
+      companyId: r.companyId,
+      summary: `Updated leave for ${r.employeeName}: ${input.startDate.toISOString().slice(0, 10)} to ${input.endDate.toISOString().slice(0, 10)}`,
     });
-    return { ok: true as const };
+    return { id: r.id };
   },
-  revalidate: () => ["/people/onboarding", "/people/offboarding"],
+  revalidate: (input) => ["/people/leave", `/people/employees/${input.employeeId}`],
 });
 
-export const completeChecklistAction = defineAction({
-  permission: "hr.onboarding.manage",
-  schema: completeChecklistSchema,
-  audit: { action: "COMPLETE", entity: "CHECKLIST_INSTANCE" },
+export const deleteLeaveRequestAction = defineAction({
+  permission: "hr.leave.view",
+  schema: leaveCancelSchema,
+  audit: { action: "DELETE", entity: "LEAVE_REQUEST" },
   handler: async ({ input, ctx, audit }) => {
-    const result = await completeChecklist(ctx, input.instanceId);
+    const r = await deleteLeaveRequest(ctx, input.id);
     audit.record({
-      entityId: input.instanceId,
-      companyId: result.companyId,
-      summary: `Completed ${result.type.toLowerCase()} for ${result.employeeName}`,
-      after: { status: "COMPLETED" },
+      entityId: r.id,
+      companyId: r.companyId,
+      summary: `Deleted leave of ${r.employeeName} (${r.dates})`,
     });
-    return { ok: true as const };
+    return { id: r.id };
   },
-  revalidate: () => ["/people/onboarding", "/people/offboarding"],
+  revalidate: () => ["/people/leave"],
 });

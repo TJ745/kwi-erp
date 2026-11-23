@@ -42,15 +42,13 @@ describe("UPLOAD_ENTITY_TYPES", () => {
     expect(GUARD_SOURCE).toMatch(/default:\s*\n\s*return false;/);
   });
 
-  it("covers the twelve modules the upload panels are built for", () => {
+  it("covers the ten modules the upload panels are built for", () => {
     for (const type of [
       "EMPLOYEE",
       "CONTRACT",
       "JOB_OFFER",
       "ACCOMMODATION",
-      "SUPPLIER",
       "SUBCONTRACTOR",
-      "ELECTRICITY_BILL",
       "COMPANY_CERTIFICATE",
       "IT_ASSET",
       "VEHICLE",
@@ -58,6 +56,12 @@ describe("UPLOAD_ENTITY_TYPES", () => {
       "MEDICAL_INSURANCE_POLICY",
     ]) {
       expect(UPLOAD_ENTITY_TYPES).toContain(type);
+    }
+  });
+
+  it("does not accept uploads for retired modules", () => {
+    for (const type of ["SUPPLIER", "ELECTRICITY_BILL", "PETTY_CASH_TRANSACTION", "IT_TICKET", "TASK"]) {
+      expect(UPLOAD_ENTITY_TYPES).not.toContain(type);
     }
   });
 });

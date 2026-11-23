@@ -24,6 +24,7 @@ export default async function LetterTemplatesPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Letter Templates"
         description="Bodies are HTML with {{placeholders}}. A template with no company is shared by every company."
         action={

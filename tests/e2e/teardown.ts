@@ -44,12 +44,6 @@ export default async function globalTeardown(): Promise<void> {
       await prisma.iTAssetAssignment.deleteMany({
         where: { employeeId: { in: employeeIds } },
       });
-      await prisma.checklistItem.deleteMany({
-        where: { instance: { employeeId: { in: employeeIds } } },
-      });
-      await prisma.checklistInstance.deleteMany({
-        where: { employeeId: { in: employeeIds } },
-      });
       await prisma.emergencyContact.deleteMany({
         where: { employeeId: { in: employeeIds } },
       });
@@ -57,26 +51,14 @@ export default async function globalTeardown(): Promise<void> {
         where: { employeeId: { in: employeeIds } },
       });
       await prisma.expiryIndex.deleteMany({ where: { employeeId: { in: employeeIds } } });
-      await prisma.task.deleteMany({ where: { entityId: { in: employeeIds } } });
       await prisma.employee.deleteMany({ where: { id: { in: employeeIds } } });
-    }
-
-    const accounts = await prisma.pettyCashAccount.findMany({
-      where: { name: like },
-      select: { id: true },
-    });
-    if (accounts.length > 0) {
-      const ids = accounts.map((a) => a.id);
-      await prisma.pettyCashTransaction.deleteMany({ where: { accountId: { in: ids } } });
-      await prisma.pettyCashAccount.deleteMany({ where: { id: { in: ids } } });
     }
 
     await prisma.iTAsset.deleteMany({ where: { brand: like } });
     await prisma.notification.deleteMany({ where: { title: { contains: E2E_PREFIX } } });
 
     console.log(
-      `e2e teardown: removed ${String(employeeIds.length)} employee(s), ` +
-        `${String(accounts.length)} petty cash account(s), and related fixtures.`,
+      `e2e teardown: removed ${String(employeeIds.length)} employee(s) and related fixtures.`,
     );
   } finally {
     await prisma.$disconnect();

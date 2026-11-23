@@ -19,6 +19,7 @@ export default async function CompaniesPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Companies"
         description="Every operational record belongs to a company. Users see only the companies they are granted."
         action={canManage ? <CompanyDialog mode="create" /> : null}
@@ -34,9 +35,7 @@ export default async function CompaniesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <CardTitle className="truncate">{company.name}</CardTitle>
-                    <p className="text-muted-foreground mt-0.5 font-mono text-xs">
-                      {company.code}
-                    </p>
+                    <p className="text-muted-foreground mt-0.5 font-mono text-xs">{company.code}</p>
                   </div>
                   <StatusBadge status={company.status} />
                 </div>
@@ -82,6 +81,15 @@ export default async function CompaniesPage() {
                         registrationNo: company.registrationNo,
                         vatNumber: company.vatNumber,
                         addressLine: company.addressLine,
+                        nameAr: company.nameAr,
+                        addressAr: company.addressAr,
+                        cityAr: company.cityAr,
+                        headOfficeCity: company.headOfficeCity,
+                        headOfficeCityAr: company.headOfficeCityAr,
+                        signatoryName: company.signatoryName,
+                        signatoryNameAr: company.signatoryNameAr,
+                        signatoryTitle: company.signatoryTitle,
+                        signatoryTitleAr: company.signatoryTitleAr,
                         country: company.country,
                         phone: company.phone,
                         email: company.email,

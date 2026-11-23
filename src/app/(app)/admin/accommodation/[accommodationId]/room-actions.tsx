@@ -117,8 +117,7 @@ export function RoomActions({ room }: { room: RoomValues }) {
             <DialogHeader>
               <DialogTitle>Add bed to room {room.roomNumber}</DialogTitle>
               <DialogDescription>
-                {room.bedCount} of {room.capacity} bed{room.capacity === 1 ? "" : "s"}{" "}
-                added so far.
+                {room.bedCount} of {room.capacity} bed{room.capacity === 1 ? "" : "s"} added so far.
               </DialogDescription>
             </DialogHeader>
 

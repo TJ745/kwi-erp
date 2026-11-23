@@ -231,14 +231,10 @@ async function main() {
     { key: "MUNICIPALITY_LICENCE", name: "Municipality Licence", requiresExpiry: true, appliesTo: ["ACCOMMODATION"] },
     { key: "RENT_RECEIPT", name: "Rent Receipt", requiresExpiry: false, appliesTo: ["ACCOMMODATION"] },
 
-    { key: "VENDOR_CR", name: "Commercial Registration", requiresExpiry: true, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
-    { key: "VENDOR_VAT", name: "VAT Certificate", requiresExpiry: false, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
-    { key: "VENDOR_BANK", name: "Bank Letter", requiresExpiry: false, appliesTo: ["SUPPLIER", "SUBCONTRACTOR"] },
-    { key: "VENDOR_QUOTE", name: "Quotation", requiresExpiry: false, appliesTo: ["SUPPLIER"] },
+    { key: "VENDOR_CR", name: "Commercial Registration", requiresExpiry: true, appliesTo: ["SUBCONTRACTOR"] },
+    { key: "VENDOR_VAT", name: "VAT Certificate", requiresExpiry: false, appliesTo: ["SUBCONTRACTOR"] },
+    { key: "VENDOR_BANK", name: "Bank Letter", requiresExpiry: false, appliesTo: ["SUBCONTRACTOR"] },
     { key: "SUBCONTRACT", name: "Subcontract Agreement", requiresExpiry: true, appliesTo: ["SUBCONTRACTOR"] },
-
-    { key: "BILL_SCAN", name: "Bill Scan", requiresExpiry: false, appliesTo: ["ELECTRICITY_BILL"] },
-    { key: "BILL_PAYMENT", name: "Payment Proof", requiresExpiry: false, appliesTo: ["ELECTRICITY_BILL"] },
 
     { key: "CERT_SCAN", name: "Certificate Scan", requiresExpiry: true, appliesTo: ["COMPANY_CERTIFICATE"] },
 
@@ -256,8 +252,8 @@ async function main() {
       requiresExpiry: false,
       appliesTo: [
         "EMPLOYEE", "COMPANY", "VEHICLE", "VEHICLE_MAINTENANCE", "IT_ASSET",
-        "CONTRACT", "JOB_OFFER", "ACCOMMODATION", "SUPPLIER", "SUBCONTRACTOR",
-        "ELECTRICITY_BILL", "COMPANY_CERTIFICATE", "MEDICAL_INSURANCE_POLICY",
+        "CONTRACT", "JOB_OFFER", "ACCOMMODATION", "SUBCONTRACTOR",
+        "COMPANY_CERTIFICATE", "MEDICAL_INSURANCE_POLICY",
       ],
     },
   ] as const;
@@ -299,28 +295,6 @@ async function main() {
     });
   }
 
-  const ticketCategories = [
-    { key: "COMPUTER", name: "Computer", defaultSlaHours: 8 },
-    { key: "LAPTOP", name: "Laptop", defaultSlaHours: 8 },
-    { key: "PRINTER", name: "Printer", defaultSlaHours: 8 },
-    { key: "EMAIL", name: "Email", defaultSlaHours: 4 },
-    { key: "NETWORK", name: "Network", defaultSlaHours: 4 },
-    { key: "SOFTWARE", name: "Software", defaultSlaHours: 24 },
-    { key: "SERVER", name: "Server", defaultSlaHours: 2 },
-    { key: "AD", name: "Active Directory", defaultSlaHours: 4 },
-    { key: "IP_PHONE", name: "IP Phone", defaultSlaHours: 8 },
-    { key: "CCTV", name: "CCTV", defaultSlaHours: 24 },
-    { key: "OTHER", name: "Other", defaultSlaHours: 24 },
-  ];
-
-  for (const tc of ticketCategories) {
-    await prisma.ticketCategory.upsert({
-      where: { key: tc.key },
-      update: { name: tc.name },
-      create: tc,
-    });
-  }
-
   const credentialCategories = [
     { key: "GOVERNMENT", name: "Government Portals" },
     { key: "COMPANY_PORTAL", name: "Company Portals" },
@@ -358,107 +332,7 @@ async function main() {
     });
   }
 
-  const pettyCashCategories = [
-    { key: "OFFICE_SUPPLIES", name: "Office Supplies", type: "EXPENSE" },
-    { key: "FUEL", name: "Fuel", type: "EXPENSE" },
-    { key: "MAINTENANCE", name: "Maintenance", type: "EXPENSE" },
-    { key: "TRANSPORT", name: "Transport", type: "EXPENSE" },
-    { key: "GOVERNMENT_FEES", name: "Government Fees", type: "EXPENSE" },
-    { key: "HOSPITALITY", name: "Hospitality", type: "EXPENSE" },
-    { key: "REPLENISHMENT", name: "Cash Replenishment", type: "INCOME" },
-  ] as const;
-
-  for (const pc of pettyCashCategories) {
-    await prisma.pettyCashCategory.upsert({
-      where: { key: pc.key },
-      update: { name: pc.name },
-      create: { key: pc.key, name: pc.name, type: pc.type },
-    });
-  }
-
-  const supplierCategories = [
-    { key: "IT", name: "IT & Electronics" },
-    { key: "STATIONERY", name: "Stationery" },
-    { key: "VEHICLE", name: "Vehicle & Workshop" },
-    { key: "CATERING", name: "Catering" },
-    { key: "CONSTRUCTION", name: "Construction Materials" },
-    { key: "SERVICES", name: "Services" },
-  ];
-
-  for (const sc of supplierCategories) {
-    await prisma.supplierCategory.upsert({
-      where: { key: sc.key },
-      update: { name: sc.name },
-      create: sc,
-    });
-  }
-  console.log("  lookup tables    document/leave/ticket/credential/certificate/cash/supplier");
-
-  // --- Checklist templates -------------------------------------------------
-  const onboardingItems = [
-    ["Offer accepted", "HR"],
-    ["Contract prepared and signed", "HR"],
-    ["Personal documents received", "HR"],
-    ["Passport copy received", "HR"],
-    ["Iqama details recorded", "HR"],
-    ["Medical insurance enrolment", "HR"],
-    ["Accommodation assigned", "ACCOMMODATION"],
-    ["IT account created", "IT"],
-    ["Email account created", "IT"],
-    ["Laptop assigned", "IT"],
-    ["Access card issued", "ADMIN"],
-    ["Joining letter issued", "HR"],
-    ["Department introduction", "MANAGEMENT"],
-  ] as const;
-
-  const offboardingItems = [
-    ["Resignation / termination recorded", "HR"],
-    ["Clearance started", "HR"],
-    ["IT assets returned", "IT"],
-    ["Laptop returned", "IT"],
-    ["Email account disabled", "IT"],
-    ["System access removed", "IT"],
-    ["Vehicle returned", "FLEET"],
-    ["Accommodation vacated", "ACCOMMODATION"],
-    ["Company documents returned", "ADMIN"],
-    ["Final settlement confirmed", "FINANCE"],
-    ["Exit confirmation issued", "HR"],
-  ] as const;
-
-  const clearanceItems = [
-    ["HR clearance", "HR"],
-    ["Administration clearance", "ADMIN"],
-    ["IT clearance", "IT"],
-    ["Fleet clearance", "FLEET"],
-    ["Finance clearance", "FINANCE"],
-    ["Accommodation clearance", "ACCOMMODATION"],
-  ] as const;
-
-  const templates = [
-    { key: "ONBOARDING_DEFAULT", name: "Standard Onboarding", type: "ONBOARDING", items: onboardingItems },
-    { key: "OFFBOARDING_DEFAULT", name: "Standard Offboarding", type: "OFFBOARDING", items: offboardingItems },
-    { key: "CLEARANCE_DEFAULT", name: "Standard Clearance", type: "CLEARANCE", items: clearanceItems },
-  ] as const;
-
-  for (const tmpl of templates) {
-    const template = await prisma.checklistTemplate.upsert({
-      where: { key: tmpl.key },
-      update: { name: tmpl.name },
-      create: { key: tmpl.key, name: tmpl.name, type: tmpl.type },
-    });
-
-    // Rebuild items so template edits in code take effect on re-seed.
-    await prisma.checklistTemplateItem.deleteMany({ where: { templateId: template.id } });
-    await prisma.checklistTemplateItem.createMany({
-      data: tmpl.items.map(([label, category], index) => ({
-        templateId: template.id,
-        order: index + 1,
-        label,
-        category,
-      })),
-    });
-  }
-  console.log(`  checklists       ${templates.length} templates`);
+  console.log("  lookup tables    document/leave/credential/certificate");
 
   // --- Notification rules --------------------------------------------------
   const adminRole = await prisma.role.findUnique({ where: { key: "ADMIN" } });
@@ -504,16 +378,13 @@ async function main() {
       source: "IT_ASSET_WARRANTY",
       roles: [itRole?.id],
     },
-    { name: "Task due", kind: "TASK_DUE", source: null, roles: [] },
-    { name: "Task overdue", kind: "TASK_OVERDUE", source: null, roles: [] },
   ] as const;
 
   /**
    * Which kinds are worth an email as well as an in-app entry.
    *
    * Expiry is the whole reason the reminder engine exists — an Iqama lapsing is
-   * not something to discover by opening the app. Task reminders stay in-app:
-   * one message per task per day is how people learn to filter the sender.
+   * not something to discover by opening the app.
    *
    * A rule's channels are authoritative, so a kind listed here that is NOT in
    * this set will never be emailed however the provider is configured. That is
@@ -583,7 +454,7 @@ async function main() {
   console.log(`  letter templates ${SEED_TEMPLATES.length}`);
 
   // --- Counters ------------------------------------------------------------
-  for (const key of ["employee", "task", "ticket", "asset", "vehicle", "letter"]) {
+  for (const key of ["employee", "asset", "vehicle", "letter"]) {
     await prisma.counter.upsert({ where: { key }, update: {}, create: { key, value: 0 } });
   }
 

@@ -134,11 +134,7 @@ export function sealSecret(kek: Buffer, credentialId: string, secret: string): S
 }
 
 /** Decrypts a secret. Throws if anything about the payload has been altered. */
-export function openSecret(
-  kek: Buffer,
-  credentialId: string,
-  payload: SealedPayload,
-): string {
+export function openSecret(kek: Buffer, credentialId: string, payload: SealedPayload): string {
   assertKey(kek, "KEK");
   const aad = Buffer.from(credentialId, "utf8");
 

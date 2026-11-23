@@ -53,7 +53,13 @@ export function ProviderDialog() {
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => { setOpen(true); }}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
         <Building2 />
         Add provider
       </Button>

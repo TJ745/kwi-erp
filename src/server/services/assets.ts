@@ -63,6 +63,8 @@ export async function listAssets(
             { serialNumber: { contains: query.q, mode: "insensitive" } },
             { brand: { contains: query.q, mode: "insensitive" } },
             { model: { contains: query.q, mode: "insensitive" } },
+            { ipAddress: { contains: query.q, mode: "insensitive" } },
+            { macAddress: { contains: query.q, mode: "insensitive" } },
           ],
         }
       : {}),
@@ -132,10 +134,14 @@ export async function getAsset(ctx: ActorContext, id: string) {
       brand: true,
       model: true,
       serialNumber: true,
+      macAddress: true,
+      ipAddress: true,
       status: true,
       condition: true,
       location: true,
       notes: true,
+      ipPhone: { select: { id: true, extension: true } },
+      cctv: { select: { id: true, type: true } },
       purchaseDate: true,
       purchaseCost: true,
       currency: true,
@@ -163,8 +169,34 @@ export async function getAsset(ctx: ActorContext, id: string) {
   return asset;
 }
 
+/** MAC addresses are unique across the estate, like IP addresses. */
+async function assertMacFree(macAddress: string | undefined, excludeId?: string) {
+  if (!macAddress) return;
+  const clash = await prisma.iTAsset.findFirst({
+    where: { macAddress, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    select: { assetCode: true },
+  });
+  if (clash) {
+    throw new ConflictError(`That MAC address is already recorded on ${clash.assetCode}.`);
+  }
+}
+
+/** Two devices on one address is an outage, so an IP is held by one asset. */
+async function assertIpFree(ipAddress: string | undefined, excludeId?: string) {
+  if (!ipAddress) return;
+  const clash = await prisma.iTAsset.findFirst({
+    where: { ipAddress, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    select: { assetCode: true },
+  });
+  if (clash) {
+    throw new ConflictError(`${ipAddress} is already used by ${clash.assetCode}.`);
+  }
+}
+
 export async function createAsset(ctx: ActorContext, input: AssetInput) {
   requireCompanyAccess(ctx, input.companyId);
+  await assertMacFree(input.macAddress);
+  await assertIpFree(input.ipAddress);
 
   if (input.serialNumber) {
     const clash = await prisma.iTAsset.findFirst({
@@ -183,6 +215,8 @@ export async function createAsset(ctx: ActorContext, input: AssetInput) {
       data: {
         assetCode,
         assetTag: input.assetTag ?? null,
+        macAddress: input.macAddress ?? null,
+        ipAddress: input.ipAddress ?? null,
         companyId: input.companyId,
         type: input.type,
         brand: input.brand,
@@ -219,6 +253,25 @@ export async function createAsset(ctx: ActorContext, input: AssetInput) {
 export async function updateAsset(ctx: ActorContext, input: AssetInput & { id: string }) {
   const before = await getAsset(ctx, input.id);
   requireCompanyAccess(ctx, input.companyId);
+  await assertMacFree(input.macAddress, input.id);
+  await assertIpFree(input.ipAddress, input.id);
+
+  // An extension rings on this handset; it cannot quietly become a laptop.
+  if (before.ipPhone && input.type !== "IP_PHONE") {
+    throw new ConflictError(
+      `Extension ${before.ipPhone.extension} uses this handset. Remove it from IP Phones before changing the type.`,
+    );
+  }
+  // Likewise a device on the CCTV page must stay a camera or a recorder.
+  if (before.cctv) {
+    const recorder = before.cctv.type === "NVR" || before.cctv.type === "DVR";
+    const needed = recorder ? "CCTV_RECORDER" : "CCTV_CAMERA";
+    if (input.type !== needed) {
+      throw new ConflictError(
+        `This device is on the CCTV page as a ${before.cctv.type}. Remove it there before changing the type.`,
+      );
+    }
+  }
 
   if (input.serialNumber && input.serialNumber !== before.serialNumber) {
     const clash = await prisma.iTAsset.findFirst({
@@ -235,6 +288,8 @@ export async function updateAsset(ctx: ActorContext, input: AssetInput & { id: s
       where: { id: input.id },
       data: {
         assetTag: input.assetTag ?? null,
+        macAddress: input.macAddress ?? null,
+        ipAddress: input.ipAddress ?? null,
         companyId: input.companyId,
         type: input.type,
         brand: input.brand,
@@ -297,9 +352,7 @@ export async function assignAsset(
   });
   if (!employee) throw new NotFoundError("Employee not found.");
 
-  if (employee.companyId !== asset.companyId) {
-    throw new ConflictError("The asset and the employee belong to different companies.");
-  }
+  // An asset may be issued to an employee of any group company the actor can see.
 
   // Friendly message; the partial unique index is the real guarantee.
   const open = asset.assignments.find((a) => a.returnedAt === null);
@@ -407,7 +460,7 @@ export async function assetCounts(ctx: ActorContext): Promise<AssetCounts> {
   return { total, available, assigned, underRepair };
 }
 
-/** Assets currently held by one employee — profile tab and offboarding. */
+/** Assets currently held by one employee — profile tab. */
 export async function assetsForEmployee(ctx: ActorContext, employeeId: string) {
   return prisma.iTAssetAssignment.findMany({
     where: { employeeId, asset: companyScopeWhere(ctx) },
@@ -426,12 +479,19 @@ export async function assetsForEmployee(ctx: ActorContext, employeeId: string) {
 }
 
 /** Employees eligible to receive an asset in a given company. */
+/** Employees an asset can be issued to: every company the actor can see. */
 export async function assignableEmployees(ctx: ActorContext, companyId: string) {
   requireCompanyAccess(ctx, companyId);
-  return prisma.employee.findMany({
-    where: { companyId, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+  const rows = await prisma.employee.findMany({
+    where: { ...companyScopeWhere(ctx), deletedAt: null, status: { in: ["ACTIVE", "ON_LEAVE"] } },
     orderBy: { fullName: "asc" },
-    take: 500,
-    select: { id: true, fullName: true, employeeNo: true },
+    take: 2000,
+    select: { id: true, fullName: true, employeeNo: true, company: { select: { code: true } } },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    employeeNo: r.employeeNo,
+    companyCode: r.company.code,
+  }));
 }

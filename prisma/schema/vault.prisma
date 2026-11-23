@@ -57,15 +57,15 @@ model Credential {
 
   // --- envelope-encrypted payload; see docs/SECURITY.md §5.1 ---
   /// AES-256-GCM ciphertext of the password.
-  ciphertext   Bytes
+  ciphertext Bytes
   /// 12-byte random IV, unique per encryption.
-  iv           Bytes
+  iv         Bytes
   /// 16-byte GCM authentication tag.
-  authTag      Bytes
+  authTag    Bytes
   /// Per-credential DEK, encrypted under the environment KEK.
-  wrappedDek   Bytes
+  wrappedDek Bytes
   /// Which KEK version wrapped the DEK. Drives resumable key rotation.
-  keyVersion   Int     @default(1)
+  keyVersion Int   @default(1)
 
   /// Notes may contain secrets, so they are encrypted the same way.
   notesCipher  Bytes?
@@ -86,11 +86,10 @@ model Credential {
   category CredentialCategory @relation(fields: [categoryId], references: [id])
   company  Company?           @relation(fields: [companyId], references: [id])
 
-  versions         CredentialVersion[]
-  grants           CredentialGrant[]
-  accessLog        CredentialAccess[]
-  favorites        CredentialFavorite[]
-  softwareLicenses SoftwareLicense[]
+  versions  CredentialVersion[]
+  grants    CredentialGrant[]
+  accessLog CredentialAccess[]
+  favorites CredentialFavorite[]
 
   @@index([categoryId, status])
   @@index([companyId])
@@ -120,7 +119,7 @@ model CredentialVersion {
 /// ACL layered on top of the global vault.* permissions.
 /// Effective access = global permission AND grant.
 model CredentialGrant {
-  id           String  @id @default(cuid(2))
+  id           String           @id @default(cuid(2))
   credentialId String?
   categoryId   String?
   userId       String?

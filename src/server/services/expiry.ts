@@ -129,9 +129,7 @@ export async function listExpiring(
   return rows.map((row) => ({
     ...row,
     status: getExpiryStatus(row.expiryDate),
-    daysRemaining: Math.ceil(
-      (row.expiryDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
-    ),
+    daysRemaining: Math.ceil((row.expiryDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
   }));
 }
 
@@ -283,7 +281,14 @@ export async function reconcileExpiryIndex(): Promise<{
   // --- Documents with an expiry ---
   const documents = await prisma.document.findMany({
     where: { expiryDate: { not: null }, deletedAt: null, supersededBy: null },
-    select: { id: true, title: true, expiryDate: true, companyId: true, entityType: true, entityId: true },
+    select: {
+      id: true,
+      title: true,
+      expiryDate: true,
+      companyId: true,
+      entityType: true,
+      entityId: true,
+    },
   });
   for (const row of documents) {
     if (!row.expiryDate) continue;
@@ -398,8 +403,19 @@ export async function reconcileExpiryIndex(): Promise<{
 
   // --- IT asset warranties ---
   const assets = await prisma.iTAsset.findMany({
-    where: { warrantyExpiry: { not: null }, deletedAt: null, status: { notIn: ["DISPOSED", "RETIRED"] } },
-    select: { id: true, assetCode: true, brand: true, model: true, warrantyExpiry: true, companyId: true },
+    where: {
+      warrantyExpiry: { not: null },
+      deletedAt: null,
+      status: { notIn: ["DISPOSED", "RETIRED"] },
+    },
+    select: {
+      id: true,
+      assetCode: true,
+      brand: true,
+      model: true,
+      warrantyExpiry: true,
+      companyId: true,
+    },
   });
   for (const row of assets) {
     if (!row.warrantyExpiry) continue;
@@ -408,28 +424,6 @@ export async function reconcileExpiryIndex(): Promise<{
       sourceId: row.id,
       label: `Warranty — ${row.assetCode} ${row.brand} ${row.model}`,
       expiryDate: row.warrantyExpiry,
-      companyId: row.companyId,
-    });
-  }
-
-  // --- Software licences ---
-  //
-  // Added with the IT infrastructure module. Until then SOFTWARE_LICENSE was an
-  // ExpirySource with no collector, which mattered more than it looks: the
-  // deactivation step below turns off every active row it did not collect, so
-  // licence expiries written by syncExpiry would have been silently switched
-  // off on the next nightly run — reminders included.
-  const licences = await prisma.softwareLicense.findMany({
-    where: { expiryDate: { not: null } },
-    select: { id: true, name: true, vendor: true, expiryDate: true, companyId: true },
-  });
-  for (const row of licences) {
-    if (!row.expiryDate) continue;
-    await apply({
-      source: "SOFTWARE_LICENSE",
-      sourceId: row.id,
-      label: `Licence — ${row.name}${row.vendor ? ` (${row.vendor})` : ""}`,
-      expiryDate: row.expiryDate,
       companyId: row.companyId,
     });
   }

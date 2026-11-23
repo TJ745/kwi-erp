@@ -1,13 +1,11 @@
 import { z } from "zod";
 
 export const LETTER_TYPES = [
-  "JOINING_LETTER",
   "JOB_OFFER",
   "EMPLOYMENT_LETTER",
   "SALARY_LETTER",
   "EXPERIENCE_LETTER",
   "WARNING_LETTER",
-  "CLEARANCE_FORM",
   "VEHICLE_HANDOVER",
   "ASSET_HANDOVER",
   "RETURN_CONFIRMATION",
@@ -16,13 +14,11 @@ export const LETTER_TYPES = [
 ] as const;
 
 export const LETTER_TYPE_LABELS: Record<(typeof LETTER_TYPES)[number], string> = {
-  JOINING_LETTER: "Joining letter",
   JOB_OFFER: "Job offer",
   EMPLOYMENT_LETTER: "Employment letter",
   SALARY_LETTER: "Salary certificate",
   EXPERIENCE_LETTER: "Experience letter",
   WARNING_LETTER: "Warning letter",
-  CLEARANCE_FORM: "Clearance form",
   VEHICLE_HANDOVER: "Vehicle handover",
   ASSET_HANDOVER: "Asset handover",
   RETURN_CONFIRMATION: "Return confirmation",
@@ -37,11 +33,10 @@ export const LETTER_TYPE_LABELS: Record<(typeof LETTER_TYPES)[number], string> =
  * boxes, printed to be filled in and signed by hand, and it is expected to fit
  * on a single sheet that routes between departments. A letter is prose, read
  * once, and wants generous margins. Feeding both through the same page setup
- * makes one of them wrong — at letter margins the clearance form runs onto a
+ * makes one of them wrong — at letter margins a handover form runs onto a
  * second page, and a two-page form is a second sheet to chase signatures on.
  */
 export const FORM_LETTER_TYPES = [
-  "CLEARANCE_FORM",
   "VEHICLE_HANDOVER",
   "ASSET_HANDOVER",
   "RETURN_CONFIRMATION",

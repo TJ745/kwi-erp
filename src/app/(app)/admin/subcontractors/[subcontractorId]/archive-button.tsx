@@ -16,7 +16,7 @@ import {
 import { deleteSubcontractorAction } from "@/server/actions/vendors";
 
 /**
- * Archives the subcontractor. The record is kept — contracts and tasks still
+ * Archives the subcontractor. The record is kept — its contracts still
  * reference it — and its contracts drop out of the expiry register, which is
  * why the count is spelled out before the actor confirms.
  */

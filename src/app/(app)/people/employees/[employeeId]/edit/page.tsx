@@ -17,10 +17,7 @@ export default async function EditEmployeePage({
   const ctx = await requirePagePermission("employees.update");
   const { employeeId } = await params;
 
-  const [employee, options] = await Promise.all([
-    getEmployee(ctx, employeeId),
-    orgOptions(ctx),
-  ]);
+  const [employee, options] = await Promise.all([getEmployee(ctx, employeeId), orgOptions(ctx)]);
 
   // Exclude self so an employee cannot be set as their own manager.
   const managers = await managerOptions(ctx, employee.companyId, employee.id);

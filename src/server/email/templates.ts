@@ -33,12 +33,6 @@ function targetPath(entityType: EntityType | null, entityId: string | null): str
   switch (entityType) {
     case "EMPLOYEE":
       return `/people/employees/${entityId}`;
-    case "TASK":
-      return `/tasks/${entityId}`;
-    case "IT_TICKET":
-      return `/it/helpdesk/${entityId}`;
-    case "PETTY_CASH_TRANSACTION":
-      return "/admin/petty-cash";
     case "LEAVE_REQUEST":
       return "/people/leave";
     case "INCREMENT":
@@ -51,9 +45,6 @@ function targetPath(entityType: EntityType | null, entityId: string | null): str
 const KIND_LABEL: Partial<Record<NotificationKind, string>> = {
   APPROVAL_REQUIRED: "Waiting for your approval",
   EXPIRY: "Something is expiring",
-  TASK_DUE: "A task is due",
-  TASK_OVERDUE: "A task is overdue",
-  TICKET_ASSIGNED: "A ticket was assigned to you",
   MENTION: "You were mentioned",
   SYSTEM: "Notice",
 };

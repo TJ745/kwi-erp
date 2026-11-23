@@ -1,24 +1,7 @@
 // =============================================================================
-// Administration: petty cash, accommodation, suppliers, subcontractors,
-// electricity bills, company certificates, medical insurance.
+// Administration: accommodation, subcontractors, utility bills (meters),
+// company certificates, medical insurance.
 // =============================================================================
-
-enum CashFlowType {
-  INCOME
-  EXPENSE
-}
-
-enum PaymentMethod {
-  CASH
-  BANK_TRANSFER
-  CHEQUE
-  CARD
-}
-
-enum PaymentType {
-  CASH
-  CREDIT
-}
 
 /// How often rent falls due on a leased property.
 enum RentFrequency {
@@ -43,87 +26,11 @@ enum BedStatus {
   OUT_OF_SERVICE
 }
 
-enum BillStatus {
-  PENDING
-  PAID
-  OVERDUE
-}
-
 enum PolicyStatus {
   ACTIVE
   EXPIRED
   CANCELLED
   PENDING_RENEWAL
-}
-
-// --- Petty cash --------------------------------------------------------------
-
-model PettyCashAccount {
-  id             String  @id @default(cuid(2))
-  companyId      String
-  name           String
-  openingBalance Decimal @default(0) @db.Decimal(14, 2)
-  currency       String  @default("SAR")
-  custodianId    String?
-  isActive       Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company      Company                @relation(fields: [companyId], references: [id])
-  transactions PettyCashTransaction[]
-
-  @@unique([companyId, name])
-  @@index([companyId, isActive])
-}
-
-model PettyCashCategory {
-  id   String       @id @default(cuid(2))
-  key  String       @unique
-  name String
-  type CashFlowType
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  transactions PettyCashTransaction[]
-}
-
-model PettyCashTransaction {
-  id            String       @id @default(cuid(2))
-  accountId     String
-  companyId     String
-  date          DateTime
-  type          CashFlowType
-  categoryId    String
-  description   String
-  amount        Decimal      @db.Decimal(14, 2)
-  currency      String       @default("SAR")
-  paymentMethod PaymentMethod @default(CASH)
-  requesterId   String?
-  receiptFileId String?
-
-  status       ApprovalStatus @default(PENDING)
-  approvedById String?
-  approvedAt   DateTime?
-  notes        String?
-  createdById  String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  account   PettyCashAccount  @relation(fields: [accountId], references: [id])
-  company   Company           @relation(fields: [companyId], references: [id])
-  category  PettyCashCategory @relation(fields: [categoryId], references: [id])
-  requester Employee?         @relation(fields: [requesterId], references: [id])
-  receipt   FileObject?       @relation(fields: [receiptFileId], references: [id])
-
-  @@index([accountId, date])
-  @@index([companyId, date, type])
-  @@index([status])
-  @@index([categoryId])
-  @@index([requesterId])
-  @@index([receiptFileId])
 }
 
 // --- Accommodation -----------------------------------------------------------
@@ -140,9 +47,9 @@ model Accommodation {
 
   /// Lease and rent. All nullable: a property may be owned outright, or
   /// recorded for occupancy before anyone has the tenancy paperwork to hand.
-  rentAmount    Decimal?       @db.Decimal(14, 2)
-  rentCurrency  String         @default("SAR")
-  rentFrequency RentFrequency?
+  rentAmount     Decimal?       @db.Decimal(14, 2)
+  rentCurrency   String         @default("SAR")
+  rentFrequency  RentFrequency?
   /// The NEXT payment due, not a schedule. A schedule needs its own table and
   /// a generator; one forward-looking date answers "what is due soon", which is
   /// the question being asked. Rolled forward by the frequency when marked paid.
@@ -155,18 +62,17 @@ model Accommodation {
 
   company Company             @relation(fields: [companyId], references: [id])
   rooms   AccommodationRoom[]
-  bills   ElectricityBill[]
 
   @@index([companyId, status])
   @@index([rentDueDate])
 }
 
 model AccommodationRoom {
-  id              String @id @default(cuid(2))
+  id              String       @id @default(cuid(2))
   accommodationId String
   roomNumber      String
   floor           String?
-  capacity        Int    @default(1)
+  capacity        Int          @default(1)
   status          RecordStatus @default(ACTIVE)
 
   createdAt DateTime @default(now())
@@ -217,53 +123,18 @@ model BedAssignment {
   @@index([employeeId, checkOutDate])
 }
 
-// --- Vendors -----------------------------------------------------------------
-
-model SupplierCategory {
-  id   String @id @default(cuid(2))
-  key  String @unique
-  name String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  suppliers Supplier[]
-}
-
-model Supplier {
-  id            String  @id @default(cuid(2))
-  code          String  @unique
-  name          String
-  contactPerson String?
-  phone         String?
-  email         String?
-  companyId     String?
-  categoryId    String?
-  paymentType   PaymentType @default(CASH)
-  creditDays    Int?
-  status        RecordStatus @default(ACTIVE)
-  notes         String?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  company  Company?          @relation(fields: [companyId], references: [id])
-  category SupplierCategory? @relation(fields: [categoryId], references: [id])
-
-  @@index([companyId, status])
-  @@index([categoryId])
-  @@index([deletedAt])
-}
+// --- Subcontractors -----------------------------------------------------------------
 
 model Subcontractor {
-  id            String  @id @default(cuid(2))
-  code          String  @unique
+  id            String       @id @default(cuid(2))
+  code          String       @unique
   name          String
   contactPerson String?
   phone         String?
   email         String?
   crNumber      String?
+  /// Printed under the second party on the contract.
+  address       String?
   status        RecordStatus @default(ACTIVE)
   notes         String?
 
@@ -278,25 +149,32 @@ model Subcontractor {
 }
 
 model SubcontractorContract {
-  id              String  @id @default(cuid(2))
+  id              String         @id @default(cuid(2))
   subcontractorId String
   companyId       String
   contractNo      String
   scope           String?
   startDate       DateTime
   endDate         DateTime
-  value           Decimal? @db.Decimal(14, 2)
-  currency        String   @default("SAR")
+  value           Decimal?       @db.Decimal(14, 2)
+  currency        String         @default("SAR")
   status          ContractStatus @default(ACTIVE)
   documentId      String?
   notes           String?
+  /// The date printed at the top of the agreement.
+  agreementDate   DateTime?
+  /// Terms & conditions, one per line. Copied from the shared default when the
+  /// contract is created, then owned by this contract: editing the default
+  /// never rewrites an agreement already made.
+  terms           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
-  company       Company       @relation(fields: [companyId], references: [id])
-  document      FileObject?   @relation(fields: [documentId], references: [id])
+  rates         SubcontractorContractRate[]
+  subcontractor Subcontractor               @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  company       Company                     @relation(fields: [companyId], references: [id])
+  document      FileObject?                 @relation(fields: [documentId], references: [id])
 
   @@unique([subcontractorId, contractNo])
   @@index([endDate])
@@ -304,36 +182,47 @@ model SubcontractorContract {
   @@index([documentId])
 }
 
-// --- Bills & certificates ----------------------------------------------------
+enum RateUnit {
+  HOUR
+  DAY
+  MONTH
+  LUMP_SUM
+}
 
-model ElectricityBill {
-  id                 String  @id @default(cuid(2))
-  companyId          String
-  accommodationId    String?
-  location           String
-  meterNumber        String
-  billingPeriodStart DateTime
-  billingPeriodEnd   DateTime
-  amount             Decimal    @db.Decimal(14, 2)
-  currency           String     @default("SAR")
-  dueDate            DateTime
-  paidDate           DateTime?
-  status             BillStatus @default(PENDING)
-  fileId             String?
-  notes              String?
+/// One row of a contract's rate schedule, e.g. "Finishing carpenter — 22 / hour".
+model SubcontractorContractRate {
+  id         String   @id @default(cuid(2))
+  contractId String
+  sortOrder  Int
+  category   String
+  rate       Decimal  @db.Decimal(12, 2)
+  unit       RateUnit @default(HOUR)
+
+  contract SubcontractorContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, sortOrder])
+}
+
+/// The shared default terms & conditions new subcontract agreements start
+/// from. A single row (id "default").
+model SubcontractDefaults {
+  id        String   @id @default("default")
+  terms     String
+  updatedAt DateTime @updatedAt
+}
+
+// --- Meters & certificates ----------------------------------------------------
+
+/// Utility bills: a plain register of meter numbers and where they are, kept
+/// by hand.
+model UtilityMeter {
+  id          String  @id @default(cuid(2))
+  meterNumber String  @unique
+  location    String
+  description String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company       Company        @relation(fields: [companyId], references: [id])
-  accommodation Accommodation? @relation(fields: [accommodationId], references: [id])
-  file          FileObject?    @relation(fields: [fileId], references: [id])
-
-  @@unique([meterNumber, billingPeriodStart])
-  @@index([status, dueDate])
-  @@index([companyId, dueDate])
-  @@index([accommodationId])
-  @@index([fileId])
 }
 
 model CertificateType {
@@ -349,7 +238,7 @@ model CertificateType {
 }
 
 model CompanyCertificate {
-  id                String  @id @default(cuid(2))
+  id                String       @id @default(cuid(2))
   companyId         String
   certificateTypeId String
   certificateNo     String
@@ -391,7 +280,7 @@ model InsuranceProvider {
 }
 
 model MedicalInsurancePolicy {
-  id           String  @id @default(cuid(2))
+  id           String   @id @default(cuid(2))
   companyId    String
   providerId   String
   policyNumber String
@@ -399,9 +288,9 @@ model MedicalInsurancePolicy {
   startDate    DateTime
   expiryDate   DateTime
 
-  status PolicyStatus @default(ACTIVE)
+  status    PolicyStatus @default(ACTIVE)
   /// Distinct from status: a policy can be in-date yet not functioning.
-  isWorking Boolean @default(true)
+  isWorking Boolean      @default(true)
 
   coverageLimit Decimal? @db.Decimal(14, 2)
   currency      String   @default("SAR")
@@ -426,7 +315,7 @@ model MedicalInsurancePolicy {
 /// Present from day one so employee-level insurance needs no migration later
 /// (brief §31). UI is deferred.
 model EmployeeInsurance {
-  id           String    @id @default(cuid(2))
+  id           String       @id @default(cuid(2))
   employeeId   String
   policyId     String
   memberNumber String?

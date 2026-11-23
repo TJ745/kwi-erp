@@ -20,17 +20,13 @@ export async function requirePermission(key: PermissionKey): Promise<ActorContex
   return ctx;
 }
 
-export async function requireAnyPermission(
-  keys: readonly PermissionKey[],
-): Promise<ActorContext> {
+export async function requireAnyPermission(keys: readonly PermissionKey[]): Promise<ActorContext> {
   const ctx = await requireAuth();
   if (!keys.some((key) => ctx.permissions.has(key))) throw new ForbiddenError();
   return ctx;
 }
 
-export async function requireAllPermissions(
-  keys: readonly PermissionKey[],
-): Promise<ActorContext> {
+export async function requireAllPermissions(keys: readonly PermissionKey[]): Promise<ActorContext> {
   const ctx = await requireAuth();
   if (!keys.every((key) => ctx.permissions.has(key))) throw new ForbiddenError();
   return ctx;
@@ -76,9 +72,9 @@ export function companyScopeWhere(ctx: ActorContext): { companyId?: { in: string
  * Same, for tables where the company link is nullable (Position, Supplier,
  * LetterTemplate): rows with no company are shared and remain visible.
  */
-export function optionalCompanyScopeWhere(
-  ctx: ActorContext,
-): { OR?: ({ companyId: { in: string[] } } | { companyId: null })[] } {
+export function optionalCompanyScopeWhere(ctx: ActorContext): {
+  OR?: ({ companyId: { in: string[] } } | { companyId: null })[];
+} {
   if (ctx.companyScope === "ALL") return {};
   return { OR: [{ companyId: { in: [...ctx.companyScope] } }, { companyId: null }] };
 }
@@ -91,9 +87,7 @@ export function defaultCompanyId(ctx: ActorContext): string | null {
 
 // --- Department scoping ------------------------------------------------------
 
-export function departmentScopeWhere(
-  ctx: ActorContext,
-): { departmentId?: { in: string[] } } {
+export function departmentScopeWhere(ctx: ActorContext): { departmentId?: { in: string[] } } {
   if (ctx.departmentScope === "ALL") return {};
   return { departmentId: { in: [...ctx.departmentScope] } };
 }

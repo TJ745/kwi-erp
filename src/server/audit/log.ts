@@ -36,7 +36,9 @@ export async function recordAudit(
 ): Promise<void> {
   const changes =
     input.changes ??
-    (input.before || input.after ? diffRecords(input.before ?? null, input.after ?? null) : undefined);
+    (input.before || input.after
+      ? diffRecords(input.before ?? null, input.after ?? null)
+      : undefined);
 
   // An update that changed nothing is noise; don't record it.
   if (input.action === "UPDATE" && changes && Object.keys(changes).length === 0) return;

@@ -26,9 +26,14 @@ enum RecordStatus {
   ARCHIVED
 }
 
-/// Target of a polymorphic reference (Document, Attachment, Task, AuditLog).
+/// Target of a polymorphic reference (Document, Attachment, AuditLog).
 /// Adding a member here is the only supported way to make a new entity
 /// attachable — see docs/DATABASE.md §6.
+///
+/// Retired modules (tasks, helpdesk, servers, network devices, software
+/// licences, suppliers, petty cash, electricity bills, onboarding and
+/// offboarding checklists) keep their members so
+/// historic audit rows stay readable. Nothing new is written against them.
 enum EntityType {
   EMPLOYEE
   COMPANY
@@ -68,17 +73,14 @@ enum EntityType {
   LETTER_TEMPLATE
   USER
   ROLE
-}
-
-/// Shared by tasks and IT tickets, which use different top values: the brief
-/// specifies URGENT for tasks (§32) and CRITICAL for tickets (§23). Both live
-/// here and each module exposes only its own set in the UI.
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-  CRITICAL
+  UTILITY_METER
+  TIMESHEET_FILE
+  IP_ADDRESS
+  PERSONNEL_REQUEST
+  INTERVIEW_EVALUATION
+  JOINING_LETTER
+  CLEARANCE_FORM
+  TIMESHEET
 }
 
 enum Severity {
@@ -87,7 +89,7 @@ enum Severity {
   CRITICAL
 }
 
-/// Generic approval lifecycle shared by timesheets, increments, petty cash.
+/// Generic approval lifecycle shared by leave, increments, maintenance.
 enum ApprovalStatus {
   PENDING
   APPROVED

@@ -15,13 +15,11 @@ const ROUTES = [
   "/dashboard",
   "/people/employees",
   "/people/employees/new",
-  "/admin/petty-cash",
   "/it/vault",
   "/it/assets",
   "/settings/users",
   "/audit",
   "/reports",
-  "/tasks",
   "/no-access",
 ];
 

@@ -159,7 +159,8 @@ export async function parseEmployeeWorkbook(file: Buffer): Promise<ImportRow[]> 
     if (!blank) rows.push({ rowNumber, cells });
   });
 
-  if (rows.length === 0) throw new ImportFileError("The sheet has no employee rows below the header.");
+  if (rows.length === 0)
+    throw new ImportFileError("The sheet has no employee rows below the header.");
   if (rows.length > IMPORT_MAX_ROWS) {
     throw new ImportFileError(
       `The sheet has ${String(rows.length)} rows; at most ${String(IMPORT_MAX_ROWS)} can be imported at once. Split the file.`,
@@ -174,12 +175,16 @@ export async function parseEmployeeWorkbook(file: Buffer): Promise<ImportRow[]> 
  * Nothing is escaped on the way in — a value is data here, and the export
  * path neutralises formula prefixes when it writes a spreadsheet out.
  */
-function cellText(cell: ExcelJS.Cell): string {
+export function cellText(cell: ExcelJS.Cell): string {
   const v = cell.value;
   if (v === null || v === undefined) return "";
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === "object") {
-    if ("richText" in v) return v.richText.map((part) => part.text).join("").trim();
+    if ("richText" in v)
+      return v.richText
+        .map((part) => part.text)
+        .join("")
+        .trim();
     if ("text" in v) return String(v.text).trim();
     if ("result" in v) {
       const r = v.result;

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { FileText } from "lucide-react";
+import Link from "next/link";
+import { FileText, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { SearchInput } from "@/components/shared/search-input";
@@ -30,16 +32,14 @@ export default async function JobDescriptionsPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Job Descriptions"
-        description="Reusable role definitions attached to offers. Editing one bumps its version, so an offer that quoted an earlier text stays distinguishable."
+        description="Job descriptions in the company template. Each prints like the paper form, with the employee acknowledgement at the end."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="job-description-register" ctx={ctx} />
             {canManage ? (
-              <JobDescriptionDialog
-                companies={options.companies}
-                positions={options.positions}
-              />
+              <JobDescriptionDialog companies={options.companies} positions={options.positions} />
             ) : null}
           </div>
         }
@@ -66,7 +66,7 @@ export default async function JobDescriptionsPage({
                 <th className="px-3 py-2 text-right font-medium">Version</th>
                 <th className="px-3 py-2 text-right font-medium">Offers</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                <th className="w-32 px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -74,46 +74,54 @@ export default async function JobDescriptionsPage({
                 <tr key={d.id} className="border-t">
                   <td className="px-3 py-2">
                     <p className="font-medium">{d.title}</p>
-                    {d.summary ? (
+                    {d.department ? (
                       <p className="text-muted-foreground max-w-md truncate text-xs">
-                        {d.summary}
+                        {d.department}
                       </p>
                     ) : null}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {d.position?.title ?? "—"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {d.company?.code ?? "All"}
-                  </td>
+                  <td className="text-muted-foreground px-3 py-2">{d.position?.title ?? "—"}</td>
+                  <td className="text-muted-foreground px-3 py-2">{d.company?.code ?? "All"}</td>
                   <td className="px-3 py-2 text-right tabular-nums">v{d.version}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {d._count.jobOffers}
-                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{d._count.jobOffers}</td>
                   <td className="px-3 py-2">
                     <Badge variant={d.isActive ? "default" : "outline"}>
                       {d.isActive ? "Active" : "Inactive"}
                     </Badge>
                   </td>
-                  {canManage ? (
-                    <td className="px-3 py-2">
-                      <JobDescriptionRowActions
-                        description={{
-                          id: d.id,
-                          companyId: d.companyId,
-                          positionId: d.positionId,
-                          title: d.title,
-                          summary: d.summary,
-                          responsibilities: d.responsibilities,
-                          requirements: d.requirements,
-                          isActive: d.isActive,
-                          offerCount: d._count.jobOffers,
-                        }}
-                        companies={options.companies}
-                        positions={options.positions}
-                      />
-                    </td>
-                  ) : null}
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-end gap-1" data-print-hide>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/hr/job-descriptions/${d.id}`}>
+                          <Printer />
+                          Print
+                        </Link>
+                      </Button>
+                      {canManage ? (
+                        <JobDescriptionRowActions
+                          description={{
+                            id: d.id,
+                            companyId: d.companyId,
+                            positionId: d.positionId,
+                            title: d.title,
+                            department: d.department,
+                            reportsTo: d.reportsTo,
+                            oversees: d.oversees,
+                            organizational: d.organizational,
+                            departmental: d.departmental,
+                            education: d.education,
+                            experience: d.experience,
+                            skills: d.skills,
+                            others: d.others,
+                            isActive: d.isActive,
+                            offerCount: d._count.jobOffers,
+                          }}
+                          companies={options.companies}
+                          positions={options.positions}
+                        />
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

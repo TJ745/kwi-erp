@@ -3,21 +3,30 @@
 // =============================================================================
 
 model Company {
-  id             String  @id @default(cuid(2))
-  code           String  @unique
-  name           String
-  nameAr         String?
-  shortName      String
-  registrationNo String?
-  crNumber       String?
-  vatNumber      String?
-  addressLine    String?
-  city           String?
-  country        String  @default("SA")
-  phone          String?
-  email          String?
-  website        String?
-  logoFileId     String?
+  id                String  @id @default(cuid(2))
+  code              String  @unique
+  name              String
+  nameAr            String?
+  shortName         String
+  registrationNo    String?
+  crNumber          String?
+  vatNumber         String?
+  addressLine       String?
+  city              String?
+  /// Employment contract details: the Arabic counterparts and the signatory.
+  addressAr         String?
+  cityAr            String?
+  headOfficeCity    String?
+  headOfficeCityAr  String?
+  signatoryName     String?
+  signatoryNameAr   String?
+  signatoryTitle    String?
+  signatoryTitleAr  String?
+  country           String  @default("SA")
+  phone             String?
+  email             String?
+  website           String?
+  logoFileId        String?
   /// Letterhead artwork, shown as page chrome on generated documents. Held as
   /// file references rather than inside a template body: the letter sanitiser
   /// forbids <img> on purpose, and letterhead is layout, not content.
@@ -35,37 +44,27 @@ model Company {
   headerImage FileObject? @relation("CompanyHeaderImage", fields: [headerImageFileId], references: [id])
   footerImage FileObject? @relation("CompanyFooterImage", fields: [footerImageFileId], references: [id])
 
-  departments      Department[]
-  positions        Position[]
-  employees        Employee[]
-  userAccess       UserCompanyAccess[]
-  documents        Document[]
-  certificates     CompanyCertificate[]
-  contracts        Contract[]
-  jobOffers        JobOffer[]
-  jobDescriptions  JobDescription[]
-  correspondence   Correspondence[]
-  checklists       ChecklistInstance[]
-  tasks            Task[]
-  tickets          ITTicket[]
-  assets           ITAsset[]
-  servers          Server[]
-  networkDevices   NetworkDevice[]
-  cctvDevices      CctvDevice[]
-  softwareLicenses SoftwareLicense[]
-  credentials      Credential[]
-  vehicles         Vehicle[]
-  pettyCashAccts   PettyCashAccount[]
-  pettyCashTxns    PettyCashTransaction[]
-  accommodations   Accommodation[]
-  suppliers        Supplier[]
-  subContracts     SubcontractorContract[]
-  electricityBills ElectricityBill[]
-  insurancePolicy  MedicalInsurancePolicy[]
-  letterTemplates  LetterTemplate[]
-  generatedLetters GeneratedLetter[]
-  checklistTmpl    ChecklistTemplate[]
-  expiryIndex      ExpiryIndex[]
+  departments       Department[]
+  positions         Position[]
+  employees         Employee[]
+  userAccess        UserCompanyAccess[]
+  documents         Document[]
+  certificates      CompanyCertificate[]
+  contracts         Contract[]
+  jobOffers         JobOffer[]
+  jobDescriptions   JobDescription[]
+  personnelRequests PersonnelRequest[]
+  interviews        InterviewEvaluation[]
+  assets            ITAsset[]
+  credentials       Credential[]
+  timesheetFiles    TimesheetFile[]
+  vehicles          Vehicle[]
+  accommodations    Accommodation[]
+  subContracts      SubcontractorContract[]
+  insurancePolicy   MedicalInsurancePolicy[]
+  letterTemplates   LetterTemplate[]
+  generatedLetters  GeneratedLetter[]
+  expiryIndex       ExpiryIndex[]
 
   @@index([status])
   @@index([deletedAt])
@@ -89,9 +88,8 @@ model Department {
   children     Department[] @relation("DepartmentTree")
   headEmployee Employee?    @relation("DepartmentHead", fields: [headEmployeeId], references: [id])
 
-  employees      Employee[]              @relation("EmployeeDepartment")
-  tickets        ITTicket[]
-  checklistItems ChecklistTemplateItem[]
+  employees         Employee[]         @relation("EmployeeDepartment")
+  personnelRequests PersonnelRequest[]
 
   @@unique([companyId, code])
   @@index([companyId, status])
@@ -110,7 +108,7 @@ model Position {
   /// Seats this role is budgeted for. 0 means "not tracked" — the role simply
   /// does not appear on the structure chart, which is the right default for
   /// the many positions that exist only to label a job description.
-  budgetedHeadcount Int @default(0)
+  budgetedHeadcount   Int     @default(0)
   /// Where the role sits in the DESIGNED structure, as opposed to where its
   /// current holders happen to report. Without this a wholly unfilled role has
   /// no anchor and cannot be drawn at all — and an unfilled role is exactly
@@ -121,13 +119,14 @@ model Position {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company Company? @relation(fields: [companyId], references: [id])
+  company     Company?   @relation(fields: [companyId], references: [id])
   reportsTo   Position?  @relation("PositionReportsTo", fields: [reportsToPositionId], references: [id])
   directRoles Position[] @relation("PositionReportsTo")
 
-  employees       Employee[]
-  jobDescriptions JobDescription[]
-  jobOffers       JobOffer[]
+  employees         Employee[]
+  jobDescriptions   JobDescription[]
+  jobOffers         JobOffer[]
+  personnelRequests PersonnelRequest[]
 
   @@index([companyId, status])
 }

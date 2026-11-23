@@ -27,6 +27,15 @@ type Company = {
   registrationNo: string | null;
   vatNumber: string | null;
   addressLine: string | null;
+  nameAr: string | null;
+  addressAr: string | null;
+  cityAr: string | null;
+  headOfficeCity: string | null;
+  headOfficeCityAr: string | null;
+  signatoryName: string | null;
+  signatoryNameAr: string | null;
+  signatoryTitle: string | null;
+  signatoryTitleAr: string | null;
   country: string;
   phone: string | null;
   email: string | null;
@@ -34,13 +43,7 @@ type Company = {
   status: string;
 };
 
-export function CompanyDialog({
-  mode,
-  company,
-}: {
-  mode: "create" | "edit";
-  company?: Company;
-}) {
+export function CompanyDialog({ mode, company }: { mode: "create" | "edit"; company?: Company }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -60,6 +63,15 @@ export function CompanyDialog({
       registrationNo: readString(fd, "registrationNo"),
       vatNumber: readString(fd, "vatNumber"),
       addressLine: readString(fd, "addressLine"),
+      nameAr: readString(fd, "nameAr"),
+      addressAr: readString(fd, "addressAr"),
+      cityAr: readString(fd, "cityAr"),
+      headOfficeCity: readString(fd, "headOfficeCity"),
+      headOfficeCityAr: readString(fd, "headOfficeCityAr"),
+      signatoryName: readString(fd, "signatoryName"),
+      signatoryNameAr: readString(fd, "signatoryNameAr"),
+      signatoryTitle: readString(fd, "signatoryTitle"),
+      signatoryTitleAr: readString(fd, "signatoryTitleAr"),
       phone: readString(fd, "phone"),
       email: readString(fd, "email"),
       website: readString(fd, "website"),
@@ -103,8 +115,8 @@ export function CompanyDialog({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "Add company" : "Edit company"}</DialogTitle>
             <DialogDescription>
-              The code is used throughout the system and in report filters. It cannot clash with
-              an existing company.
+              The code is used throughout the system and in report filters. It cannot clash with an
+              existing company.
             </DialogDescription>
           </DialogHeader>
 
@@ -133,6 +145,14 @@ export function CompanyDialog({
               required
               defaultValue={company?.name ?? ""}
               errors={errors.name}
+            />
+
+            <TextField
+              name="nameAr"
+              label="Registered name (Arabic)"
+              hint="Printed on Arabic letters and contracts."
+              defaultValue={company?.nameAr ?? ""}
+              errors={errors.nameAr}
             />
 
             <TextField
@@ -210,6 +230,71 @@ export function CompanyDialog({
                 errors={errors.status}
               />
             </div>
+
+            <fieldset className="space-y-3 rounded-md border p-3">
+              <legend className="px-1 text-sm font-semibold">Employment contract details</legend>
+              <p className="text-muted-foreground text-xs">
+                Printed in the contract preamble and signature page. The English address above is
+                used for the English side.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  name="addressAr"
+                  label="Address (Arabic)"
+                  defaultValue={company?.addressAr ?? ""}
+                  errors={errors.addressAr}
+                  className="sm:col-span-2"
+                />
+                <TextField
+                  name="cityAr"
+                  label="City (Arabic)"
+                  hint="Where contracts are signed."
+                  defaultValue={company?.cityAr ?? ""}
+                  errors={errors.cityAr}
+                />
+                <div />
+                <TextField
+                  name="headOfficeCity"
+                  label="Head office city"
+                  defaultValue={company?.headOfficeCity ?? ""}
+                  errors={errors.headOfficeCity}
+                />
+                <TextField
+                  name="headOfficeCityAr"
+                  label="Head office city (Arabic)"
+                  defaultValue={company?.headOfficeCityAr ?? ""}
+                  errors={errors.headOfficeCityAr}
+                />
+                <TextField
+                  name="signatoryName"
+                  label="Signatory"
+                  placeholder="Mr. Mohammad Al Kuhaimi"
+                  defaultValue={company?.signatoryName ?? ""}
+                  errors={errors.signatoryName}
+                />
+                <TextField
+                  name="signatoryNameAr"
+                  label="Signatory (Arabic)"
+                  placeholder="السيد/ محمد أحمد الكحيمي"
+                  defaultValue={company?.signatoryNameAr ?? ""}
+                  errors={errors.signatoryNameAr}
+                />
+                <TextField
+                  name="signatoryTitle"
+                  label="Signatory title"
+                  placeholder="President"
+                  defaultValue={company?.signatoryTitle ?? ""}
+                  errors={errors.signatoryTitle}
+                />
+                <TextField
+                  name="signatoryTitleAr"
+                  label="Signatory title (Arabic)"
+                  placeholder="الرئيس"
+                  defaultValue={company?.signatoryTitleAr ?? ""}
+                  errors={errors.signatoryTitleAr}
+                />
+              </div>
+            </fieldset>
 
             <DialogFooter>
               <Button

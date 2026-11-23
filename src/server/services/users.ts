@@ -11,7 +11,7 @@ import {
 } from "@/lib/list-query";
 import { requireSeniorTo } from "@/server/auth/guards";
 import { hashPassword } from "@/server/auth/password";
-import { isPermissionKey } from "@/lib/permissions";
+import { isPermissionKey, SUPER_ADMIN_ROLE_KEY } from "@/lib/permissions";
 
 /**
  * User administration.
@@ -33,6 +33,13 @@ export type UserListRow = {
   roleKey: string;
   roleName: string;
   companyCount: number;
+  /**
+   * Sees every company regardless of the access list: a super admin, or a
+   * role (or override) granting companies.viewAll. Their list is not used.
+   */
+  allCompanies: boolean;
+  /** The employee record this account belongs to, if any. */
+  employee: { id: string; fullName: string; employeeNo: string } | null;
   /** Active overrides, so the row can show that this user is not just their role. */
   overrides: { key: string; label: string; effect: string; expiresAt: Date | null }[];
 };
@@ -68,8 +75,18 @@ export async function listUsers(
         lastLoginAt: true,
         createdAt: true,
         mustChangePassword: true,
-        role: { select: { key: true, name: true } },
+        role: {
+          select: {
+            key: true,
+            name: true,
+            permissions: {
+              where: { permission: { key: "companies.viewAll" } },
+              select: { roleId: true },
+            },
+          },
+        },
         _count: { select: { companyAccess: true } },
+        employee: { select: { id: true, fullName: true, employeeNo: true } },
         overrides: {
           select: {
             effect: true,
@@ -94,6 +111,22 @@ export async function listUsers(
       roleKey: u.role.key,
       roleName: u.role.name,
       companyCount: u._count.companyAccess,
+      allCompanies:
+        u.role.key === SUPER_ADMIN_ROLE_KEY ||
+        (u.role.permissions.length > 0 &&
+          !u.overrides.some(
+            (o) =>
+              o.permission.key === "companies.viewAll" &&
+              o.effect === "DENY" &&
+              (o.expiresAt === null || o.expiresAt > new Date()),
+          )) ||
+        u.overrides.some(
+          (o) =>
+            o.permission.key === "companies.viewAll" &&
+            o.effect === "ALLOW" &&
+            (o.expiresAt === null || o.expiresAt > new Date()),
+        ),
+      employee: u.employee,
       overrides: u.overrides.map((o) => ({
         key: o.permission.key,
         label: o.permission.label,
@@ -141,10 +174,7 @@ export async function getUserForEdit(ctx: ActorContext, userId: string) {
  *   2. The actor may not modify a user who already outranks them.
  * Without (2), an ADMIN could demote a SUPER_ADMIN and take over.
  */
-export async function updateUserRole(
-  ctx: ActorContext,
-  input: { userId: string; roleId: string },
-) {
+export async function updateUserRole(ctx: ActorContext, input: { userId: string; roleId: string }) {
   const [target, newRole] = await Promise.all([
     prisma.user.findFirst({
       where: { id: input.userId, deletedAt: null },
@@ -325,9 +355,7 @@ export async function setRolePermissions(
 
   // An actor cannot grant a permission they do not themselves hold — that
   // would let a limited admin bootstrap themselves into the vault.
-  const missing = input.permissionKeys.filter(
-    (key) => !ctx.permissions.has(key as never),
-  );
+  const missing = input.permissionKeys.filter((key) => !ctx.permissions.has(key as never));
   if (missing.length > 0) {
     throw new ForbiddenError("You cannot grant a permission you do not hold yourself.");
   }
@@ -353,25 +381,14 @@ export async function setRolePermissions(
   };
 }
 
-/**
- * Maps user ids to display names.
- *
- * `Task.assignedToId` and `ITTicket.requesterId`/`assignedToId` are plain
- * columns with no Prisma relation, so the name cannot come from an `include`.
- * One implementation, used by tasks, helpdesk, and reports — it was copied
- * into two services before reports would have made it three.
- */
-export async function resolveUserNames(
-  ids: readonly (string | null)[],
-): Promise<Map<string, string>> {
-  const unique = [...new Set(ids.filter((id): id is string => id !== null))];
-  if (unique.length === 0) return new Map();
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: unique } },
-    select: { id: true, name: true },
+/** Active users for a picker (vault grants). Names and emails only. */
+export async function activeUserOptions() {
+  return prisma.user.findMany({
+    where: { status: "ACTIVE", deletedAt: null },
+    orderBy: { name: "asc" },
+    take: 200,
+    select: { id: true, name: true, email: true },
   });
-  return new Map(users.map((u) => [u.id, u.name]));
 }
 
 // --- Per-user permission overrides -------------------------------------------
@@ -506,7 +523,6 @@ export async function removeUserPermissionOverride(
 
   return { user: target, permission, before: { effect: existing.effect } };
 }
-
 
 // --- Creating users and roles ------------------------------------------------
 
@@ -677,6 +693,63 @@ export async function deleteRole(ctx: ActorContext, roleId: string) {
   ]);
 
   return { key: role.key, name: role.name };
+}
+
+/**
+ * Links an existing account to an employee record, or unlinks it (null).
+ *
+ * The same seniority rule as every other change to a user: only someone
+ * senior to the account may relink it. The one exception is a super admin
+ * linking their own account — nobody outranks them, and an account set up
+ * before the employee existed (the first admin) would otherwise never be
+ * linkable.
+ */
+export async function linkUserEmployee(
+  ctx: ActorContext,
+  input: { userId: string; employeeId: string | null },
+) {
+  const target = await prisma.user.findFirst({
+    where: { id: input.userId, deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      role: { select: { rank: true } },
+      employee: { select: { employeeNo: true } },
+    },
+  });
+  if (!target) throw new NotFoundError("User not found.");
+
+  if (ctx.userId === target.id) {
+    if (ctx.roleKey !== SUPER_ADMIN_ROLE_KEY) {
+      throw new ForbiddenError("Only a super admin can link their own account.");
+    }
+  } else {
+    requireSeniorTo(ctx, target.role.rank);
+  }
+
+  let employeeNo: string | null = null;
+  if (input.employeeId) {
+    const employee = await prisma.employee.findFirst({
+      where: { id: input.employeeId, deletedAt: null },
+      select: { employeeNo: true, userAccount: { select: { id: true } } },
+    });
+    if (!employee) throw new NotFoundError("Employee not found.");
+    if (employee.userAccount && employee.userAccount.id !== target.id) {
+      throw new ConflictError("That employee already has a user account.");
+    }
+    employeeNo = employee.employeeNo;
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { employeeId: input.employeeId },
+  });
+
+  return {
+    user: target,
+    before: { employeeNo: target.employee?.employeeNo ?? null },
+    after: { employeeNo },
+  };
 }
 
 /** Employees with no user account yet, for the optional link on the create form. */

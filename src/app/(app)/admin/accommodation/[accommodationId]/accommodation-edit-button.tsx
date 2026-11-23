@@ -20,10 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { deleteAccommodationAction } from "@/server/actions/accommodation";
-import {
-  AccommodationDialog,
-  type AccommodationValues,
-} from "../accommodation-dialog";
+import { AccommodationDialog, type AccommodationValues } from "../accommodation-dialog";
 
 export function AccommodationEditButton({
   accommodation,
@@ -95,8 +92,8 @@ export function AccommodationEditButton({
           <DialogHeader>
             <DialogTitle>Delete “{accommodation.name}”?</DialogTitle>
             <DialogDescription>
-              Its rooms and beds go with it. A property with anyone still checked in
-              cannot be deleted — check them out first.
+              Its rooms and beds go with it. A property with anyone still checked in cannot be
+              deleted — check them out first.
             </DialogDescription>
           </DialogHeader>
 

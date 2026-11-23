@@ -97,6 +97,7 @@ export default async function VehiclesPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Vehicles"
         description="Fleet register. Registration and insurance expiry both feed the dashboard alerts."
         action={

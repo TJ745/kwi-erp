@@ -25,6 +25,7 @@ export default async function RolesPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Roles & Permissions"
         description={`${String(PERMISSION_KEYS.length)} permissions across the system. A role can only be edited by someone more senior than it.`}
         action={

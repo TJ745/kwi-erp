@@ -12,10 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteJobDescriptionAction } from "@/server/actions/hiring";
-import {
-  JobDescriptionDialog,
-  type JobDescriptionValues,
-} from "./job-description-dialog";
+import { JobDescriptionDialog, type JobDescriptionValues } from "./job-description-dialog";
 
 export function JobDescriptionRowActions({
   description,

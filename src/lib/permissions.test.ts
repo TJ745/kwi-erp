@@ -105,7 +105,7 @@ describe("role matrix", () => {
 
 describe("resolvePermissions", () => {
   const NOW = new Date("2026-08-10T12:00:00Z");
-  const base = { rolePermissions: ["employees.view", "tasks.view"], isSuperAdmin: false, now: NOW };
+  const base = { rolePermissions: ["employees.view", "documents.view"], isSuperAdmin: false, now: NOW };
 
   it("starts from the role's permissions", () => {
     const result = resolvePermissions({ ...base, overrides: [] });

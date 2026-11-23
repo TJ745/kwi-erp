@@ -5,19 +5,9 @@ import {
   assetSchema,
   assignAssetSchema,
   returnAssetSchema,
-  ticketAssignSchema,
-  ticketCommentSchema,
-  ticketSchema,
-  ticketStatusSchema,
   updateAssetSchema,
 } from "@/lib/schemas/it";
 import { assignAsset, createAsset, returnAsset, updateAsset } from "@/server/services/assets";
-import {
-  addTicketComment,
-  assignTicket,
-  createTicket,
-  setTicketStatus,
-} from "@/server/services/helpdesk";
 
 // --- Assets ------------------------------------------------------------------
 
@@ -52,12 +42,16 @@ export const updateAssetAction = defineAction({
         brand: before.brand,
         model: before.model,
         serialNumber: before.serialNumber,
+        macAddress: before.macAddress,
+        ipAddress: before.ipAddress,
         warrantyExpiry: before.warrantyExpiry,
       },
       after: {
         brand: input.brand,
         model: input.model,
         serialNumber: input.serialNumber ?? null,
+        macAddress: input.macAddress ?? null,
+        ipAddress: input.ipAddress ?? null,
         warrantyExpiry: after.warrantyExpiry,
       },
     });
@@ -98,75 +92,4 @@ export const returnAssetAction = defineAction({
     return { ok: true as const };
   },
   revalidate: (input) => ["/it/assets", `/it/assets/${input.assetId}`],
-});
-
-// --- Helpdesk ----------------------------------------------------------------
-
-export const createTicketAction = defineAction({
-  permission: "it.tickets.create",
-  schema: ticketSchema,
-  audit: { action: "CREATE", entity: "IT_TICKET" },
-  handler: async ({ input, ctx, audit }) => {
-    const ticket = await createTicket(ctx, input);
-    audit.record({
-      entityId: ticket.id,
-      companyId: ticket.companyId,
-      summary: `Raised ticket ${ticket.ticketNo} — ${ticket.subject}`,
-      after: { subject: ticket.subject, priority: input.priority },
-    });
-    return { id: ticket.id, ticketNo: ticket.ticketNo };
-  },
-  revalidate: () => ["/it/helpdesk"],
-});
-
-export const assignTicketAction = defineAction({
-  permission: "it.tickets.assign",
-  schema: ticketAssignSchema,
-  audit: { action: "ASSIGN", entity: "IT_TICKET" },
-  handler: async ({ input, ctx, audit }) => {
-    const result = await assignTicket(ctx, input);
-    audit.record({
-      entityId: input.id,
-      companyId: result.companyId,
-      summary: `Ticket ${result.ticketNo} assigned to ${result.after.assignedTo ?? "nobody"}`,
-      before: result.before,
-      after: result.after,
-    });
-    return { ok: true as const };
-  },
-  revalidate: (input) => ["/it/helpdesk", `/it/helpdesk/${input.id}`],
-});
-
-export const setTicketStatusAction = defineAction({
-  permission: "it.tickets.resolve",
-  schema: ticketStatusSchema,
-  audit: { action: "UPDATE", entity: "IT_TICKET" },
-  handler: async ({ input, ctx, audit }) => {
-    const result = await setTicketStatus(ctx, input);
-    audit.record({
-      entityId: input.id,
-      companyId: result.companyId,
-      summary: `Ticket ${result.ticketNo}: ${result.before.status} → ${result.after.status}`,
-      before: result.before,
-      after: result.after,
-    });
-    return { ok: true as const };
-  },
-  revalidate: (input) => ["/it/helpdesk", `/it/helpdesk/${input.id}`],
-});
-
-export const addTicketCommentAction = defineAction({
-  permission: "it.tickets.view",
-  schema: ticketCommentSchema,
-  audit: { action: "UPDATE", entity: "IT_TICKET" },
-  handler: async ({ input, ctx, audit }) => {
-    const result = await addTicketComment(ctx, input);
-    audit.record({
-      entityId: input.ticketId,
-      companyId: result.companyId,
-      summary: `Comment added to ${result.ticketNo}${input.isInternal ? " (internal)" : ""}`,
-    });
-    return { ok: true as const };
-  },
-  revalidate: (input) => [`/it/helpdesk/${input.ticketId}`],
 });

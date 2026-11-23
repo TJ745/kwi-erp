@@ -121,11 +121,7 @@ export const upsertIqamaAction = defineAction({
     });
     return { ok: true as const };
   },
-  revalidate: (input) => [
-    `/people/employees/${input.employeeId}`,
-    "/people/iqama",
-    "/dashboard",
-  ],
+  revalidate: (input) => [`/people/employees/${input.employeeId}`, "/people/iqama", "/dashboard"],
 });
 
 export const upsertPassportAction = defineAction({
@@ -144,7 +140,7 @@ export const upsertPassportAction = defineAction({
   revalidate: (input) => [`/people/employees/${input.employeeId}`, "/dashboard"],
 });
 
-/** Manager options for the employee form; scoped to the selected company. */
+/** Manager options for the employee form: any company the actor can see. */
 export const managerOptionsAction = defineAction({
   permission: "employees.view",
   schema: z
@@ -178,11 +174,7 @@ export const startIqamaRenewalAction = defineAction({
     });
     return { id: renewal.id };
   },
-  revalidate: (input) => [
-    `/people/employees/${input.employeeId}`,
-    "/people/iqama",
-    "/dashboard",
-  ],
+  revalidate: (input) => [`/people/employees/${input.employeeId}`, "/people/iqama", "/dashboard"],
 });
 
 export const updateIqamaRenewalAction = defineAction({
@@ -203,11 +195,7 @@ export const updateIqamaRenewalAction = defineAction({
     });
     return { id: renewal.id };
   },
-  revalidate: (input) => [
-    `/people/employees/${input.employeeId}`,
-    "/people/iqama",
-    "/dashboard",
-  ],
+  revalidate: (input) => [`/people/employees/${input.employeeId}`, "/people/iqama", "/dashboard"],
 });
 
 // --- Emergency contacts ------------------------------------------------------
@@ -275,10 +263,7 @@ export const upsertBankDetailAction = defineAction({
   schema: bankDetailSchema,
   audit: { action: "UPDATE", entity: "EMPLOYEE" },
   handler: async ({ input, ctx, audit }) => {
-    const { before, after, employee, ibanChanged, blindWrite } = await upsertBankDetail(
-      ctx,
-      input,
-    );
+    const { before, after, employee, ibanChanged, blindWrite } = await upsertBankDetail(ctx, input);
     audit.record({
       entityId: input.employeeId,
       companyId: employee.companyId,

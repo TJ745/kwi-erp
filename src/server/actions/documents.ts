@@ -30,8 +30,7 @@ export const createDocumentAction = defineAction({
     })
     .strict()
     .refine(
-      (d) =>
-        !d.issueDate || !d.expiryDate || d.expiryDate.getTime() >= d.issueDate.getTime(),
+      (d) => !d.issueDate || !d.expiryDate || d.expiryDate.getTime() >= d.issueDate.getTime(),
       { message: "Expiry cannot precede the issue date", path: ["expiryDate"] },
     ),
   audit: { action: "UPLOAD", entity: "EMPLOYEE" },
@@ -41,9 +40,7 @@ export const createDocumentAction = defineAction({
       entityId: input.entityId,
       companyId: input.companyId,
       summary: `Uploaded document "${document.title}"${
-        document.expiryDate
-          ? ` (expires ${document.expiryDate.toISOString().slice(0, 10)})`
-          : ""
+        document.expiryDate ? ` (expires ${document.expiryDate.toISOString().slice(0, 10)})` : ""
       }`,
       after: { title: document.title, expiryDate: document.expiryDate },
     });

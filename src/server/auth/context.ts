@@ -1,9 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { resolvePermissions, type PermissionKey,
-  SUPER_ADMIN_ROLE_KEY,
-} from "@/lib/permissions";
+import { resolvePermissions, type PermissionKey, SUPER_ADMIN_ROLE_KEY } from "@/lib/permissions";
 import { prisma } from "@/server/db/client";
 import { auth } from "./auth";
 

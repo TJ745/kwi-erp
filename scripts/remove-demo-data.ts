@@ -72,24 +72,9 @@ async function main() {
   ).count;
   await prisma.certificateType.deleteMany({ where: { key: "DEMO_CERT" } });
 
-  counts.suppliers = (await prisma.supplier.deleteMany({ where: { code: DEMO } })).count;
   counts.subcontractors = (
     await prisma.subcontractor.deleteMany({ where: { code: DEMO } })
   ).count;
-  counts.tickets = (await prisma.iTTicket.deleteMany({ where: { ticketNo: DEMO } })).count;
-  counts.tasks = (await prisma.task.deleteMany({ where: { taskNo: DEMO } })).count;
-
-  const accounts = await prisma.pettyCashAccount.findMany({
-    where: { name: DEMO },
-    select: { id: true },
-  });
-  const accountIds = accounts.map((a) => a.id);
-  if (accountIds.length > 0) {
-    await prisma.pettyCashTransaction.deleteMany({ where: { accountId: { in: accountIds } } });
-    counts.pettyCash = (
-      await prisma.pettyCashAccount.deleteMany({ where: { id: { in: accountIds } } })
-    ).count;
-  }
 
   counts.leave = (await prisma.leaveRequest.deleteMany({ where: { reason: DEMO } })).count;
 

@@ -8,6 +8,7 @@ import { buildQueryString } from "@/lib/list-query";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import {
+  expireLapsedCover,
   insuranceCounts,
   listPolicies,
   listProviders,
@@ -32,6 +33,10 @@ export default async function InsurancePage({
 
   const canManage = ctx.permissions.has("insurance.manage");
 
+  // Expired policies and leavers' cover are brought up to date before anything
+  // is shown, so the page is right even on a day the nightly job did not run.
+  await expireLapsedCover();
+
   const [policies, counts, providers, options] = await Promise.all([
     listPolicies(ctx, { status, q }),
     insuranceCounts(ctx),
@@ -42,18 +47,15 @@ export default async function InsurancePage({
   // Members are fetched per policy, and the employee list only for actors who
   // can actually enrol somebody — it is a list of people, not a lookup table.
   const [enrolmentsByPolicy, employees] = await Promise.all([
-    Promise.all(
-      policies.map(async (p) => [p.id, await enrolmentsForPolicy(ctx, p.id)] as const),
-    ),
-    canManage && ctx.permissions.has("employees.view")
-      ? employeeOptions(ctx)
-      : Promise.resolve([]),
+    Promise.all(policies.map(async (p) => [p.id, await enrolmentsForPolicy(ctx, p.id)] as const)),
+    canManage && ctx.permissions.has("employees.view") ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
   const enrolments = new Map(enrolmentsByPolicy);
 
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Medical Insurance"
         description="Company policies and their status. A policy can be in-date yet not working at the clinic — both are tracked."
         action={
@@ -126,6 +128,7 @@ export default async function InsurancePage({
             fullName: e.fullName,
             employeeNo: e.employeeNo,
             companyId: e.companyId,
+            status: e.status,
           }))}
           companies={options?.companies ?? []}
           providers={providers.map((p) => ({ id: p.id, name: p.name }))}

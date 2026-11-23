@@ -15,9 +15,7 @@ import { logger } from "@/server/logger";
  * Changing a password requires the current one and revokes every OTHER session,
  * so a stolen cookie elsewhere is invalidated — docs/SECURITY.md §2.
  */
-export async function changePasswordAction(
-  rawInput: unknown,
-): Promise<ActionResult<{ ok: true }>> {
+export async function changePasswordAction(rawInput: unknown): Promise<ActionResult<{ ok: true }>> {
   const ctx = await requireAuth();
 
   // Before validation, so a hostile payload cannot buy free attempts by
@@ -25,10 +23,7 @@ export async function changePasswordAction(
   try {
     await consumeRateLimit("passwordChange", ctx.userId);
   } catch {
-    return err(
-      "RATE_LIMITED",
-      "Too many password change attempts. Please wait a few minutes.",
-    );
+    return err("RATE_LIMITED", "Too many password change attempts. Please wait a few minutes.");
   }
 
   const parsed = changePasswordSchema.safeParse(rawInput);

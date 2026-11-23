@@ -18,10 +18,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { DateField, SelectField, TextAreaField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { RENEWAL_STATUSES } from "@/lib/schemas/employee";
-import {
-  startIqamaRenewalAction,
-  updateIqamaRenewalAction,
-} from "@/server/actions/employees";
+import { startIqamaRenewalAction, updateIqamaRenewalAction } from "@/server/actions/employees";
 
 export type RenewalRow = {
   id: string;
@@ -34,7 +31,10 @@ export type RenewalRow = {
 };
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 /**
  * Iqama renewal tracking.
@@ -176,8 +176,8 @@ export function IqamaRenewals({
           <DialogHeader>
             <DialogTitle>Update renewal</DialogTitle>
             <DialogDescription>
-              Completing a renewal moves the Iqama expiry date and updates the expiry register
-              at the same time.
+              Completing a renewal moves the Iqama expiry date and updates the expiry register at
+              the same time.
             </DialogDescription>
           </DialogHeader>
 

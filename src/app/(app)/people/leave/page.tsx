@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DeleteRecordButton } from "@/components/shared/delete-record-button";
+import { deleteLeaveRequestAction } from "@/server/actions/hr";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { SearchInput } from "@/components/shared/search-input";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
-import { buildQueryString, parseListQuery, type SearchParams } from "@/lib/list-query";
+import { parseListQuery, type SearchParams } from "@/lib/list-query";
 import { cn } from "@/lib/utils";
 import { requirePageAnyPermission } from "@/server/auth/page-guards";
 import {
@@ -16,35 +18,30 @@ import {
   listLeaveRequests,
   type LeaveListRow,
 } from "@/server/services/leave";
-import { listEmployees } from "@/server/services/employees";
-import { LeaveDecision } from "./leave-decision";
+import { employeeOptions } from "@/server/services/hr-records";
 import { LeaveRequestButton } from "./leave-request-form";
 import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Leave" };
 
-export default async function LeavePage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function LeavePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requirePageAnyPermission(["hr.leave.view", "hr.leave.request"]);
   const params = await searchParams;
   const query = parseListQuery(params);
 
-  const filters = { status: typeof params.status === "string" ? params.status : undefined };
+  // Leave is recorded by HR and approved as it is entered.
+  const canManage = ctx.permissions.has("hr.leave.view");
 
-  const canApprove = ctx.permissions.has("hr.leave.approve");
-  const canRequestForOthers = ctx.permissions.has("hr.leave.view");
-
-  const [data, counts, types, employees] = await Promise.all([
-    listLeaveRequests(ctx, query, filters),
+  const [data, counts, types, people] = await Promise.all([
+    listLeaveRequests(ctx, query),
     leaveCounts(ctx),
     leaveTypes(),
-    canRequestForOthers
-      ? listEmployees(ctx, { page: 1, pageSize: 100, q: undefined, sort: undefined })
-      : Promise.resolve(null),
+    canManage ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
+  const employees = people.map((e) => ({
+    id: e.id,
+    label: `${e.fullName} (${e.employeeNo} · ${e.company.code})`,
+  }));
 
   const columns: readonly Column<LeaveListRow>[] = [
     {
@@ -87,27 +84,40 @@ export default async function LeavePage({
       cell: (row) => <span className="text-sm tabular-nums">{row.days}</span>,
     },
     {
-      key: "status",
-      header: "Status",
-      sortable: true,
-      primary: true,
-      cell: (row) => <StatusBadge status={row.status} />,
-    },
-    {
       key: "actions",
       header: "",
       align: "right",
       cell: (row) => (
-        <LeaveDecision
-          request={{
-            id: row.id,
-            employeeName: row.employeeName,
-            status: row.status,
-            days: row.days,
-          }}
-          canApprove={canApprove}
-          canCancel={ctx.permissions.has("hr.leave.request")}
-        />
+        <div className="flex items-center justify-end gap-1 whitespace-nowrap" data-print-hide>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/people/leave/${row.id}`}>
+              <Printer />
+              Print
+            </Link>
+          </Button>
+          {canManage ? (
+            <>
+              <LeaveRequestButton
+                leaveTypes={types}
+                employees={employees}
+                leave={{
+                  id: row.id,
+                  employeeId: row.employeeId,
+                  leaveTypeId: row.leaveTypeId,
+                  startDate: row.startDate.toISOString().slice(0, 10),
+                  endDate: row.endDate.toISOString().slice(0, 10),
+                  handoverToId: row.handoverToId,
+                  form: row.form,
+                }}
+              />
+              <DeleteRecordButton
+                id={row.id}
+                label={`the leave of ${row.employeeName}`}
+                action={deleteLeaveRequestAction}
+              />
+            </>
+          ) : null}
+        </div>
       ),
     },
   ];
@@ -115,50 +125,27 @@ export default async function LeavePage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Leave"
         description={
           ctx.permissions.has("hr.leave.view")
-            ? "All leave requests in your companies."
-            : "Your leave requests."
+            ? "Employees' leave. Each one prints as the Leave Request form."
+            : "Your leave."
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="leave-register" ctx={ctx} />
-            <LeaveRequestButton
-              leaveTypes={types}
-              employees={employees?.rows.map((e) => ({ id: e.id, label: `${e.fullName} (${e.employeeNo})` })) ?? []}
-              ownEmployeeId={ctx.employeeId}
-            />
+            {canManage ? <LeaveRequestButton leaveTypes={types} employees={employees} /> : null}
           </div>
         }
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <CountCard
-          label="Awaiting decision"
-          value={counts.pending}
-          tone="warning"
-          href={`/people/leave${buildQueryString({}, { status: "PENDING" })}`}
-        />
-        <CountCard
-          label="Approved & upcoming"
-          value={counts.approvedUpcoming}
-          href={`/people/leave${buildQueryString({}, { status: "APPROVED" })}`}
-        />
+        <CountCard label="On leave today" value={counts.onLeaveNow} href="/people/leave" />
+        <CountCard label="Upcoming" value={counts.upcoming} href="/people/leave" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput placeholder="Search by employee…" />
-        {(["PENDING", "APPROVED", "REJECTED"] as const).map((status) => (
-          <FilterChip
-            key={status}
-            label={status.charAt(0) + status.slice(1).toLowerCase()}
-            href={`/people/leave${buildQueryString({}, { status })}`}
-            active={filters.status === status}
-          />
-        ))}
-        <FilterChip label="All" href="/people/leave" active={!filters.status} />
-      </div>
+      <SearchInput placeholder="Search by employee…" />
 
       <DataTable
         data={data}
@@ -169,8 +156,8 @@ export default async function LeavePage({
         emptyState={
           <EmptyState
             icon={CalendarDays}
-            title="No leave requests"
-            description="Requests appear here once submitted, with their approval status."
+            title="No leave recorded"
+            description="Use New leave to record an employee's leave; it prints as the Leave Request form."
           />
         }
       />
@@ -204,30 +191,6 @@ function CountCard({
           </p>
         </CardContent>
       </Card>
-    </Link>
-  );
-}
-
-function FilterChip({
-  label,
-  href,
-  active,
-}: {
-  label: string;
-  href: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "rounded-md border px-2.5 py-1 text-xs transition-colors",
-        active
-          ? "bg-primary text-primary-foreground border-transparent"
-          : "hover:bg-accent text-muted-foreground",
-      )}
-    >
-      {label}
     </Link>
   );
 }

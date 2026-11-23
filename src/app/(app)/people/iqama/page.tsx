@@ -39,6 +39,7 @@ export default async function IqamaPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Iqama & Passports"
         description="Residency and travel document expiry across your companies."
       />

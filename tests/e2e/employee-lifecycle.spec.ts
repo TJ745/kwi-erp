@@ -46,7 +46,7 @@ test.describe("employee lifecycle", () => {
 
     // The tabs HR is entitled to must render — this is the seventeen-query
     // assembly actually running rather than throwing.
-    for (const tab of ["Overview", "Employment", "Documents", "Timesheet"]) {
+    for (const tab of ["Overview", "Employment", "Documents"]) {
       await expect(page.getByRole("tab", { name: new RegExp(tab, "i") })).toBeVisible();
     }
 

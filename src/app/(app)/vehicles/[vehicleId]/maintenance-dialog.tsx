@@ -16,17 +16,26 @@ import {
 import { DateField, SelectField, TextAreaField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { MAINTENANCE_TYPES } from "@/lib/schemas/fleet";
+import { MAINTENANCE_SERVICES } from "@/lib/vehicle-maintenance";
 import { addMaintenanceAction } from "@/server/actions/fleet";
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 export function MaintenanceDialog({
   vehicleId,
   currentMileage,
+  drivers,
+  currentDriverId,
 }: {
   vehicleId: string;
   currentMileage: number | null;
+  /** The company's employees who can be named as the driver. */
+  drivers: { id: string; fullName: string; employeeNo: string; companyCode: string }[];
+  currentDriverId: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -52,6 +61,13 @@ export function MaintenanceDialog({
         nextDueDate: readString(fd, "nextDueDate"),
         nextDueMileage: readString(fd, "nextDueMileage"),
         notes: readString(fd, "notes"),
+        requestNo: readString(fd, "requestNo"),
+        driverId: readString(fd, "driverId"),
+        services: fd.getAll("services").map(String),
+        otherService: readString(fd, "otherService"),
+        additionalDetails: readString(fd, "additionalDetails"),
+        driverNotes: readString(fd, "driverNotes"),
+        requiredParts: readString(fd, "requiredParts"),
       });
 
       if (!result.success) {
@@ -68,7 +84,12 @@ export function MaintenanceDialog({
 
   return (
     <>
-      <Button size="sm" onClick={() => { setOpen(true); }}>
+      <Button
+        size="sm"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
         <Plus />
         Record maintenance
       </Button>
@@ -78,8 +99,8 @@ export function MaintenanceDialog({
           <DialogHeader>
             <DialogTitle>Record maintenance</DialogTitle>
             <DialogDescription>
-              Recording mileage also updates the vehicle&apos;s current reading. It cannot go
-              backwards.
+              Prints as the Vehicle Maintenance Request. The vehicle, driver and previous mileage
+              fill in on their own; the mileage you enter is the current reading.
             </DialogDescription>
           </DialogHeader>
 
@@ -110,33 +131,61 @@ export function MaintenanceDialog({
               />
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField
+                name="requestNo"
+                label="Req. #"
+                hint="Blank numbers it automatically, e.g. KWI/VM/040."
+                errors={errors.requestNo}
+              />
+              <SelectField
+                name="driverId"
+                label="Driver"
+                placeholder="No driver"
+                defaultValue={currentDriverId ?? ""}
+                options={drivers.map((d) => ({
+                  value: d.id,
+                  label: `${d.fullName} (${d.employeeNo} · ${d.companyCode})`,
+                }))}
+                errors={errors.driverId}
+              />
+            </div>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold">Required service</legend>
+              <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                {MAINTENANCE_SERVICES.map((s) => (
+                  <label key={s.key} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="services" value={s.key} />
+                    {s.en}
+                  </label>
+                ))}
+              </div>
+              <TextField
+                name="otherService"
+                label="Other (if ticked)"
+                errors={errors.otherService}
+              />
+            </fieldset>
+
             <TextAreaField
               name="description"
-              label="Description"
-              required
+              label="Work done / description"
+              hint="Blank uses the ticked services."
               errors={errors.description}
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 name="mileage"
-                label="Mileage"
-                hint={currentMileage ? `Currently ${String(currentMileage)} km` : undefined}
+                label="Current mileage (km)"
+                hint={currentMileage ? `Previous reading ${String(currentMileage)} km` : undefined}
                 errors={errors.mileage}
               />
               <TextField name="workshop" label="Workshop" errors={errors.workshop} />
-              <TextField
-                name="cost"
-                label="Cost"
-                hint="Numbers only."
-                errors={errors.cost}
-              />
+              <TextField name="cost" label="Cost" hint="Numbers only." errors={errors.cost} />
               <div />
-              <DateField
-                name="nextDueDate"
-                label="Next service due"
-                errors={errors.nextDueDate}
-              />
+              <DateField name="nextDueDate" label="Next service due" errors={errors.nextDueDate} />
               <TextField
                 name="nextDueMileage"
                 label="Next due at mileage"
@@ -144,7 +193,18 @@ export function MaintenanceDialog({
               />
             </div>
 
-            <TextAreaField name="notes" label="Notes" errors={errors.notes} />
+            <TextAreaField
+              name="additionalDetails"
+              label="Additional details"
+              errors={errors.additionalDetails}
+            />
+            <TextAreaField name="driverNotes" label="Driver notes" errors={errors.driverNotes} />
+            <TextAreaField
+              name="requiredParts"
+              label="Required parts"
+              errors={errors.requiredParts}
+            />
+            <TextAreaField name="notes" label="Internal notes" errors={errors.notes} />
 
             <DialogFooter>
               <Button

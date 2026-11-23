@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
@@ -28,9 +28,10 @@ export default async function HandoversPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Vehicle Handovers"
         description="Every change of keys across the fleet. A handover is what moves a vehicle's driver — the assignment closes and reopens with it."
-              action={<ReportLink reportId="vehicle-handover" ctx={ctx} />}
+        action={<ReportLink reportId="vehicle-handover" ctx={ctx} />}
       />
 
       {handovers.length === 0 ? (
@@ -52,6 +53,7 @@ export default async function HandoversPage({
                 <th className="px-3 py-2 text-left font-medium">Fuel</th>
                 <th className="px-3 py-2 text-left font-medium">Condition</th>
                 <th className="px-3 py-2 text-left font-medium">Acknowledged</th>
+                <th className="w-10 px-3 py-2" />
                 {canDownload ? <th className="w-10 px-3 py-2" /> : null}
               </tr>
             </thead>
@@ -102,9 +104,7 @@ export default async function HandoversPage({
                   <td className="text-muted-foreground px-3 py-2">
                     {h.fuelLevel.replace(/_/g, " ").toLowerCase()}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {h.condition.toLowerCase()}
-                  </td>
+                  <td className="text-muted-foreground px-3 py-2">{h.condition.toLowerCase()}</td>
                   <td className="px-3 py-2">
                     {h.acknowledgedAt ? (
                       <span className="text-muted-foreground tabular-nums">
@@ -113,6 +113,14 @@ export default async function HandoversPage({
                     ) : (
                       <Badge variant="outline">Not signed</Badge>
                     )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Button asChild size="sm" variant="outline" data-print-hide>
+                      <Link href={`/vehicles/handovers/${h.id}`}>
+                        <Printer />
+                        Print
+                      </Link>
+                    </Button>
                   </td>
                   {canDownload ? (
                     <td className="px-3 py-2">

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, CheckCheck, Clock } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,19 +101,12 @@ export function NotificationList({
 
       <ul className="divide-y rounded-lg border">
         {notifications.map((notification) => {
-          const Icon =
-            notification.kind === "TASK_OVERDUE"
-              ? Clock
-              : notification.severity === "CRITICAL"
-                ? AlertTriangle
-                : Bell;
+          const Icon = notification.severity === "CRITICAL" ? AlertTriangle : Bell;
 
           const href =
             notification.entityType === "EMPLOYEE" && notification.entityId
               ? `/people/employees/${notification.entityId}`
-              : notification.entityType === "TASK" && notification.entityId
-                ? `/tasks/${notification.entityId}`
-                : null;
+              : null;
 
           const content = (
             <div className="flex items-start gap-3">

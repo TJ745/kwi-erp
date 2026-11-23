@@ -109,8 +109,8 @@ export function PositionDialog({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "Add position" : "Edit position"}</DialogTitle>
             <DialogDescription>
-              A position with no company is available to every company. Titles must be
-              unique within that scope.
+              A position with no company is available to every company. Titles must be unique within
+              that scope.
             </DialogDescription>
           </DialogHeader>
 

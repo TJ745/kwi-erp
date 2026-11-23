@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench } from "lucide-react";
+import { Printer, Wrench } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { ExpiryDate } from "@/components/shared/expiry-alert";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
@@ -55,9 +56,7 @@ export default async function MaintenancePage({
       key: "type",
       header: "Type",
       primary: true,
-      cell: (row) => (
-        <span className="text-sm">{row.type.replace(/_/g, " ").toLowerCase()}</span>
-      ),
+      cell: (row) => <span className="text-sm">{row.type.replace(/_/g, " ").toLowerCase()}</span>,
     },
     {
       key: "description",
@@ -68,9 +67,7 @@ export default async function MaintenancePage({
       key: "mileage",
       header: "Mileage",
       align: "right",
-      cell: (row) => (
-        <span className="text-sm tabular-nums">{row.mileage ?? "—"}</span>
-      ),
+      cell: (row) => <span className="text-sm tabular-nums">{row.mileage ?? "—"}</span>,
     },
     {
       key: "cost",
@@ -88,14 +85,28 @@ export default async function MaintenancePage({
       primary: true,
       cell: (row) => <ExpiryDate date={row.nextDueDate} horizonDays={30} />,
     },
+    {
+      key: "print",
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <Button asChild size="sm" variant="outline" data-print-hide>
+          <Link href={"/vehicles/maintenance/" + row.id}>
+            <Printer />
+            {row.requestNo ?? "Print"}
+          </Link>
+        </Button>
+      ),
+    },
   ];
 
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Vehicle maintenance"
         description="Service history across the fleet. Record maintenance from a vehicle's page."
-              action={<ReportLink reportId="vehicle-maintenance" ctx={ctx} />}
+        action={<ReportLink reportId="vehicle-maintenance" ctx={ctx} />}
       />
 
       <SearchInput placeholder="Search by plate, workshop, or work done…" />

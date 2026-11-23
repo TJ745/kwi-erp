@@ -109,7 +109,7 @@ export function DocumentTypeControls({
             <DialogTitle>{values ? "Edit document type" : "Add document type"}</DialogTitle>
             <DialogDescription>
               {values?.isSystem
-                ? "This is a system type. Its key is fixed because seeded logic and checklists refer to it; everything else can change."
+                ? "This is a system type. Its key is fixed because seeded logic refers to it; everything else can change."
                 : "The key is how other parts of the system refer to this type."}
             </DialogDescription>
           </DialogHeader>

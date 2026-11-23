@@ -1,35 +1,31 @@
 "use client";
 
-import { RECORD_STATUSES } from "@/lib/schemas/infrastructure";
 import {
   createIpPhoneAction,
   deleteIpPhoneAction,
   updateIpPhoneAction,
 } from "@/server/actions/infrastructure";
-import { RecordActions } from "../_components/record-actions";
-import { RecordDialog, type FieldSpec, type RecordValues } from "../_components/record-dialog";
+import { RecordActions } from "@/components/shared/record-actions";
+import { RecordDialog, type FieldSpec, type RecordValues } from "@/components/shared/record-dialog";
 
-const DESCRIPTION = "Leave the employee blank for a handset sitting in pool stock.";
+export type HandsetOption = { id: string; label: string; usedByPhoneId: string | null };
 
-function fields(employees: { id: string; fullName: string; employeeNo: string }[]): FieldSpec[] {
+const DESCRIPTION =
+  "Pick the handset from Assets. Its model, MAC, location, status, and holder come from the asset record. Each handset carries one extension.";
+
+/** Free handsets, plus the one this entry already uses when editing. */
+function fields(handsets: HandsetOption[], phoneId?: string): FieldSpec[] {
+  const available = handsets.filter((h) => h.usedByPhoneId === null || h.usedByPhoneId === phoneId);
   return [
     { kind: "text", name: "extension", label: "Extension", required: true, hint: "Digits only." },
     {
       kind: "select",
-      name: "employeeId",
-      label: "Assigned to",
-      placeholder: "Pool stock",
-      options: employees.map((e) => ({ value: e.id, label: `${e.fullName} · ${e.employeeNo}` })),
-    },
-    { kind: "text", name: "deviceModel", label: "Handset model" },
-    { kind: "text", name: "macAddress", label: "MAC address" },
-    { kind: "text", name: "location", label: "Location" },
-    {
-      kind: "select",
-      name: "status",
-      label: "Status",
+      name: "assetId",
+      label: "Handset",
       required: true,
-      options: RECORD_STATUSES.map((s) => ({ value: s, label: s })),
+      placeholder: available.length === 0 ? "No free IP-phone assets" : "Select a handset",
+      hint: "Only assets of type IP Phone that have no extension yet are listed.",
+      options: available.map((h) => ({ value: h.id, label: h.label })),
     },
   ];
 }
@@ -37,45 +33,42 @@ function fields(employees: { id: string; fullName: string; employeeNo: string }[
 function submit(data: Record<string, string | boolean>, id: string | undefined) {
   const payload = {
     extension: String(data.extension ?? ""),
-    employeeId: String(data.employeeId ?? ""),
-    deviceModel: String(data.deviceModel ?? ""),
-    macAddress: String(data.macAddress ?? ""),
-    location: String(data.location ?? ""),
-    status: String(data.status ?? "ACTIVE"),
+    assetId: String(data.assetId ?? ""),
   };
   return id ? updateIpPhoneAction({ ...payload, id }) : createIpPhoneAction(payload);
 }
 
 export function PhoneControls({
-  employees,
+  handsets,
   mode,
   values,
 }: {
-  employees: { id: string; fullName: string; employeeNo: string }[];
+  handsets: HandsetOption[];
   mode: "create" | "row";
   values?: RecordValues;
 }) {
   if (mode === "create") {
     return (
       <RecordDialog
-        title="handset"
+        title="IP phone"
         description={DESCRIPTION}
-        triggerLabel="Add handset"
-        fields={fields(employees)}
+        triggerLabel="Add extension"
+        fields={fields(handsets)}
         submit={submit}
       />
     );
   }
 
+  const phoneId = typeof values?.id === "string" ? values.id : undefined;
   return (
     <RecordActions
-      title="handset"
+      title="IP phone"
       description={DESCRIPTION}
-      fields={fields(employees)}
+      fields={fields(handsets, phoneId)}
       values={values ?? {}}
       submit={submit}
       remove={(id) => deleteIpPhoneAction({ id })}
-      label={typeof values?.extension === "string" ? `extension ${values.extension}` : "handset"}
+      label={typeof values?.extension === "string" ? `extension ${values.extension}` : "extension"}
     />
   );
 }

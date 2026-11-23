@@ -1,4 +1,6 @@
 import "server-only";
+import { servicesSummary } from "@/lib/vehicle-maintenance";
+import { nextMaintenanceRequestNo } from "./counter";
 import type { Prisma, VehicleStatus } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
@@ -11,11 +13,7 @@ import {
   type ListQuery,
   type Paginated,
 } from "@/lib/list-query";
-import type {
-  MaintenanceInput,
-  VehicleHandoverInput,
-  VehicleInput,
-} from "@/lib/schemas/fleet";
+import type { MaintenanceInput, VehicleHandoverInput, VehicleInput } from "@/lib/schemas/fleet";
 import { nextVehicleCode } from "./counter";
 import { deactivateExpiry, syncExpiry } from "./expiry";
 
@@ -174,6 +172,7 @@ export async function getVehicle(ctx: ActorContext, id: string) {
           currency: true,
           nextDueDate: true,
           nextDueMileage: true,
+          requestNo: true,
         },
       },
       handovers: {
@@ -276,7 +275,8 @@ export async function createVehicle(ctx: ActorContext, input: VehicleInput) {
     where: { plateNumber: plate },
     select: { vehicleCode: true },
   });
-  if (clash) throw new ConflictError(`Plate ${plate} is already registered as ${clash.vehicleCode}.`);
+  if (clash)
+    throw new ConflictError(`Plate ${plate} is already registered as ${clash.vehicleCode}.`);
 
   if (input.vin) {
     const vinClash = await prisma.vehicle.findFirst({
@@ -356,9 +356,7 @@ export async function assignDriver(
     select: { id: true, fullName: true, companyId: true },
   });
   if (!employee) throw new NotFoundError("Employee not found.");
-  if (employee.companyId !== vehicle.companyId) {
-    throw new ConflictError("The driver and the vehicle belong to different companies.");
-  }
+  // Drivers may come from any group company the actor can see.
 
   if (vehicle.status === "SOLD" || vehicle.status === "DISPOSED") {
     throw new ConflictError(`A ${vehicle.status.toLowerCase()} vehicle cannot be assigned.`);
@@ -429,13 +427,44 @@ export async function addMaintenance(ctx: ActorContext, input: MaintenanceInput)
     );
   }
 
+  // The driver on the request: the one chosen, else whoever has the vehicle.
+  const driverId = input.driverId ?? vehicle.currentDriver?.id ?? null;
+  if (driverId) {
+    const driver = await prisma.employee.findFirst({
+      where: { id: driverId, ...companyScopeWhere(ctx), deletedAt: null },
+      select: { id: true },
+    });
+    if (!driver)
+      throw new NotFoundError("That driver is not an employee of this vehicle's company.");
+  }
+  if (input.requestNo) {
+    const clash = await prisma.vehicleMaintenance.findFirst({
+      where: { requestNo: input.requestNo },
+      select: { id: true },
+    });
+    if (clash) throw new ConflictError(`Request ${input.requestNo} already exists.`);
+  }
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: vehicle.companyId },
+    select: { code: true },
+  });
+
   const record = await prisma.$transaction(async (tx) => {
+    const requestNo = input.requestNo ?? (await nextMaintenanceRequestNo(company.code, tx));
     const created = await tx.vehicleMaintenance.create({
       data: {
         vehicleId: input.vehicleId,
         date: input.date,
         type: input.type,
-        description: input.description,
+        description: input.description ?? servicesSummary(input.services, input.otherService),
+        requestNo,
+        driverId,
+        previousMileage: vehicle.currentMileage,
+        services: input.services,
+        otherService: input.otherService ?? null,
+        additionalDetails: input.additionalDetails ?? null,
+        driverNotes: input.driverNotes ?? null,
+        requiredParts: input.requiredParts ?? null,
         mileage: input.mileage ?? null,
         workshop: input.workshop ?? null,
         cost: input.cost ?? null,
@@ -444,7 +473,7 @@ export async function addMaintenance(ctx: ActorContext, input: MaintenanceInput)
         notes: input.notes ?? null,
         createdById: ctx.userId,
       },
-      select: { id: true, type: true, date: true },
+      select: { id: true, type: true, date: true, requestNo: true },
     });
 
     if (input.mileage !== undefined) {
@@ -470,9 +499,6 @@ export async function recordHandover(ctx: ActorContext, input: VehicleHandoverIn
       select: { id: true, companyId: true },
     });
     if (!employee) throw new NotFoundError("Employee not found.");
-    if (employee.companyId !== vehicle.companyId) {
-      throw new ConflictError("The receiving driver belongs to a different company.");
-    }
   }
 
   const handover = await prisma.$transaction(async (tx) => {
@@ -488,6 +514,7 @@ export async function recordHandover(ctx: ActorContext, input: VehicleHandoverIn
         ...(input.accessories ? { accessories: { items: input.accessories } } : {}),
         ...(input.damages ? { damages: { items: input.damages } } : {}),
         remarks: input.remarks ?? null,
+        vehicleLabel: input.vehicleLabel ?? null,
         issuedById: ctx.userId,
       },
       select: { id: true },
@@ -582,6 +609,7 @@ export async function listMaintenance(ctx: ActorContext, query: ListQuery) {
         cost: true,
         currency: true,
         nextDueDate: true,
+        requestNo: true,
         vehicle: { select: { id: true, plateNumber: true, make: true, model: true } },
       },
     }),
@@ -591,14 +619,103 @@ export async function listMaintenance(ctx: ActorContext, query: ListQuery) {
   return paginate(rows, total, query);
 }
 
+/** Everything the printed handover letter needs. */
+export async function getHandoverForPrint(ctx: ActorContext, id: string) {
+  const person = {
+    select: {
+      fullName: true,
+      gender: true,
+      iqama: { select: { iqamaNumber: true } },
+    },
+  } as const;
+  const handover = await prisma.vehicleHandover.findFirst({
+    where: { id, vehicle: companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      handoverDate: true,
+      mileage: true,
+      accessories: true,
+      damages: true,
+      remarks: true,
+      vehicleLabel: true,
+      vehicle: {
+        select: {
+          id: true,
+          plateNumber: true,
+          make: true,
+          model: true,
+          year: true,
+          company: { select: { id: true, name: true, headerImageFileId: true } },
+        },
+      },
+      fromEmployee: person,
+      toEmployee: person,
+    },
+  });
+  if (!handover) throw new NotFoundError("Handover not found.");
+  return handover;
+}
+
+/** Everything the printed Vehicle Maintenance Request needs. */
+export async function getMaintenanceForPrint(ctx: ActorContext, id: string) {
+  const record = await prisma.vehicleMaintenance.findFirst({
+    where: { id, vehicle: companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      date: true,
+      createdAt: true,
+      requestNo: true,
+      mileage: true,
+      previousMileage: true,
+      services: true,
+      otherService: true,
+      additionalDetails: true,
+      driverNotes: true,
+      requiredParts: true,
+      description: true,
+      createdById: true,
+      vehicle: {
+        select: {
+          id: true,
+          plateNumber: true,
+          make: true,
+          model: true,
+          year: true,
+          company: { select: { id: true, name: true, headerImageFileId: true } },
+        },
+      },
+      driver: {
+        select: {
+          fullName: true,
+          mobile: true,
+          iqama: { select: { iqamaNumber: true } },
+        },
+      },
+    },
+  });
+  if (!record) throw new NotFoundError("Maintenance record not found.");
+  const preparer = await prisma.user.findUnique({
+    where: { id: record.createdById },
+    select: { name: true },
+  });
+  return { ...record, preparedBy: preparer?.name ?? "" };
+}
+
+/** Possible drivers: active employees of every company the actor can see. */
 export async function driverOptions(ctx: ActorContext, companyId: string) {
   requireCompanyAccess(ctx, companyId);
-  return prisma.employee.findMany({
-    where: { companyId, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+  const rows = await prisma.employee.findMany({
+    where: { ...companyScopeWhere(ctx), deletedAt: null, status: { in: ["ACTIVE", "ON_LEAVE"] } },
     orderBy: { fullName: "asc" },
-    take: 500,
-    select: { id: true, fullName: true, employeeNo: true },
+    take: 2000,
+    select: { id: true, fullName: true, employeeNo: true, company: { select: { code: true } } },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    employeeNo: r.employeeNo,
+    companyCode: r.company.code,
+  }));
 }
 
 /**

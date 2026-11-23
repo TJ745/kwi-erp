@@ -24,33 +24,21 @@ export const REPORT_IDS = [
   "contract-register",
   "leave-register",
   "it-asset-register",
-  "helpdesk-tickets",
   "fleet-register",
   "insurance-register",
-  "task-register",
   "letter-register",
-  "petty-cash-ledger",
   "accommodation-occupancy",
-  "supplier-register",
   "subcontractor-register",
-  "electricity-bills",
   "certificate-register",
-  "timesheet-summary",
-  "evaluation-register",
-  "increment-register",
   "warning-register",
   "job-offer-register",
   "job-description-register",
-  "correspondence-register",
-  "ad-account-register",
-  "server-register",
   "ip-phone-register",
   "cctv-register",
   "vehicle-maintenance",
   "vehicle-handover",
   "user-register",
   "role-register",
-  "reporting-lines",
 ] as const;
 
 export type ReportId = (typeof REPORT_IDS)[number];
@@ -200,10 +188,10 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
   "leave-register": {
     id: "leave-register",
     name: "Leave Register",
-    description: "Leave requests with type, period, days, and approval state.",
+    description: "Leave requests with type, period, and days.",
     module: "HR",
     permission: "hr.leave.view",
-    filters: ["companyId", "departmentId", "status", "from", "to"],
+    filters: ["companyId", "departmentId", "from", "to"],
     columns: [
       { key: "employeeNo", header: "Employee No." },
       { key: "fullName", header: "Employee" },
@@ -212,8 +200,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "startDate", header: "From" },
       { key: "endDate", header: "To" },
       { key: "days", header: "Days", align: "right" },
-      { key: "status", header: "Status" },
-      { key: "approver", header: "Approver" },
     ],
   },
 
@@ -237,27 +223,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "purchaseDate", header: "Purchased" },
       { key: "warrantyExpiry", header: "Warranty Expiry" },
       { key: "purchaseCost", header: "Cost", align: "right" },
-    ],
-  },
-
-  "helpdesk-tickets": {
-    id: "helpdesk-tickets",
-    name: "Helpdesk Tickets",
-    description: "Tickets with category, priority, assignment, and age.",
-    module: "IT",
-    permission: "it.tickets.view",
-    filters: ["companyId", "status", "from", "to"],
-    columns: [
-      { key: "ticketNo", header: "Ticket No." },
-      { key: "subject", header: "Subject" },
-      { key: "category", header: "Category" },
-      { key: "priority", header: "Priority" },
-      { key: "status", header: "Status" },
-      { key: "requester", header: "Raised By" },
-      { key: "assignedTo", header: "Assigned To" },
-      { key: "createdAt", header: "Created" },
-      { key: "resolvedAt", header: "Resolved" },
-      { key: "ageDays", header: "Age (days)", align: "right" },
     ],
   },
 
@@ -302,25 +267,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
     ],
   },
 
-  "task-register": {
-    id: "task-register",
-    name: "Task Register",
-    description: "Tasks with assignee, priority, due date, and overdue flag.",
-    module: "Tasks",
-    permission: "tasks.view",
-    filters: ["companyId", "status", "from", "to"],
-    columns: [
-      { key: "taskNo", header: "Task No." },
-      { key: "title", header: "Title" },
-      { key: "priority", header: "Priority" },
-      { key: "status", header: "Status" },
-      { key: "assignedTo", header: "Assigned To" },
-      { key: "dueDate", header: "Due" },
-      { key: "isOverdue", header: "Overdue" },
-      { key: "company", header: "Company" },
-    ],
-  },
-
   "letter-register": {
     id: "letter-register",
     name: "Letter Register",
@@ -338,27 +284,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "status", header: "Status" },
     ],
   },
-  "petty-cash-ledger": {
-    id: "petty-cash-ledger",
-    name: "Petty Cash Ledger",
-    description: "Every transaction with its account, category, and approval state.",
-    module: "Administration",
-    permission: "pettycash.view",
-    filters: ["companyId", "status", "from", "to"],
-    columns: [
-      { key: "date", header: "Date" },
-      { key: "account", header: "Account" },
-      { key: "company", header: "Company" },
-      { key: "type", header: "Type" },
-      { key: "category", header: "Category" },
-      { key: "description", header: "Description" },
-      { key: "amount", header: "Amount", align: "right" },
-      { key: "currency", header: "Currency" },
-      { key: "paymentMethod", header: "Method" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
   "accommodation-occupancy": {
     id: "accommodation-occupancy",
     name: "Accommodation Occupancy",
@@ -379,26 +304,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
     ],
   },
 
-  "supplier-register": {
-    id: "supplier-register",
-    name: "Supplier Register",
-    description: "Suppliers with category, contact, and credit terms.",
-    module: "Administration",
-    permission: "suppliers.view",
-    filters: ["companyId", "status", "q"],
-    columns: [
-      { key: "code", header: "Code" },
-      { key: "name", header: "Supplier" },
-      { key: "company", header: "Company" },
-      { key: "category", header: "Category" },
-      { key: "contactPerson", header: "Contact" },
-      { key: "phone", header: "Phone" },
-      { key: "email", header: "Email" },
-      { key: "creditDays", header: "Credit Days", align: "right" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
   "subcontractor-register": {
     id: "subcontractor-register",
     name: "Subcontractor Register",
@@ -413,27 +318,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "contactPerson", header: "Contact" },
       { key: "phone", header: "Phone" },
       { key: "contracts", header: "Contracts", align: "right" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
-  "electricity-bills": {
-    id: "electricity-bills",
-    name: "Electricity Bills",
-    description: "Bills by period and location, with payment state.",
-    module: "Administration",
-    permission: "bills.view",
-    filters: ["companyId", "status", "from", "to"],
-    columns: [
-      { key: "location", header: "Location" },
-      { key: "company", header: "Company" },
-      { key: "meterNumber", header: "Meter" },
-      { key: "periodStart", header: "Period From" },
-      { key: "periodEnd", header: "Period To" },
-      { key: "amount", header: "Amount", align: "right" },
-      { key: "currency", header: "Currency" },
-      { key: "dueDate", header: "Due" },
-      { key: "paidDate", header: "Paid" },
       { key: "status", header: "Status" },
     ],
   },
@@ -456,71 +340,10 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
     ],
   },
 
-  "timesheet-summary": {
-    id: "timesheet-summary",
-    name: "Timesheet Summary",
-    description: "Recorded hours per employee, with overtime and delayed hours.",
-    module: "HR",
-    permission: "hr.timesheet.view",
-    filters: ["companyId", "departmentId", "status", "from", "to"],
-    columns: [
-      { key: "employeeNo", header: "Employee No." },
-      { key: "fullName", header: "Employee" },
-      { key: "company", header: "Company" },
-      { key: "date", header: "Date" },
-      { key: "normalHours", header: "Normal", align: "right" },
-      { key: "overtimeHours", header: "Overtime", align: "right" },
-      { key: "delayedHours", header: "Delayed", align: "right" },
-      { key: "absent", header: "Absent" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
-  "evaluation-register": {
-    id: "evaluation-register",
-    name: "Evaluation Register",
-    description: "Performance reviews by period, with score and approval state.",
-    module: "HR",
-    permission: "hr.evaluations.view",
-    filters: ["companyId", "departmentId", "status", "from", "to"],
-    columns: [
-      { key: "employeeNo", header: "Employee No." },
-      { key: "fullName", header: "Employee" },
-      { key: "company", header: "Company" },
-      { key: "periodStart", header: "Period From" },
-      { key: "periodEnd", header: "Period To" },
-      { key: "overallScore", header: "Score", align: "right" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
-  "increment-register": {
-    id: "increment-register",
-    name: "Increment Register",
-    description: "Salary increases by effective date and approval state.",
-    module: "HR",
-    permission: "hr.increments.view",
-    filters: ["companyId", "departmentId", "status", "from", "to"],
-    columns: [
-      { key: "employeeNo", header: "Employee No." },
-      { key: "fullName", header: "Employee" },
-      { key: "company", header: "Company" },
-      { key: "effectiveDate", header: "Effective" },
-      // The figures are a separate permission from seeing that a rise happened:
-      // holding hr.increments.view does not imply employees.salary.view.
-      { key: "currentSalary", header: "From", permission: "employees.salary.view", align: "right" },
-      { key: "newSalary", header: "To", permission: "employees.salary.view", align: "right" },
-      { key: "amount", header: "Increase", permission: "employees.salary.view", align: "right" },
-      { key: "percentage", header: "%", permission: "employees.salary.view", align: "right" },
-      { key: "currency", header: "Currency" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
   "warning-register": {
     id: "warning-register",
     name: "Warning Letter Register",
-    description: "Disciplinary letters by level, with acknowledgement state.",
+    description: "Disciplinary letters by level and reason.",
     module: "HR",
     permission: "hr.warnings.view",
     filters: ["companyId", "departmentId", "from", "to"],
@@ -531,7 +354,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "level", header: "Level" },
       { key: "reason", header: "Reason" },
       { key: "issuedDate", header: "Issued" },
-      { key: "acknowledgedAt", header: "Acknowledged" },
     ],
   },
 
@@ -572,69 +394,17 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
     ],
   },
 
-  "correspondence-register": {
-    id: "correspondence-register",
-    name: "Correspondence Register",
-    description: "Letters in and out, with follow-up dates.",
-    module: "HR",
-    permission: "hr.correspondence.view",
-    filters: ["companyId", "status", "from", "to", "q"],
-    columns: [
-      { key: "subject", header: "Subject" },
-      { key: "type", header: "Type" },
-      { key: "recipient", header: "Recipient" },
-      { key: "employee", header: "Employee" },
-      { key: "company", header: "Company" },
-      { key: "sentDate", header: "Sent" },
-      { key: "followUpDate", header: "Follow-up" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
-  "ad-account-register": {
-    id: "ad-account-register",
-    name: "Active Directory Accounts",
-    description: "Domain accounts, their holder, and whether they are enabled.",
-    module: "IT",
-    permission: "it.infrastructure.view",
-    filters: ["q"],
-    columns: [
-      { key: "samAccountName", header: "Account" },
-      { key: "employee", header: "Employee" },
-      { key: "ou", header: "OU" },
-      { key: "enabled", header: "Enabled" },
-      { key: "lastSyncedAt", header: "Last Synced" },
-    ],
-  },
-
-  "server-register": {
-    id: "server-register",
-    name: "Server Register",
-    description: "Servers with address, operating system, role, and location.",
+  "ip-phone-register": {
+    id: "ip-phone-register",
+    name: "IP Phone Register",
+    description: "Extensions, the handset each rings on, and who holds it.",
     module: "IT",
     permission: "it.infrastructure.view",
     filters: ["companyId", "status", "q"],
     columns: [
-      { key: "name", header: "Server" },
-      { key: "company", header: "Company" },
-      { key: "ipAddress", header: "IP Address" },
-      { key: "os", header: "OS" },
-      { key: "role", header: "Role" },
-      { key: "location", header: "Location" },
-      { key: "status", header: "Status" },
-    ],
-  },
-
-  "ip-phone-register": {
-    id: "ip-phone-register",
-    name: "IP Phone Register",
-    description: "Extensions, the handset, and who holds it.",
-    module: "IT",
-    permission: "it.infrastructure.view",
-    filters: ["status", "q"],
-    columns: [
       { key: "extension", header: "Extension" },
       { key: "employee", header: "Employee" },
+      { key: "assetCode", header: "Asset" },
       { key: "deviceModel", header: "Model" },
       { key: "macAddress", header: "MAC" },
       { key: "location", header: "Location" },
@@ -651,6 +421,7 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
     filters: ["companyId", "status", "q"],
     columns: [
       { key: "name", header: "Device" },
+      { key: "assetCode", header: "Asset" },
       { key: "company", header: "Company" },
       { key: "type", header: "Type" },
       { key: "location", header: "Location" },
@@ -735,25 +506,6 @@ export const REPORTS: Record<ReportId, ReportSpec> = {
       { key: "users", header: "Users", align: "right" },
     ],
   },
-
-  "reporting-lines": {
-    id: "reporting-lines",
-    name: "Reporting Lines",
-    description:
-      "The organisation chart as a list: each employee, their manager, and their department.",
-    module: "Employees",
-    permission: "employees.view",
-    filters: ["companyId", "departmentId", "q"],
-    columns: [
-      { key: "employeeNo", header: "Employee No" },
-      { key: "name", header: "Employee" },
-      { key: "position", header: "Position" },
-      { key: "department", header: "Department" },
-      { key: "manager", header: "Reports To" },
-      { key: "company", header: "Company" },
-    ],
-  },
-
 };
 
 export const REPORT_LIST: readonly ReportSpec[] = REPORT_IDS.map((id) => REPORTS[id]);

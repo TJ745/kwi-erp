@@ -6,6 +6,7 @@ import {
   createRole,
   createUser,
   deleteRole,
+  linkUserEmployee,
   removeUserPermissionOverride,
   setRolePermissions,
   setUserCompanyAccess,
@@ -54,6 +55,33 @@ export const updateUserStatusAction = defineAction({
       summary: `Set ${result.user.name} to ${input.status}${
         input.status === "ACTIVE" ? "" : "; sessions revoked"
       }`,
+      before: result.before,
+      after: result.after,
+    });
+    return { ok: true as const };
+  },
+  revalidate: () => ["/settings/users"],
+});
+
+export const linkUserEmployeeAction = defineAction({
+  permission: "users.manage",
+  schema: z
+    .object({
+      userId: z.string().min(1),
+      employeeId: z
+        .string()
+        .nullable()
+        .transform((v) => (v === "" || v === "none" ? null : v)),
+    })
+    .strict(),
+  audit: { action: "UPDATE", entity: "USER" },
+  handler: async ({ input, ctx, audit }) => {
+    const result = await linkUserEmployee(ctx, input);
+    audit.record({
+      entityId: input.userId,
+      summary: result.after.employeeNo
+        ? `Linked ${result.user.name} to employee ${result.after.employeeNo}`
+        : `Unlinked ${result.user.name} from employee ${result.before.employeeNo ?? "—"}`,
       before: result.before,
       after: result.after,
     });
@@ -149,9 +177,7 @@ export const setUserPermissionOverrideAction = defineAction({
 
 export const removeUserPermissionOverrideAction = defineAction({
   permission: "users.manage",
-  schema: z
-    .object({ userId: z.string().min(1), permissionKey: z.string().min(1) })
-    .strict(),
+  schema: z.object({ userId: z.string().min(1), permissionKey: z.string().min(1) }).strict(),
   audit: { action: "PERMISSION_CHANGE", entity: "USER" },
   handler: async ({ input, ctx, audit }) => {
     const result = await removeUserPermissionOverride(ctx, input);
@@ -165,7 +191,6 @@ export const removeUserPermissionOverrideAction = defineAction({
   },
   revalidate: () => ["/settings/users"],
 });
-
 
 // --- Creating users and roles ------------------------------------------------
 
@@ -230,11 +255,7 @@ export const createRoleAction = defineAction({
         .max(300)
         .optional()
         .transform((v) => (v === "" ? undefined : v)),
-      rank: z.coerce
-        .number()
-        .int("Whole numbers only")
-        .min(1, "Rank starts at 1")
-        .max(999),
+      rank: z.coerce.number().int("Whole numbers only").min(1, "Rank starts at 1").max(999),
     })
     .strict(),
   audit: { action: "CREATE", entity: "ROLE" },

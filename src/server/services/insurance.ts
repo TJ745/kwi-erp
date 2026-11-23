@@ -7,6 +7,7 @@ import { ConflictError, NotFoundError } from "@/lib/result";
 import { expiryCutoff } from "@/lib/expiry";
 import type { PolicyInput, ProviderInput } from "@/lib/schemas/insurance";
 import { deactivateExpiry, syncExpiry } from "./expiry";
+import { recordSystemAudit } from "@/server/audit/log";
 
 /**
  * Medical insurance (brief §31).
@@ -31,8 +32,122 @@ export type PolicyListRow = {
   expiryDate: Date;
   status: PolicyStatus;
   isWorking: boolean;
+  /** People covered today: cover started, not ended, employee not gone. */
   memberCount: number;
 };
+
+/** UTC midnight today. A policy or cover runs through its end date. */
+export function startOfTodayUtc(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** Cover that is in force today. */
+export function coveredTodayWhere(now: Date = new Date()): Prisma.EmployeeInsuranceWhereInput {
+  const today = startOfTodayUtc(now);
+  return {
+    status: "ACTIVE",
+    startDate: { lte: now },
+    OR: [{ endDate: null }, { endDate: { gte: today } }],
+  };
+}
+
+const LEAVING_STATUSES = ["RESIGNED", "TERMINATED", "EXITED"] as const;
+
+/**
+ * Brings insurance in line with the calendar, with no one having to remember:
+ *
+ *   - a policy past its expiry date becomes EXPIRED and not working, and the
+ *     cover of everyone still on it ends on that date;
+ *   - cover of an employee who has left ends on their last working day;
+ *   - cover whose end date has passed is marked EXPIRED.
+ *
+ * Idempotent, so it is safe to run on every visit to the insurance page as
+ * well as from the nightly job: the page is then right even on a day the job
+ * did not run.
+ */
+export async function expireLapsedCover(now: Date = new Date()) {
+  const today = startOfTodayUtc(now);
+
+  const lapsed = await prisma.medicalInsurancePolicy.findMany({
+    where: { status: { in: ["ACTIVE", "PENDING_RENEWAL"] }, expiryDate: { lt: today } },
+    select: {
+      id: true,
+      policyNumber: true,
+      expiryDate: true,
+      provider: { select: { name: true } },
+    },
+  });
+
+  let policiesExpired = 0;
+  for (const policy of lapsed) {
+    // Conditional on the status still being open: two page loads at the same
+    // moment both find the policy, but only the one that flips it records it.
+    const [flipped] = await prisma.$transaction([
+      prisma.medicalInsurancePolicy.updateMany({
+        where: { id: policy.id, status: { in: ["ACTIVE", "PENDING_RENEWAL"] } },
+        data: { status: "EXPIRED", isWorking: false },
+      }),
+      prisma.employeeInsurance.updateMany({
+        where: {
+          policyId: policy.id,
+          OR: [{ endDate: null }, { endDate: { gt: policy.expiryDate } }],
+        },
+        data: { endDate: policy.expiryDate },
+      }),
+    ]);
+    if (flipped.count === 0) continue;
+    policiesExpired += 1;
+    await recordSystemAudit({
+      action: "UPDATE",
+      entityType: "MEDICAL_INSURANCE_POLICY",
+      entityId: policy.id,
+      actorLabel: "System (insurance expiry)",
+      summary: `Policy ${policy.policyNumber} (${policy.provider.name}) expired on ${policy.expiryDate
+        .toISOString()
+        .slice(0, 10)}: marked expired and not working, members' cover ended`,
+    });
+  }
+
+  // Employees who have left but are still on a policy.
+  const leavers = await prisma.employeeInsurance.findMany({
+    where: {
+      endDate: null,
+      employee: { status: { in: [...LEAVING_STATUSES] }, lastWorkingDate: { not: null } },
+    },
+    select: { employeeId: true, employee: { select: { lastWorkingDate: true } } },
+  });
+  for (const l of leavers) {
+    if (l.employee.lastWorkingDate)
+      await endCoverForLeaver(l.employeeId, l.employee.lastWorkingDate);
+  }
+
+  // Cover whose end date has now passed.
+  const ended = await prisma.employeeInsurance.updateMany({
+    where: { status: "ACTIVE", endDate: { lt: today } },
+    data: { status: "EXPIRED" },
+  });
+
+  return { policiesExpired, leaversEnded: leavers.length, coverEnded: ended.count };
+}
+
+/**
+ * Ends every open cover of an employee who is leaving, on their last working
+ * day. Cover that already ends earlier is left alone.
+ */
+export async function endCoverForLeaver(employeeId: string, lastWorkingDate: Date) {
+  const today = startOfTodayUtc();
+  const result = await prisma.employeeInsurance.updateMany({
+    where: {
+      employeeId,
+      OR: [{ endDate: null }, { endDate: { gt: lastWorkingDate } }],
+    },
+    data: {
+      endDate: lastWorkingDate,
+      ...(lastWorkingDate < today ? { status: "EXPIRED" as const } : {}),
+    },
+  });
+  return result.count;
+}
 
 export async function listPolicies(
   ctx: ActorContext,
@@ -41,7 +156,7 @@ export async function listPolicies(
   const where: Prisma.MedicalInsurancePolicyWhereInput = {
     ...companyScopeWhere(ctx),
     ...(filters.status === "NOT_WORKING"
-      ? { isWorking: false }
+      ? { isWorking: false, status: { not: "CANCELLED" as const } }
       : filters.status
         ? { status: filters.status as PolicyStatus }
         : {}),
@@ -70,7 +185,7 @@ export async function listPolicies(
       providerId: true,
       provider: { select: { name: true } },
       company: { select: { code: true } },
-      _count: { select: { members: true } },
+      _count: { select: { members: { where: coveredTodayWhere() } } },
     },
   });
 
@@ -211,10 +326,7 @@ export async function updatePolicy(ctx: ActorContext, input: PolicyInput & { id:
   });
   if (!provider) throw new NotFoundError("Insurance provider not found.");
 
-  if (
-    input.policyNumber !== before.policyNumber ||
-    input.providerId !== before.providerId
-  ) {
+  if (input.policyNumber !== before.policyNumber || input.providerId !== before.providerId) {
     const clash = await prisma.medicalInsurancePolicy.findFirst({
       where: {
         providerId: input.providerId,
@@ -330,9 +442,11 @@ export async function insuranceCounts(ctx: ActorContext): Promise<InsuranceCount
     prisma.medicalInsurancePolicy.count({
       where: { ...scope, expiryDate: { lt: now }, status: { not: "CANCELLED" } },
     }),
-    // The distinction the brief asks for: in-date but not usable.
+    // Every policy that does not work at a clinic, including expired ones
+    // (which are switched to not working automatically). Same set as the
+    // card's filter, so the number and the list agree.
     prisma.medicalInsurancePolicy.count({
-      where: { ...scope, isWorking: false, status: { in: ["ACTIVE", "PENDING_RENEWAL"] } },
+      where: { ...scope, isWorking: false, status: { not: "CANCELLED" } },
     }),
   ]);
 
@@ -412,14 +526,6 @@ export async function enrolEmployee(
   });
   if (!employee) throw new NotFoundError("Employee not found.");
 
-  // The policy is bought by one company; enrolling another company's employee
-  // on it would put the wrong entity's people on the wrong bill.
-  if (employee.companyId !== policy.companyId) {
-    throw new ConflictError(
-      "That employee belongs to a different company from this policy.",
-    );
-  }
-
   if (input.endDate && input.endDate.getTime() < input.startDate.getTime()) {
     throw new ConflictError("Cover cannot end before it starts.");
   }
@@ -450,10 +556,65 @@ export async function enrolEmployee(
   return { enrolment, employee, policy };
 }
 
-export async function endEnrolment(
+/**
+ * Puts several employees on a policy at once — the usual case when a policy
+ * starts or is renewed. Employees already on it are skipped, not refused, so
+ * "select all" can be used again after a few were added by hand.
+ */
+export async function enrolEmployees(
   ctx: ActorContext,
-  input: { id: string; endDate: Date },
+  input: {
+    policyId: string;
+    employeeIds: string[];
+    memberNumber?: string | undefined;
+    className?: string | undefined;
+    startDate: Date;
+  },
 ) {
+  const policy = await getPolicy(ctx, input.policyId);
+  if (policy.status === "EXPIRED" || policy.status === "CANCELLED") {
+    throw new ConflictError(
+      `This policy is ${policy.status.toLowerCase()}; nobody can be added to it.`,
+    );
+  }
+  if (input.memberNumber && input.employeeIds.length > 1) {
+    throw new ConflictError("A member number can only be given when adding one employee.");
+  }
+
+  const ids = [...new Set(input.employeeIds)];
+  const employees = await prisma.employee.findMany({
+    where: { id: { in: ids }, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: { id: true, fullName: true, companyId: true },
+  });
+  if (employees.length !== ids.length) throw new NotFoundError("Employee not found.");
+  // Employees of any group company can be covered by a policy.
+
+  const existing = await prisma.employeeInsurance.findMany({
+    where: { policyId: input.policyId, employeeId: { in: ids } },
+    select: { employeeId: true },
+  });
+  const skip = new Set(existing.map((e) => e.employeeId));
+  const toAdd = employees.filter((e) => !skip.has(e.id));
+
+  if (toAdd.length > 0) {
+    await prisma.employeeInsurance.createMany({
+      data: toAdd.map((e) => ({
+        employeeId: e.id,
+        policyId: input.policyId,
+        memberNumber: input.memberNumber ?? null,
+        // Most people are on the policy's own class.
+        className: input.className ?? policy.className,
+        startDate: input.startDate,
+        status: "ACTIVE" as const,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  return { policy, added: toAdd, skipped: skip.size };
+}
+
+export async function endEnrolment(ctx: ActorContext, input: { id: string; endDate: Date }) {
   const enrolment = await prisma.employeeInsurance.findFirst({
     where: { id: input.id, policy: companyScopeWhere(ctx) },
     select: {

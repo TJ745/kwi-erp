@@ -1,14 +1,10 @@
 import "server-only";
 import type { EntityType, Prisma } from "@/generated/prisma/client";
 import type { UploadEntityType } from "@/lib/upload-entities";
+import type { PermissionKey } from "@/lib/permissions";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import {
-  companyScopeWhere,
-  defaultCompanyId,
-  optionalCompanyScopeWhere,
-  requireCompanyAccess,
-} from "@/server/auth/guards";
+import { companyScopeWhere, defaultCompanyId, requireCompanyAccess } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
 import {
   paginate,
@@ -350,16 +346,6 @@ export async function isUploadTargetInScope(
       });
       return row !== null && inScope(row.companyId);
     }
-    case "SUPPLIER": {
-      // Suppliers may be shared across companies: a null companyId is visible
-      // to everyone, which is the same rule listSuppliers applies.
-      const row = await prisma.supplier.findUnique({
-        where: { id: entityId },
-        select: { companyId: true },
-      });
-      if (row === null) return false;
-      return row.companyId === null || inScope(row.companyId);
-    }
     case "SUBCONTRACTOR": {
       // A subcontractor carries no company; its contracts do. Reachable when
       // any of those contracts is in scope.
@@ -371,13 +357,6 @@ export async function isUploadTargetInScope(
         select: { id: true },
       });
       return row !== null;
-    }
-    case "ELECTRICITY_BILL": {
-      const row = await prisma.electricityBill.findUnique({
-        where: { id: entityId },
-        select: { companyId: true },
-      });
-      return row !== null && inScope(row.companyId);
     }
     case "COMPANY_CERTIFICATE": {
       const row = await prisma.companyCertificate.findUnique({
@@ -428,6 +407,8 @@ export type FileAccess = {
   entityType: EntityType;
   entityId: string;
   companyId: string | null;
+  /** Needed on top of documents.download, for files owned by a gated module. */
+  requiredPermission?: PermissionKey;
 };
 
 /**
@@ -460,6 +441,41 @@ export async function resolveFileForDownload(fileId: string): Promise<FileAccess
       entityType: document.entityType,
       entityId: document.entityId,
       companyId: document.companyId,
+    };
+  }
+
+  // A monthly timesheet file: owned by its company, readable only with the
+  // timesheet permission as well as the general download one.
+  const timesheet = await prisma.timesheetFile.findUnique({
+    where: { fileId },
+    select: { id: true, companyId: true },
+  });
+  if (timesheet) {
+    return {
+      fileKey: file.fileKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      entityType: "TIMESHEET_FILE",
+      entityId: timesheet.id,
+      companyId: timesheet.companyId,
+      requiredPermission: "hr.timesheet.view",
+    };
+  }
+
+  // The signed copy of a timesheet grid.
+  const signedSheet = await prisma.timesheet.findUnique({
+    where: { signedFileId: fileId },
+    select: { id: true, companyIds: true },
+  });
+  if (signedSheet) {
+    return {
+      fileKey: file.fileKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      entityType: "TIMESHEET",
+      entityId: signedSheet.id,
+      companyId: signedSheet.companyIds[0] ?? null,
+      requiredPermission: "hr.timesheet.view",
     };
   }
 
@@ -505,7 +521,6 @@ export async function documentsForEntity(
     },
   });
 }
-
 
 /**
  * Identifies the record a document library belongs to.
@@ -562,15 +577,20 @@ export async function resolveDocumentSubject(
         where: { id: entityId, deletedAt: null, ...scope },
         select: { companyId: true, fullName: true, employeeNo: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.fullName} (${r.employeeNo})`,
-        backHref: `/people/employees/${entityId}`,
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `${r.fullName} (${r.employeeNo})`,
+          backHref: `/people/employees/${entityId}`,
+        }
+      );
     }
     case "COMPANY": {
       const r = await prisma.company.findFirst({
-        where: { id: entityId, ...(ctx.companyScope === "ALL" ? {} : { id: { in: [...ctx.companyScope] } }) },
+        where: {
+          id: entityId,
+          ...(ctx.companyScope === "ALL" ? {} : { id: { in: [...ctx.companyScope] } }),
+        },
         select: { id: true, name: true },
       });
       return r && { companyId: r.id, label: r.name, backHref: "/settings/companies" };
@@ -580,11 +600,13 @@ export async function resolveDocumentSubject(
         where: { id: entityId, deletedAt: null, ...scope },
         select: { companyId: true, plateNumber: true, make: true, model: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.make} ${r.model} — ${r.plateNumber}`,
-        backHref: `/vehicles/${entityId}`,
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `${r.make} ${r.model} — ${r.plateNumber}`,
+          backHref: `/vehicles/${entityId}`,
+        }
+      );
     }
     case "VEHICLE_MAINTENANCE": {
       const r = await prisma.vehicleMaintenance.findFirst({
@@ -595,22 +617,26 @@ export async function resolveDocumentSubject(
           vehicle: { select: { companyId: true, plateNumber: true } },
         },
       });
-      return r && {
-        companyId: r.vehicle.companyId,
-        label: `${r.vehicle.plateNumber} — ${r.type} on ${r.date.toISOString().slice(0, 10)}`,
-        backHref: "/vehicles/maintenance",
-      };
+      return (
+        r && {
+          companyId: r.vehicle.companyId,
+          label: `${r.vehicle.plateNumber} — ${r.type} on ${r.date.toISOString().slice(0, 10)}`,
+          backHref: "/vehicles/maintenance",
+        }
+      );
     }
     case "IT_ASSET": {
       const r = await prisma.iTAsset.findFirst({
         where: { id: entityId, deletedAt: null, ...scope },
         select: { companyId: true, assetCode: true, brand: true, model: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.brand} ${r.model} (${r.assetCode})`,
-        backHref: `/it/assets/${entityId}`,
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `${r.brand} ${r.model} (${r.assetCode})`,
+          backHref: `/it/assets/${entityId}`,
+        }
+      );
     }
     case "CONTRACT": {
       // Contract carries its own companyId, so scope applies directly rather
@@ -623,44 +649,39 @@ export async function resolveDocumentSubject(
           employee: { select: { fullName: true } },
         },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.employee.fullName} — ${r.contractType.replace(/_/g, " ").toLowerCase()}`,
-        backHref: "/hr/contracts",
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `${r.employee.fullName} — ${r.contractType.replace(/_/g, " ").toLowerCase()}`,
+          backHref: "/hr/contracts",
+        }
+      );
     }
     case "JOB_OFFER": {
       const r = await prisma.jobOffer.findFirst({
         where: { id: entityId, ...scope },
         select: { companyId: true, candidateName: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: r.candidateName,
-        backHref: "/hr/offers",
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: r.candidateName,
+          backHref: "/hr/offers",
+        }
+      );
     }
     case "ACCOMMODATION": {
       const r = await prisma.accommodation.findFirst({
         where: { id: entityId, ...scope },
         select: { companyId: true, name: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: r.name,
-        backHref: `/admin/accommodation/${entityId}`,
-      };
-    }
-    case "SUPPLIER": {
-      const r = await prisma.supplier.findFirst({
-        where: { id: entityId, deletedAt: null, ...optionalCompanyScopeWhere(ctx) },
-        select: { companyId: true, name: true, code: true },
-      });
-      if (!r) return null;
-      const companyId = await stampingCompanyId(ctx, r.companyId);
-      return companyId
-        ? { companyId, label: `${r.name} (${r.code})`, backHref: "/admin/suppliers" }
-        : null;
+      return (
+        r && {
+          companyId: r.companyId,
+          label: r.name,
+          backHref: `/admin/accommodation/${entityId}`,
+        }
+      );
     }
     case "SUBCONTRACTOR": {
       const r = await prisma.subcontractor.findFirst({
@@ -682,17 +703,6 @@ export async function resolveDocumentSubject(
           }
         : null;
     }
-    case "ELECTRICITY_BILL": {
-      const r = await prisma.electricityBill.findFirst({
-        where: { id: entityId, ...scope },
-        select: { companyId: true, location: true, meterNumber: true },
-      });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.location} — meter ${r.meterNumber}`,
-        backHref: "/admin/electricity-bills",
-      };
-    }
     case "COMPANY_CERTIFICATE": {
       const r = await prisma.companyCertificate.findFirst({
         where: { id: entityId, ...scope },
@@ -702,22 +712,26 @@ export async function resolveDocumentSubject(
           certificateType: { select: { name: true } },
         },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `${r.certificateType.name} — ${r.certificateNo}`,
-        backHref: "/admin/certificates",
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `${r.certificateType.name} — ${r.certificateNo}`,
+          backHref: "/admin/certificates",
+        }
+      );
     }
     case "MEDICAL_INSURANCE_POLICY": {
       const r = await prisma.medicalInsurancePolicy.findFirst({
         where: { id: entityId, ...scope },
         select: { companyId: true, policyNumber: true },
       });
-      return r && {
-        companyId: r.companyId,
-        label: `Policy ${r.policyNumber}`,
-        backHref: "/insurance",
-      };
+      return (
+        r && {
+          companyId: r.companyId,
+          label: `Policy ${r.policyNumber}`,
+          backHref: "/insurance",
+        }
+      );
     }
   }
 }

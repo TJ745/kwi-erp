@@ -120,7 +120,13 @@ function IqamaCard({
           <div className="flex items-center gap-2">
             {!editing ? badge : null}
             {canEdit && !editing ? (
-              <Button variant="outline" size="sm" onClick={() => { setEditing(true); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditing(true);
+                }}
+              >
                 {values ? "Edit" : "Add"}
               </Button>
             ) : null}
@@ -258,7 +264,13 @@ function PassportCard({
           <div className="flex items-center gap-2">
             {!editing ? badge : null}
             {canEdit && !editing ? (
-              <Button variant="outline" size="sm" onClick={() => { setEditing(true); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditing(true);
+                }}
+              >
                 {values ? "Edit" : "Add"}
               </Button>
             ) : null}

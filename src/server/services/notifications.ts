@@ -11,12 +11,7 @@ import {
   severityForThreshold,
 } from "@/lib/notification-rules";
 import { logger } from "@/server/logger";
-import {
-  resolvePermissions,
-  SUPER_ADMIN_ROLE_KEY,
-  type PermissionKey,
-} from "@/lib/permissions";
-import { CLOSED_STATUSES } from "./tasks";
+import { resolvePermissions, SUPER_ADMIN_ROLE_KEY, type PermissionKey } from "@/lib/permissions";
 import { reconcileExpiryIndex } from "./expiry";
 import { dispatchEmailsInBackground } from "@/server/email/dispatch";
 
@@ -155,43 +150,6 @@ export async function runExpiryScan(options: { now?: Date } = {}): Promise<ScanR
   return summary;
 }
 
-/** Overdue-task reminders, run on the same schedule. */
-export async function runOverdueTaskScan(options: { now?: Date } = {}): Promise<{
-  scanned: number;
-  created: number;
-}> {
-  const now = options.now ?? new Date();
-
-  const overdue = await prisma.task.findMany({
-    where: {
-      status: { notIn: CLOSED_STATUSES },
-      dueDate: { lt: now },
-      assignedToId: { not: null },
-    },
-    select: { id: true, taskNo: true, title: true, dueDate: true, assignedToId: true },
-  });
-
-  const rows: Prisma.NotificationCreateManyInput[] = overdue
-    .filter((task): task is typeof task & { assignedToId: string } => task.assignedToId !== null)
-    .map((task) => ({
-      userId: task.assignedToId,
-      kind: "TASK_OVERDUE",
-      severity: "WARNING" as const,
-      title: `${task.taskNo} is overdue: ${task.title}`,
-      body: task.dueDate ? `Was due ${task.dueDate.toISOString().slice(0, 10)}.` : null,
-      entityType: "TASK" as const,
-      entityId: task.id,
-      // Date-stamped so an overdue task nags once per day rather than once ever
-      // — the opposite trade-off from expiry alerts, and the right one here.
-      dedupeKey: `TASK_OVERDUE:${task.id}:${now.toISOString().slice(0, 10)}:${task.assignedToId}`,
-    }));
-
-  if (rows.length === 0) return { scanned: 0, created: 0 };
-
-  const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
-  return { scanned: overdue.length, created: result.count };
-}
-
 // --- Read side ---------------------------------------------------------------
 
 export async function listNotifications(
@@ -322,13 +280,13 @@ export async function usersWithPermission(
  * Raises a notification for everyone who can act on something.
  *
  * Never throws. A notification is a courtesy on top of a record that has
- * already been written — failing to send one must not roll back a petty cash
- * transaction or a leave request, so every failure is logged and swallowed.
+ * already been written — failing to send one must not roll back a leave
+ * request or an increment, so every failure is logged and swallowed.
  * The record is still visible on its own page either way.
  */
 export async function notifyUsers(input: {
   userIds: readonly string[];
-  kind: "APPROVAL_REQUIRED" | "TICKET_ASSIGNED" | "TASK_DUE" | "MENTION" | "SYSTEM";
+  kind: "APPROVAL_REQUIRED" | "MENTION" | "SYSTEM";
   severity?: "INFO" | "WARNING" | "CRITICAL";
   title: string;
   body?: string | null;
@@ -375,8 +333,8 @@ export async function notifyUsers(input: {
 /**
  * Someone raised something that needs a decision.
  *
- * Approvals were the largest gap in the reminder engine: petty cash, leave, and
- * increments all had an approval step and none of them told the approver, so
+ * Approvals were the largest gap in the reminder engine: leave and increments
+ * both had an approval step and none of them told the approver, so
  * the queue only moved when somebody happened to open the page.
  */
 export async function notifyApprovalRequired(input: {
@@ -414,44 +372,4 @@ export async function notifyApprovalRequired(input: {
     });
     return 0;
   }
-}
-
-/** Tasks falling due today, so the assignee hears before they are overdue. */
-export async function runTaskDueScan(options: { now?: Date } = {}): Promise<{
-  scanned: number;
-  created: number;
-}> {
-  const now = options.now ?? new Date();
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-
-  const due = await prisma.task.findMany({
-    where: {
-      status: { notIn: CLOSED_STATUSES },
-      dueDate: { gte: dayStart, lt: dayEnd },
-      assignedToId: { not: null },
-    },
-    select: { id: true, taskNo: true, title: true, assignedToId: true },
-  });
-
-  const rows: Prisma.NotificationCreateManyInput[] = due
-    .filter((t): t is typeof t & { assignedToId: string } => t.assignedToId !== null)
-    .map((task) => ({
-      userId: task.assignedToId,
-      kind: "TASK_DUE" as const,
-      severity: "INFO" as const,
-      title: `${task.taskNo} is due today: ${task.title}`,
-      body: null,
-      entityType: "TASK" as const,
-      entityId: task.id,
-      // Once per task per day. The overdue scan takes over from tomorrow.
-      dedupeKey: `TASK_DUE:${task.id}:${dayStart.toISOString().slice(0, 10)}:${task.assignedToId}`,
-    }));
-
-  if (rows.length === 0) return { scanned: 0, created: 0 };
-
-  const result = await prisma.notification.createMany({ data: rows, skipDuplicates: true });
-  return { scanned: due.length, created: result.count };
 }

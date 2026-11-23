@@ -39,7 +39,7 @@ const STATUS_TONES: Record<string, { tone: Tone; label?: string }> = {
   REJECTED: { tone: "expired" },
   CANCELLED: { tone: "neutral" },
 
-  // Tasks
+  // Checklist items
   TODO: { tone: "neutral", label: "To do" },
   IN_PROGRESS: { tone: "info", label: "In progress" },
   WAITING: { tone: "warning" },
@@ -81,9 +81,8 @@ const STATUS_TONES: Record<string, { tone: Tone; label?: string }> = {
   OVERDUE: { tone: "expired" },
   PENDING_RENEWAL: { tone: "warning", label: "Pending renewal" },
 
-  // Correspondence
+  // Job offers
   SENT: { tone: "info" },
-  FOLLOW_UP_REQUIRED: { tone: "warning", label: "Follow-up required" },
 
   // Vehicles
   IN_MAINTENANCE: { tone: "warning", label: "In maintenance" },

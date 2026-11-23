@@ -43,6 +43,7 @@ export function DataTable<TRow extends { id: string }>({
   searchParams,
   basePath,
   rowHref,
+  linkColumns,
   emptyState,
   caption,
 }: {
@@ -53,6 +54,8 @@ export function DataTable<TRow extends { id: string }>({
   basePath: string;
   /** Makes rows clickable. */
   rowHref?: ((row: TRow) => string) | undefined;
+  /** Columns whose cells link to `rowHref`. Defaults to the first column. */
+  linkColumns?: readonly string[];
   /** Shown when there are no rows at all (as opposed to no matches). */
   emptyState?: React.ReactNode | undefined;
   caption?: string | undefined;
@@ -118,7 +121,7 @@ export function DataTable<TRow extends { id: string }>({
                     key={column.key}
                     className={cn(column.align === "right" && "text-right", column.className)}
                   >
-                    {rowHref && column.key === columns[0]?.key ? (
+                    {rowHref && (linkColumns ?? [columns[0]?.key]).includes(column.key) ? (
                       <Link href={rowHref(row)} className="hover:underline">
                         {column.cell(row)}
                       </Link>

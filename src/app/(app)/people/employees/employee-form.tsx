@@ -73,7 +73,9 @@ export function EmployeeForm({
   const [pending, startTransition] = React.useTransition();
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
-  const [companyId, setCompanyId] = React.useState(values.companyId ?? options.companies[0]?.id ?? "");
+  const [companyId, setCompanyId] = React.useState(
+    values.companyId ?? options.companies[0]?.id ?? "",
+  );
 
   // Departments and positions belong to a company; showing another company's
   // would produce a cross-company reference the service rejects anyway.
@@ -270,8 +272,8 @@ export function EmployeeForm({
             />
             {/*
               Searched server-side rather than preloaded. The candidate list is
-              every active employee of the selected company, which is fine to
-              ship at thirty people and not at three thousand.
+              every active employee of every company the user can see — people
+              report across the group's companies.
             */}
             <EntitySelect
               name="managerId"
@@ -279,7 +281,7 @@ export function EmployeeForm({
               placeholder="Search by name or number…"
               emptyLabel="No matching employee"
               clearLabel="— No manager —"
-              hint="Only active employees of the selected company."
+              hint="Active employees of any company."
               defaultValue={values.managerId ?? undefined}
               defaultLabel={
                 options.managers.find((m) => m.id === values.managerId)?.fullName ?? undefined
@@ -297,7 +299,7 @@ export function EmployeeForm({
                 return result.data.map((m) => ({
                   value: m.id,
                   label: m.fullName,
-                  hint: m.employeeNo,
+                  hint: `${m.employeeNo} · ${m.companyCode}`,
                 }));
               }}
             />
@@ -320,7 +322,10 @@ export function EmployeeForm({
               defaultValue={values.status ?? "ACTIVE"}
               options={EMPLOYEE_STATUSES.map((s) => ({
                 value: s,
-                label: s.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()),
+                label: s
+                  .replace(/_/g, " ")
+                  .toLowerCase()
+                  .replace(/^./, (c) => c.toUpperCase()),
               }))}
               errors={errors.status}
             />

@@ -4,7 +4,8 @@ import { updateVehicleSchema, vehicleSchema } from "./fleet";
 import { updateContractSchema, contractSchema } from "./hr";
 import { updatePolicySchema, policySchema } from "./insurance";
 import { updateAssetSchema, assetSchema } from "./it";
-import { updateTaskSchema, taskSchema } from "./task";
+import { cctvSchema, ipPhoneSchema, updateCctvSchema, updateIpPhoneSchema } from "./infrastructure";
+import { meterSchema, updateMeterSchema } from "./meters";
 
 /**
  * SECURITY.md §11: "Every Zod schema is `.strict()`."
@@ -70,11 +71,17 @@ const VALID = {
     model: "Latitude",
     condition: "GOOD",
   },
-  task: {
-    companyId: "c1",
-    title: "A valid title",
-    status: "TODO",
-    priority: "MEDIUM",
+  meter: {
+    meterNumber: "MTR-1001",
+    location: "Camp A, Block 3",
+  },
+  cctv: {
+    assetId: "asset-2",
+    type: "DOME",
+  },
+  ipPhone: {
+    extension: "2041",
+    assetId: "asset-1",
   },
 } as const;
 
@@ -91,8 +98,12 @@ const CASES: [string, Parser, Record<string, unknown>][] = [
   ["updatePolicySchema", updatePolicySchema, { ...VALID.policy, id: "x" }],
   ["assetSchema", assetSchema, VALID.asset],
   ["updateAssetSchema", updateAssetSchema, { ...VALID.asset, id: "x" }],
-  ["taskSchema", taskSchema, VALID.task],
-  ["updateTaskSchema", updateTaskSchema, { ...VALID.task, id: "x" }],
+  ["meterSchema", meterSchema, VALID.meter],
+  ["updateMeterSchema", updateMeterSchema, { ...VALID.meter, id: "x" }],
+  ["cctvSchema", cctvSchema, VALID.cctv],
+  ["updateCctvSchema", updateCctvSchema, { ...VALID.cctv, id: "x" }],
+  ["ipPhoneSchema", ipPhoneSchema, VALID.ipPhone],
+  ["updateIpPhoneSchema", updateIpPhoneSchema, { ...VALID.ipPhone, id: "x" }],
 ];
 
 describe.each(CASES)("%s", (_name, schema, valid) => {
@@ -173,9 +184,34 @@ describe("cross-field rules survive the update variant", () => {
     expect(assetSchema.safeParse(bad).success).toBe(false);
   });
 
-  it("task: a polymorphic link needs both halves", () => {
-    const bad = { ...VALID.task, entityType: "EMPLOYEE" };
-    expect(updateTaskSchema.safeParse({ ...bad, id: "x" }).success).toBe(false);
-    expect(taskSchema.safeParse(bad).success).toBe(false);
+  it("asset: IP address must be a real address", () => {
+    expect(assetSchema.safeParse({ ...VALID.asset, ipAddress: "10.0.1.25" }).success).toBe(true);
+    expect(assetSchema.safeParse({ ...VALID.asset, ipAddress: "10.0.1.999" }).success).toBe(false);
+    expect(updateAssetSchema.safeParse({ ...VALID.asset, ipAddress: "printer", id: "x" }).success).toBe(false);
+  });
+
+  it("CCTV: hardware fields belong to the asset, and a recorder records nothing", () => {
+    expect(cctvSchema.safeParse({ ...VALID.cctv, location: "Gate" }).success).toBe(false);
+    expect(cctvSchema.safeParse({ type: "DOME" }).success).toBe(false);
+    expect(cctvSchema.safeParse({ ...VALID.cctv, type: "NVR", recorderId: "r1" }).success).toBe(false);
+  });
+
+  it("IP phone: needs a handset, and handset details are not accepted here", () => {
+    expect(ipPhoneSchema.safeParse({ extension: "2041" }).success).toBe(false);
+    // Model and MAC belong to the asset; sending them is an unknown key.
+    expect(ipPhoneSchema.safeParse({ ...VALID.ipPhone, macAddress: "00:1A:2B:3C:4D:5E" }).success).toBe(false);
+    expect(ipPhoneSchema.safeParse({ ...VALID.ipPhone, extension: "20a1" }).success).toBe(false);
+  });
+
+  it("asset: MAC address is normalised, and a malformed one is refused", () => {
+    const ok = assetSchema.safeParse({ ...VALID.asset, macAddress: "00-1a-2b-3c-4d-5e" });
+    expect(ok.success && ok.data.macAddress).toBe("00:1A:2B:3C:4D:5E");
+    expect(assetSchema.safeParse({ ...VALID.asset, macAddress: "00:1A:2B" }).success).toBe(false);
+    expect(assetSchema.safeParse({ ...VALID.asset, macAddress: "" }).success).toBe(true);
+  });
+
+  it("meter: number and location are both required", () => {
+    expect(meterSchema.safeParse({ ...VALID.meter, meterNumber: "" }).success).toBe(false);
+    expect(meterSchema.safeParse({ ...VALID.meter, location: " " }).success).toBe(false);
   });
 });

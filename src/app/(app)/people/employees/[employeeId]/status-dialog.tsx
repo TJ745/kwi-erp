@@ -19,12 +19,15 @@ import { EMPLOYEE_STATUSES, LEAVING_STATUSES } from "@/lib/schemas/employee";
 import { setEmployeeStatusAction } from "@/server/actions/employees";
 
 const titleCase = (value: string) =>
-  value.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 /**
  * The employee status transition (brief §50) — an employee is never deleted,
  * only transitioned. A leaving status requires a last working date, because
- * offboarding, final settlement, and the leavers report all key off it.
+ * final settlement and the leavers report key off it.
  */
 export function EmployeeStatusDialog({
   employee,
@@ -88,8 +91,8 @@ export function EmployeeStatusDialog({
           <DialogHeader>
             <DialogTitle>Change status</DialogTitle>
             <DialogDescription>
-              Employees are never deleted — their status is transitioned and the change is
-              recorded in the audit trail.
+              Employees are never deleted — their status is transitioned and the change is recorded
+              in the audit trail.
             </DialogDescription>
           </DialogHeader>
 
@@ -110,7 +113,7 @@ export function EmployeeStatusDialog({
               required={isLeaving}
               hint={
                 isLeaving
-                  ? "Required — offboarding and the leavers report depend on it."
+                  ? "Required — the leavers report depends on it."
                   : "Only relevant once the employee leaves."
               }
               defaultValue={employee.lastWorkingDate ?? ""}

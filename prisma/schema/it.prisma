@@ -1,14 +1,6 @@
 // =============================================================================
-// IT: helpdesk, assets (with handover lifecycle), and infrastructure.
+// IT: assets (with handover lifecycle) and infrastructure.
 // =============================================================================
-
-enum TicketStatus {
-  OPEN
-  IN_PROGRESS
-  WAITING
-  RESOLVED
-  CLOSED
-}
 
 enum AssetType {
   LAPTOP
@@ -18,6 +10,8 @@ enum AssetType {
   MOBILE
   TABLET
   IP_PHONE
+  CCTV_CAMERA
+  CCTV_RECORDER
   NETWORK
   SERVER
   PERIPHERAL
@@ -49,81 +43,19 @@ enum CctvType {
   DVR
 }
 
-model TicketCategory {
-  id              String  @id @default(cuid(2))
-  key             String  @unique
-  name            String
-  defaultSlaHours Int?
-  isActive        Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tickets ITTicket[]
-}
-
-model ITTicket {
-  id           String  @id @default(cuid(2))
-  ticketNo     String  @unique
-  companyId    String
-  requesterId  String
-  departmentId String?
-  categoryId   String
-
-  priority    Priority @default(MEDIUM)
-  subject     String
-  description String
-
-  assignedToId   String?
-  status         TicketStatus @default(OPEN)
-  dueDate        DateTime?
-  resolvedAt     DateTime?
-  closedAt       DateTime?
-  resolution     String?
-  relatedAssetId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company    Company        @relation(fields: [companyId], references: [id])
-  department Department?    @relation(fields: [departmentId], references: [id])
-  category   TicketCategory @relation(fields: [categoryId], references: [id])
-  asset      ITAsset?       @relation(fields: [relatedAssetId], references: [id])
-
-  comments TicketComment[]
-
-  @@index([status, priority])
-  @@index([assignedToId, status])
-  @@index([companyId, createdAt])
-  @@index([requesterId])
-  @@index([categoryId])
-  @@index([departmentId])
-  @@index([relatedAssetId])
-}
-
-model TicketComment {
-  id       String  @id @default(cuid(2))
-  ticketId String
-  authorId String
-  body     String
-  /// Internal notes are hidden from the requester.
-  isInternal Boolean @default(false)
-
-  createdAt DateTime @default(now())
-
-  ticket ITTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-
-  @@index([ticketId, createdAt])
-}
-
 model ITAsset {
-  id           String  @id @default(cuid(2))
-  assetCode    String  @unique
-  assetTag     String? @unique
+  id           String    @id @default(cuid(2))
+  assetCode    String    @unique
+  assetTag     String?   @unique
   type         AssetType
   brand        String
   model        String
-  serialNumber String? @unique
+  serialNumber String?   @unique
+  /// Network hardware address, stored uppercase and colon-delimited.
+  macAddress   String?   @unique
+  /// The device's IP. Unique across the estate: two devices on one address is
+  /// an outage. The Device IPs page is a view over this column.
+  ipAddress    String?   @unique
   companyId    String
 
   purchaseDate   DateTime?
@@ -144,7 +76,8 @@ model ITAsset {
   company Company @relation(fields: [companyId], references: [id])
 
   assignments ITAssetAssignment[]
-  tickets     ITTicket[]
+  ipPhone     IpPhone?
+  cctv        CctvDevice?
 
   @@index([status, type])
   @@index([companyId, status])
@@ -190,154 +123,41 @@ model ITAssetAssignment {
 }
 
 // -----------------------------------------------------------------------------
-// Infrastructure. Kept separate from ITAsset because the attributes barely
-// overlap with assignable endpoint hardware.
+// Infrastructure. The hardware itself is always an ITAsset; these rows add only
+// what is specific to telephony and CCTV.
 // -----------------------------------------------------------------------------
 
-model Server {
-  id        String  @id @default(cuid(2))
-  name      String  @unique
-  companyId String
-  ipAddress String?
-  os        String?
-  role      String?
-  location  String?
-  cpuSpec   String?
-  ramGb     Int?
-  storageGb Int?
-  status    RecordStatus @default(ACTIVE)
-  notes     String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id])
-
-  @@index([companyId, status])
-}
-
-model NetworkDevice {
-  id         String  @id @default(cuid(2))
-  name       String
-  companyId  String
-  type       String
-  model      String?
-  ipAddress  String?
-  macAddress String?
-  location   String?
-  vlan       String?
-  portCount  Int?
-  status     RecordStatus @default(ACTIVE)
-  notes      String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company     Company     @relation(fields: [companyId], references: [id])
-  ipAddresses IpAddress[]
-
-  @@index([companyId, status])
-  @@index([macAddress])
-}
-
-model IpAddress {
-  id         String  @id @default(cuid(2))
-  address    String  @unique
-  subnet     String?
-  assignedTo String?
-  deviceId   String?
-  isStatic   Boolean @default(true)
-  notes      String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  device NetworkDevice? @relation(fields: [deviceId], references: [id])
-
-  @@index([deviceId])
-}
-
+/// A phone extension and the handset it rings on. Everything about the
+/// handset — model, MAC, location, status, who holds it — lives on the asset,
+/// so it is recorded once. One extension per handset.
 model IpPhone {
-  id          String  @id @default(cuid(2))
-  extension   String  @unique
-  employeeId  String?
-  deviceModel String?
-  macAddress  String?
-  location    String?
-  status      RecordStatus @default(ACTIVE)
+  id        String @id @default(cuid(2))
+  extension String @unique
+  assetId   String @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee? @relation(fields: [employeeId], references: [id])
-
-  @@index([employeeId])
-  @@index([status])
+  asset ITAsset @relation(fields: [assetId], references: [id])
 }
 
+/// A CCTV camera or recorder. The hardware — name, model, serial, location,
+/// IP, status, warranty — is the linked IT asset; this row holds only what is
+/// CCTV-specific: the camera type, which recorder it records to, and upkeep.
 model CctvDevice {
-  id                String   @id @default(cuid(2))
-  name              String
-  companyId         String
+  id                String    @id @default(cuid(2))
+  assetId           String    @unique
   type              CctvType
-  location          String
-  ipAddress         String?
   recorderId        String?
-  status            RecordStatus @default(ACTIVE)
   lastMaintenanceAt DateTime?
   notes             String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company      @relation(fields: [companyId], references: [id])
+  asset    ITAsset      @relation(fields: [assetId], references: [id])
   recorder CctvDevice?  @relation("CctvRecorder", fields: [recorderId], references: [id])
   cameras  CctvDevice[] @relation("CctvRecorder")
 
-  @@index([companyId, status])
   @@index([recorderId])
-}
-
-/// Licence keys are never stored here — they reference a Credential row.
-model SoftwareLicense {
-  id                     String    @id @default(cuid(2))
-  name                   String
-  vendor                 String?
-  companyId              String
-  licenseKeyCredentialId String?
-  seats                  Int       @default(1)
-  seatsUsed              Int       @default(0)
-  purchaseDate           DateTime?
-  expiryDate             DateTime?
-  notes                  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company       Company     @relation(fields: [companyId], references: [id])
-  licenseKey    Credential? @relation(fields: [licenseKeyCredentialId], references: [id])
-
-  @@index([companyId])
-  @@index([expiryDate])
-  @@index([licenseKeyCredentialId])
-}
-
-/// Administrative AD metadata. Deliberately stores no credentials.
-model AdRecord {
-  id             String   @id @default(cuid(2))
-  samAccountName String   @unique
-  employeeId     String?
-  ou             String?
-  groups         Json?
-  enabled        Boolean  @default(true)
-  lastSyncedAt   DateTime?
-  notes          String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  employee Employee? @relation(fields: [employeeId], references: [id])
-
-  @@index([employeeId])
-  @@index([enabled])
 }

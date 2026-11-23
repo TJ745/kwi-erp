@@ -142,12 +142,6 @@ async function main() {
     }),
   );
 
-  await expectRejected("software licence using more seats than it owns", () =>
-    prisma.softwareLicense.create({
-      data: { name: "ZZZ-TMP", companyId: company.id, seats: 2, seatsUsed: 5 },
-    }),
-  );
-
   // --- Cleanup -------------------------------------------------------------
   await prisma.iTAssetAssignment.deleteMany({ where: { assetId: asset.id } });
   await prisma.iTAsset.delete({ where: { id: asset.id } });

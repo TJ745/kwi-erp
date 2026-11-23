@@ -40,13 +40,7 @@ export const softDeleteExtension = Prisma.defineExtension({
           return query(args);
         }
 
-        const readOperations = [
-          "findFirst",
-          "findFirstOrThrow",
-          "findMany",
-          "count",
-          "aggregate",
-        ];
+        const readOperations = ["findFirst", "findFirstOrThrow", "findMany", "count", "aggregate"];
 
         if (!readOperations.includes(operation)) {
           return query(args);

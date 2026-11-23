@@ -4,7 +4,7 @@ import { safeRedirect } from "./safe-redirect";
 describe("safeRedirect", () => {
   it("allows same-site absolute paths", () => {
     expect(safeRedirect("/people/employees")).toBe("/people/employees");
-    expect(safeRedirect("/tasks?status=TODO")).toBe("/tasks?status=TODO");
+    expect(safeRedirect("/people/leave?status=PENDING")).toBe("/people/leave?status=PENDING");
   });
 
   it("falls back when no target is supplied", () => {

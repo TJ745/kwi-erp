@@ -55,9 +55,9 @@ export function Letterhead({
         <DialogHeader>
           <DialogTitle>Letterhead for {companyCode}</DialogTitle>
           <DialogDescription>
-            These images print at the top and bottom of every letter and certificate
-            generated for this company. PNG, JPEG, or WebP, up to 8&nbsp;MB. A wide,
-            short image works best — roughly 1600&nbsp;&times;&nbsp;300 for the header.
+            These images print at the top and bottom of every letter and certificate generated for
+            this company. PNG, JPEG, or WebP, up to 8&nbsp;MB. A wide, short image works best —
+            roughly 1600&nbsp;&times;&nbsp;300 for the header.
           </DialogDescription>
         </DialogHeader>
 

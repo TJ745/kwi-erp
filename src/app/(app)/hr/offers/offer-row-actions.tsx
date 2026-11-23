@@ -23,7 +23,7 @@ import { DateField, SelectField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { EMPLOYMENT_TYPES, GENDERS } from "@/lib/schemas/hiring";
 import { convertOfferAction, deleteJobOfferAction } from "@/server/actions/hiring";
-import { OfferDialog, type OfferValues } from "./offer-dialog";
+import { OfferDialog, type InterviewPick, type OfferValues } from "./offer-dialog";
 
 export function OfferRowActions({
   offer,
@@ -31,6 +31,7 @@ export function OfferRowActions({
   positions,
   departments,
   descriptions,
+  interviews,
   canManage,
   canConvert,
 }: {
@@ -39,6 +40,7 @@ export function OfferRowActions({
   positions: { id: string; title: string; companyId: string | null }[];
   departments: { id: string; name: string; companyId: string }[];
   descriptions: { id: string; title: string }[];
+  interviews: InterviewPick[];
   canManage: boolean;
   canConvert: boolean;
 }) {
@@ -154,6 +156,7 @@ export function OfferRowActions({
         companies={companies}
         positions={positions}
         descriptions={descriptions}
+        interviews={interviews}
         offer={offer}
         open={editOpen}
         onOpenChange={setEditOpen}
@@ -165,9 +168,9 @@ export function OfferRowActions({
             <DialogHeader>
               <DialogTitle>Convert {offer.candidateName} to an employee</DialogTitle>
               <DialogDescription>
-                This creates a permanent employee record and can only be done once. The
-                fields below are the ones an offer cannot supply — check them rather than
-                accepting the suggestions.
+                This creates a permanent employee record and can only be done once. The fields below
+                are the ones an offer cannot supply — check them rather than accepting the
+                suggestions.
               </DialogDescription>
             </DialogHeader>
 
@@ -253,8 +256,8 @@ export function OfferRowActions({
               </div>
 
               <p className="text-muted-foreground text-xs">
-                The position and contact details carry over from the offer. A contract —
-                including salary — is added separately from the employee&apos;s record.
+                The position and contact details carry over from the offer. A contract — including
+                salary — is added separately from HR → Contracts.
               </p>
             </div>
 

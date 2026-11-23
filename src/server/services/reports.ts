@@ -5,7 +5,7 @@ import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ForbiddenError } from "@/lib/result";
 import { daysUntilExpiry } from "@/lib/expiry";
-import { allOf, pooledOrScoped } from "@/lib/scope-filters";
+import { ASSET_STATUSES } from "@/lib/schemas/it";
 import {
   expiryBucketLabel,
   isCompanyInScope,
@@ -13,7 +13,6 @@ import {
   type ReportId,
   type ReportSpec,
 } from "@/lib/reports";
-import { resolveUserNames } from "./users";
 
 /**
  * Report queries — brief §36.
@@ -358,9 +357,7 @@ const expiryRegister: QueryFn = async (ctx, filters) => {
       isActive: true,
       ...scopeWhere(ctx, filters),
       ...dateWindowOn("expiryDate", filters),
-      ...(filters.status && filters.status !== "ALL"
-        ? { source: filters.status as "IQAMA" }
-        : {}),
+      ...(filters.status && filters.status !== "ALL" ? { source: filters.status as "IQAMA" } : {}),
     },
     orderBy: { expiryDate: "asc" },
     take: MAX_ROWS + 1,
@@ -449,7 +446,6 @@ const leaveRegister: QueryFn = async (ctx, filters) => {
         ...scopeWhere(ctx, filters),
         ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
       },
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
       ...dateWindowOn("startDate", filters),
     },
     orderBy: { startDate: "desc" },
@@ -458,9 +454,7 @@ const leaveRegister: QueryFn = async (ctx, filters) => {
       startDate: true,
       endDate: true,
       days: true,
-      status: true,
       leaveType: { select: { name: true } },
-      approver: { select: { fullName: true } },
       employee: {
         select: {
           employeeNo: true,
@@ -479,8 +473,6 @@ const leaveRegister: QueryFn = async (ctx, filters) => {
     startDate: r.startDate,
     endDate: r.endDate,
     days: Number(r.days),
-    status: r.status,
-    approver: r.approver?.fullName ?? null,
   }));
 };
 
@@ -537,51 +529,6 @@ const itAssetRegister: QueryFn = async (ctx, filters) => {
     purchaseDate: a.purchaseDate,
     warrantyExpiry: a.warrantyExpiry,
     purchaseCost: a.purchaseCost?.toString() ?? null,
-  }));
-};
-
-const helpdeskTickets: QueryFn = async (ctx, filters) => {
-  const now = Date.now();
-
-  const tickets = await prisma.iTTicket.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "OPEN" } : {}),
-      ...dateWindowOn("createdAt", filters),
-    },
-    orderBy: { createdAt: "desc" },
-    take: MAX_ROWS + 1,
-    select: {
-      ticketNo: true,
-      subject: true,
-      priority: true,
-      status: true,
-      requesterId: true,
-      assignedToId: true,
-      createdAt: true,
-      resolvedAt: true,
-      category: { select: { name: true } },
-    },
-  });
-
-  const names = await resolveUserNames(
-    tickets.flatMap((t) => [t.requesterId, t.assignedToId]),
-  );
-
-  return tickets.map((t) => ({
-    ticketNo: t.ticketNo,
-    subject: t.subject,
-    category: t.category.name,
-    priority: t.priority,
-    status: t.status,
-    requester: names.get(t.requesterId) ?? null,
-    assignedTo: t.assignedToId ? (names.get(t.assignedToId) ?? null) : null,
-    createdAt: t.createdAt,
-    resolvedAt: t.resolvedAt,
-    // Age stops at resolution — an open ticket ages, a closed one does not.
-    ageDays: Math.floor(
-      ((t.resolvedAt?.getTime() ?? now) - t.createdAt.getTime()) / 86_400_000,
-    ),
   }));
 };
 
@@ -669,48 +616,7 @@ const insuranceRegister: QueryFn = async (ctx, filters) => {
   }));
 };
 
-// --- Tasks & letters ---------------------------------------------------------
-
-const taskRegister: QueryFn = async (ctx, filters) => {
-  const now = new Date();
-  const CLOSED = ["COMPLETED", "CANCELLED"] as const;
-
-  const tasks = await prisma.task.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "TODO" } : {}),
-      ...dateWindowOn("dueDate", filters),
-    },
-    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }],
-    take: MAX_ROWS + 1,
-    select: {
-      taskNo: true,
-      title: true,
-      priority: true,
-      status: true,
-      dueDate: true,
-      assignedToId: true,
-      company: { select: { code: true } },
-    },
-  });
-
-  const names = await resolveUserNames(tasks.map((t) => t.assignedToId));
-
-  return tasks.map((t) => ({
-    taskNo: t.taskNo,
-    title: t.title,
-    priority: t.priority,
-    status: t.status,
-    assignedTo: t.assignedToId ? (names.get(t.assignedToId) ?? null) : null,
-    dueDate: t.dueDate,
-    // Derived, never stored — a stored flag goes stale at midnight.
-    isOverdue:
-      t.dueDate !== null &&
-      t.dueDate < now &&
-      !(CLOSED as readonly string[]).includes(t.status),
-    company: t.company.code,
-  }));
-};
+// --- Letters -----------------------------------------------------------------
 
 const letterRegister: QueryFn = async (ctx, filters) => {
   const letters = await prisma.generatedLetter.findMany({
@@ -748,43 +654,6 @@ const letterRegister: QueryFn = async (ctx, filters) => {
 
 // --- Administration ----------------------------------------------------------
 
-const pettyCashLedger: QueryFn = async (ctx, filters) => {
-  const rows = await prisma.pettyCashTransaction.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
-      ...dateWindowOn("date", filters),
-    },
-    orderBy: [{ date: "desc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      date: true,
-      type: true,
-      description: true,
-      amount: true,
-      currency: true,
-      paymentMethod: true,
-      status: true,
-      account: { select: { name: true } },
-      category: { select: { name: true } },
-      company: { select: { code: true } },
-    },
-  });
-
-  return rows.map((t) => ({
-    date: t.date,
-    account: t.account.name,
-    company: t.company.code,
-    type: t.type,
-    category: t.category.name,
-    description: t.description,
-    amount: t.amount.toString(),
-    currency: t.currency,
-    paymentMethod: t.paymentMethod,
-    status: t.status,
-  }));
-};
-
 const accommodationOccupancy: QueryFn = async (ctx, filters) => {
   // Driven from the bed, not the assignment, so empty beds appear too — the
   // question this report answers is usually "where is there room?".
@@ -801,7 +670,9 @@ const accommodationOccupancy: QueryFn = async (ctx, filters) => {
       room: {
         select: {
           roomNumber: true,
-          accommodation: { select: { name: true, city: true, company: { select: { code: true } } } },
+          accommodation: {
+            select: { name: true, city: true, company: { select: { code: true } } },
+          },
         },
       },
       assignments: {
@@ -828,60 +699,6 @@ const accommodationOccupancy: QueryFn = async (ctx, filters) => {
       checkInDate: current?.checkInDate ?? null,
     };
   });
-};
-
-const supplierRegister: QueryFn = async (ctx, filters) => {
-  const suppliers = await prisma.supplier.findMany({
-    where: {
-      deletedAt: null,
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      // Composed under AND for the same reason as listSuppliers in
-      // services/vendors.ts: the scope helper and the search filter both emit
-      // `OR`, and spreading both drops the scope entirely, so a searched
-      // report crossed company boundaries.
-      //
-      // Suppliers may be shared across companies, so the nullable-aware helper
-      // applies rather than the strict one.
-      AND: [
-        filters.companyId ? scopeWhere(ctx, filters) : optionalCompanyScopeWhere(ctx),
-        ...(filters.q
-          ? [
-              {
-                OR: [
-                  { name: { contains: filters.q, mode: "insensitive" as const } },
-                  { code: { contains: filters.q, mode: "insensitive" as const } },
-                ],
-              },
-            ]
-          : []),
-      ],
-    },
-    orderBy: { code: "asc" },
-    take: MAX_ROWS + 1,
-    select: {
-      code: true,
-      name: true,
-      contactPerson: true,
-      phone: true,
-      email: true,
-      creditDays: true,
-      status: true,
-      company: { select: { code: true } },
-      category: { select: { name: true } },
-    },
-  });
-
-  return suppliers.map((v) => ({
-    code: v.code,
-    name: v.name,
-    company: v.company?.code ?? null,
-    category: v.category?.name ?? null,
-    contactPerson: v.contactPerson,
-    phone: v.phone,
-    email: v.email,
-    creditDays: v.creditDays,
-    status: v.status,
-  }));
 };
 
 const subcontractorRegister: QueryFn = async (ctx, filters) => {
@@ -922,43 +739,6 @@ const subcontractorRegister: QueryFn = async (ctx, filters) => {
     phone: v.phone,
     contracts: v._count.contracts,
     status: v.status,
-  }));
-};
-
-const electricityBills: QueryFn = async (ctx, filters) => {
-  const bills = await prisma.electricityBill.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
-      ...dateWindowOn("dueDate", filters),
-    },
-    orderBy: [{ dueDate: "desc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      location: true,
-      meterNumber: true,
-      billingPeriodStart: true,
-      billingPeriodEnd: true,
-      amount: true,
-      currency: true,
-      dueDate: true,
-      paidDate: true,
-      status: true,
-      company: { select: { code: true } },
-    },
-  });
-
-  return bills.map((b) => ({
-    location: b.location,
-    company: b.company.code,
-    meterNumber: b.meterNumber,
-    periodStart: b.billingPeriodStart,
-    periodEnd: b.billingPeriodEnd,
-    amount: b.amount.toString(),
-    currency: b.currency,
-    dueDate: b.dueDate,
-    paidDate: b.paidDate,
-    status: b.status,
   }));
 };
 
@@ -1006,134 +786,6 @@ function employeeScopeWhere(ctx: ActorContext, filters: ReportFilters) {
   };
 }
 
-const timesheetSummary: QueryFn = async (ctx, filters) => {
-  const entries = await prisma.timesheetEntry.findMany({
-    where: {
-      ...employeeScopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
-      ...dateWindowOn("date", filters),
-    },
-    orderBy: [{ date: "desc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      date: true,
-      normalHours: true,
-      overtimeHours: true,
-      delayedHours: true,
-      absent: true,
-      status: true,
-      employee: {
-        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
-      },
-    },
-  });
-
-  return entries.map((e) => ({
-    employeeNo: e.employee.employeeNo,
-    fullName: e.employee.fullName,
-    company: e.employee.company.code,
-    date: e.date,
-    normalHours: e.normalHours.toString(),
-    overtimeHours: e.overtimeHours.toString(),
-    delayedHours: e.delayedHours.toString(),
-    absent: e.absent ? "Yes" : "No",
-    status: e.status,
-  }));
-};
-
-const evaluationRegister: QueryFn = async (ctx, filters) => {
-  const evaluations = await prisma.evaluation.findMany({
-    where: {
-      ...employeeScopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
-      ...dateWindowOn("periodEnd", filters),
-    },
-    orderBy: [{ periodEnd: "desc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      periodStart: true,
-      periodEnd: true,
-      overallScore: true,
-      status: true,
-      employee: {
-        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
-      },
-    },
-  });
-
-  return evaluations.map((e) => ({
-    employeeNo: e.employee.employeeNo,
-    fullName: e.employee.fullName,
-    company: e.employee.company.code,
-    periodStart: e.periodStart,
-    periodEnd: e.periodEnd,
-    overallScore: e.overallScore?.toString() ?? null,
-    status: e.status,
-  }));
-};
-
-const incrementRegister: QueryFn = async (ctx, filters) => {
-  const canSeeSalary = ctx.permissions.has("employees.salary.view");
-
-  const increments = await prisma.increment.findMany({
-    where: {
-      ...employeeScopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "PENDING" } : {}),
-      ...dateWindowOn("effectiveDate", filters),
-    },
-    orderBy: [{ effectiveDate: "desc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      id: true,
-      effectiveDate: true,
-      currency: true,
-      status: true,
-      employee: {
-        select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
-      },
-    },
-  });
-
-  // The figures are a second, separately-gated query rather than a conditional
-  // key on the first: an ungated select is one careless edit away from a leak.
-  const figures = canSeeSalary
-    ? new Map(
-        (
-          await prisma.increment.findMany({
-            where: { id: { in: increments.map((i) => i.id) } },
-            select: {
-              id: true,
-              currentSalary: true,
-              newSalary: true,
-              amount: true,
-              percentage: true,
-            },
-          })
-        ).map((i) => [i.id, i]),
-      )
-    : null;
-
-  return increments.map((i) => {
-    const f = figures?.get(i.id);
-    return {
-      employeeNo: i.employee.employeeNo,
-      fullName: i.employee.fullName,
-      company: i.employee.company.code,
-      effectiveDate: i.effectiveDate,
-      ...(figures
-        ? {
-            currentSalary: f?.currentSalary.toString() ?? null,
-            newSalary: f?.newSalary.toString() ?? null,
-            amount: f?.amount.toString() ?? null,
-            percentage: f?.percentage.toString() ?? null,
-          }
-        : {}),
-      currency: i.currency,
-      status: i.status,
-    };
-  });
-};
-
 const warningRegister: QueryFn = async (ctx, filters) => {
   const warnings = await prisma.warningLetter.findMany({
     where: {
@@ -1146,7 +798,6 @@ const warningRegister: QueryFn = async (ctx, filters) => {
       level: true,
       reason: true,
       issuedDate: true,
-      acknowledgedAt: true,
       employee: {
         select: { employeeNo: true, fullName: true, company: { select: { code: true } } },
       },
@@ -1160,7 +811,6 @@ const warningRegister: QueryFn = async (ctx, filters) => {
     level: w.level,
     reason: w.reason,
     issuedDate: w.issuedDate,
-    acknowledgedAt: w.acknowledgedAt,
   }));
 };
 
@@ -1204,7 +854,8 @@ const jobOfferRegister: QueryFn = async (ctx, filters) => {
     candidate: o.candidateName,
     company: o.company.code,
     position: o.position?.title ?? null,
-    salary: canSeeSalary && o.proposedSalary ? `${o.proposedSalary.toString()} ${o.currency}` : null,
+    salary:
+      canSeeSalary && o.proposedSalary ? `${o.proposedSalary.toString()} ${o.currency}` : null,
     joiningDate: o.proposedJoiningDate,
     sentAt: o.sentAt,
     status: o.status,
@@ -1223,7 +874,7 @@ const jobDescriptionRegister: QueryFn = async (ctx, filters) => {
           ? {
               OR: [
                 { title: { contains: filters.q, mode: "insensitive" as const } },
-                { summary: { contains: filters.q, mode: "insensitive" as const } },
+                { departmental: { contains: filters.q, mode: "insensitive" as const } },
               ],
             }
           : {},
@@ -1251,201 +902,111 @@ const jobDescriptionRegister: QueryFn = async (ctx, filters) => {
   }));
 };
 
-const correspondenceRegister: QueryFn = async (ctx, filters) => {
-  const rows = await prisma.correspondence.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "DRAFT" } : {}),
-      ...dateWindowOn("sentDate", filters),
-      ...(filters.q
-        ? {
-            OR: [
-              { subject: { contains: filters.q, mode: "insensitive" as const } },
-              { recipient: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: MAX_ROWS + 1,
-    select: {
-      subject: true,
-      type: true,
-      recipient: true,
-      sentDate: true,
-      followUpDate: true,
-      status: true,
-      company: { select: { code: true } },
-      employee: { select: { fullName: true } },
-    },
-  });
-
-  return rows.map((c) => ({
-    subject: c.subject,
-    type: c.type,
-    recipient: c.recipient,
-    employee: c.employee?.fullName ?? null,
-    company: c.company.code,
-    sentDate: c.sentDate,
-    followUpDate: c.followUpDate,
-    status: c.status,
-  }));
-};
-
-const adAccountRegister: QueryFn = async (ctx, filters) => {
-  // AdRecord has no company column; it reaches one only through its employee,
-  // and an unassigned account belongs to no company. Scoping on the employee
-  // keeps unassigned accounts visible, which is the point of the register —
-  // an orphaned domain account is exactly what an audit is looking for.
-  const rows = await prisma.adRecord.findMany({
-    where: {
-      ...allOf(
-        { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
-        filters.q
-          ? {
-              OR: [
-                { samAccountName: { contains: filters.q, mode: "insensitive" as const } },
-                { ou: { contains: filters.q, mode: "insensitive" as const } },
-              ],
-            }
-          : undefined,
-      ),
-    },
-    orderBy: { samAccountName: "asc" },
-    take: MAX_ROWS + 1,
-    select: {
-      samAccountName: true,
-      ou: true,
-      enabled: true,
-      lastSyncedAt: true,
-      employee: { select: { fullName: true } },
-    },
-  });
-
-  return rows.map((a) => ({
-    samAccountName: a.samAccountName,
-    employee: a.employee?.fullName ?? "— unassigned —",
-    ou: a.ou,
-    enabled: a.enabled ? "Yes" : "No",
-    lastSyncedAt: a.lastSyncedAt,
-  }));
-};
-
-const serverRegister: QueryFn = async (ctx, filters) => {
-  const rows = await prisma.server.findMany({
-    where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
-              { ipAddress: { contains: filters.q, mode: "insensitive" as const } },
-              { role: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { name: "asc" },
-    take: MAX_ROWS + 1,
-    select: {
-      name: true,
-      ipAddress: true,
-      os: true,
-      role: true,
-      location: true,
-      status: true,
-      company: { select: { code: true } },
-    },
-  });
-
-  return rows.map((v) => ({
-    name: v.name,
-    company: v.company.code,
-    ipAddress: v.ipAddress,
-    os: v.os,
-    role: v.role,
-    location: v.location,
-    status: v.status,
-  }));
-};
-
 const ipPhoneRegister: QueryFn = async (ctx, filters) => {
-  // Like AdRecord, an IpPhone reaches a company only through its holder.
+  // A phone belongs to the company that owns its handset; everything but the
+  // extension is read from that asset.
+  const status = (ASSET_STATUSES as readonly string[]).includes(filters.status ?? "")
+    ? (filters.status as (typeof ASSET_STATUSES)[number])
+    : undefined;
+  // A status that is not an asset status matches nothing, rather than being
+  // ignored and returning every row under a filter label that claims otherwise.
+  if (filters.status && !status) return [];
   const rows = await prisma.ipPhone.findMany({
     where: {
-      ...allOf(
-        { OR: pooledOrScoped("employeeId", "employee", companyScopeWhere(ctx)) },
-        filters.status ? { status: filters.status } : undefined,
-        filters.q
-          ? {
-              OR: [
-                { extension: { contains: filters.q, mode: "insensitive" as const } },
-                { location: { contains: filters.q, mode: "insensitive" as const } },
-              ],
-            }
-          : undefined,
-      ),
+      asset: { ...scopeWhere(ctx, filters), ...(status ? { status } : {}) },
+      ...(filters.q
+        ? {
+            OR: [
+              { extension: { contains: filters.q } },
+              { asset: { assetCode: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { location: { contains: filters.q, mode: "insensitive" as const } } },
+            ],
+          }
+        : {}),
     },
     orderBy: { extension: "asc" },
     take: MAX_ROWS + 1,
     select: {
       extension: true,
-      deviceModel: true,
-      macAddress: true,
-      location: true,
-      status: true,
-      employee: { select: { fullName: true } },
+      asset: {
+        select: {
+          assetCode: true,
+          brand: true,
+          model: true,
+          macAddress: true,
+          location: true,
+          status: true,
+          assignments: {
+            where: { returnedAt: null },
+            take: 1,
+            select: { employee: { select: { fullName: true } } },
+          },
+        },
+      },
     },
   });
 
   return rows.map((v) => ({
     extension: v.extension,
-    employee: v.employee?.fullName ?? "— unassigned —",
-    deviceModel: v.deviceModel,
-    macAddress: v.macAddress,
-    location: v.location,
-    status: v.status,
+    employee: v.asset.assignments[0]?.employee.fullName ?? "— not assigned —",
+    assetCode: v.asset.assetCode,
+    deviceModel: `${v.asset.brand} ${v.asset.model}`,
+    macAddress: v.asset.macAddress,
+    location: v.asset.location,
+    status: v.asset.status,
   }));
 };
 
 const cctvRegister: QueryFn = async (ctx, filters) => {
+  // The hardware fields come from the linked asset; status is the asset's.
+  const status = (ASSET_STATUSES as readonly string[]).includes(filters.status ?? "")
+    ? (filters.status as (typeof ASSET_STATUSES)[number])
+    : undefined;
+  if (filters.status && !status) return [];
+
   const rows = await prisma.cctvDevice.findMany({
     where: {
-      ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      asset: { ...scopeWhere(ctx, filters), ...(status ? { status } : {}) },
       ...(filters.q
         ? {
             OR: [
-              { name: { contains: filters.q, mode: "insensitive" as const } },
-              { location: { contains: filters.q, mode: "insensitive" as const } },
+              { asset: { assetCode: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { brand: { contains: filters.q, mode: "insensitive" as const } } },
+              { asset: { location: { contains: filters.q, mode: "insensitive" as const } } },
             ],
           }
         : {}),
     },
-    orderBy: [{ location: "asc" }, { name: "asc" }],
+    orderBy: [{ asset: { location: "asc" } }, { asset: { assetCode: "asc" } }],
     take: MAX_ROWS + 1,
     select: {
-      name: true,
       type: true,
-      location: true,
-      ipAddress: true,
-      status: true,
       lastMaintenanceAt: true,
-      company: { select: { code: true } },
-      recorder: { select: { name: true } },
+      asset: {
+        select: {
+          assetCode: true,
+          brand: true,
+          model: true,
+          location: true,
+          ipAddress: true,
+          status: true,
+          company: { select: { code: true } },
+        },
+      },
+      recorder: { select: { asset: { select: { assetCode: true } } } },
     },
   });
 
   return rows.map((v) => ({
-    name: v.name,
-    company: v.company.code,
+    name: `${v.asset.brand} ${v.asset.model}`,
+    assetCode: v.asset.assetCode,
+    company: v.asset.company.code,
     type: v.type,
-    location: v.location,
-    ipAddress: v.ipAddress,
-    recorder: v.recorder?.name ?? null,
+    location: v.asset.location,
+    ipAddress: v.asset.ipAddress,
+    recorder: v.recorder?.asset.assetCode ?? null,
     lastMaintenanceAt: v.lastMaintenanceAt,
-    status: v.status,
+    status: v.asset.status,
   }));
 };
 
@@ -1596,46 +1157,6 @@ const roleRegister: QueryFn = async (ctx, filters) => {
   }));
 };
 
-const reportingLines: QueryFn = async (ctx, filters) => {
-  const rows = await prisma.employee.findMany({
-    where: {
-      deletedAt: null,
-      status: { in: ["ACTIVE", "ON_LEAVE"] },
-      ...scopeWhere(ctx, filters),
-      ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
-      ...(filters.q
-        ? {
-            OR: [
-              { fullName: { contains: filters.q, mode: "insensitive" as const } },
-              { employeeNo: { contains: filters.q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: [{ company: { code: "asc" } }, { fullName: "asc" }],
-    take: MAX_ROWS + 1,
-    select: {
-      employeeNo: true,
-      fullName: true,
-      company: { select: { code: true } },
-      position: { select: { title: true } },
-      department: { select: { name: true } },
-      manager: { select: { fullName: true } },
-    },
-  });
-
-  return rows.map((e) => ({
-    employeeNo: e.employeeNo,
-    name: e.fullName,
-    position: e.position?.title ?? null,
-    department: e.department?.name ?? null,
-    // Stated rather than blank: "no manager set" and "reports to nobody" look
-    // identical in an empty cell, and only one of them is a data problem.
-    manager: e.manager?.fullName ?? "— none set —",
-    company: e.company.code,
-  }));
-};
-
 const QUERIES: Record<ReportId, QueryFn> = {
   "employee-directory": employeeDirectory,
   "employee-headcount": employeeHeadcount,
@@ -1644,31 +1165,19 @@ const QUERIES: Record<ReportId, QueryFn> = {
   "contract-register": contractRegister,
   "leave-register": leaveRegister,
   "it-asset-register": itAssetRegister,
-  "helpdesk-tickets": helpdeskTickets,
   "fleet-register": fleetRegister,
   "insurance-register": insuranceRegister,
-  "task-register": taskRegister,
   "letter-register": letterRegister,
-  "petty-cash-ledger": pettyCashLedger,
   "accommodation-occupancy": accommodationOccupancy,
-  "supplier-register": supplierRegister,
   "subcontractor-register": subcontractorRegister,
-  "electricity-bills": electricityBills,
   "certificate-register": certificateRegister,
-  "timesheet-summary": timesheetSummary,
-  "evaluation-register": evaluationRegister,
-  "increment-register": incrementRegister,
   "warning-register": warningRegister,
   "job-offer-register": jobOfferRegister,
   "job-description-register": jobDescriptionRegister,
-  "correspondence-register": correspondenceRegister,
-  "ad-account-register": adAccountRegister,
-  "server-register": serverRegister,
   "ip-phone-register": ipPhoneRegister,
   "cctv-register": cctvRegister,
   "vehicle-maintenance": vehicleMaintenanceRegister,
   "vehicle-handover": vehicleHandoverRegister,
   "user-register": userRegister,
   "role-register": roleRegister,
-  "reporting-lines": reportingLines,
 };

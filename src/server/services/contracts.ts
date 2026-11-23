@@ -12,6 +12,7 @@ import {
   type Paginated,
 } from "@/lib/list-query";
 import type { ContractInput } from "@/lib/schemas/hr";
+import { NATIONALITIES } from "@/lib/employment-contract";
 import { deactivateExpiry, syncExpiry } from "./expiry";
 
 /**
@@ -135,6 +136,19 @@ export async function getContract(ctx: ActorContext, id: string) {
   return contract;
 }
 
+/** The printed contract's fields, mapped for create and update alike. */
+function documentData(input: ContractInput) {
+  return {
+    contractDate: input.contractDate ?? null,
+    positionTitle: input.positionTitle ?? null,
+    jobDescriptionId: input.jobDescriptionId ?? null,
+    termYears: input.termYears,
+    workDaysPerWeek: input.workDaysPerWeek,
+    hoursPerDay: input.hoursPerDay,
+    ...(input.particulars ? { particulars: input.particulars } : {}),
+  };
+}
+
 function allowancesOf(input: ContractInput): Prisma.InputJsonValue | undefined {
   const entries = {
     housing: input.housingAllowance ?? null,
@@ -187,6 +201,7 @@ export async function createContract(ctx: ActorContext, input: ContractInput) {
         currency: input.currency,
         status: input.status,
         notes: input.notes ?? null,
+        ...documentData(input),
       },
       select: { id: true, endDate: true, status: true, companyId: true },
     });
@@ -210,10 +225,7 @@ export async function createContract(ctx: ActorContext, input: ContractInput) {
   });
 }
 
-export async function updateContract(
-  ctx: ActorContext,
-  input: ContractInput & { id: string },
-) {
+export async function updateContract(ctx: ActorContext, input: ContractInput & { id: string }) {
   const before = await getContract(ctx, input.id);
   requireCompanyAccess(ctx, input.companyId);
 
@@ -247,6 +259,7 @@ export async function updateContract(
         currency: input.currency,
         status: input.status,
         notes: input.notes ?? null,
+        ...documentData(input),
       },
       select: { id: true, endDate: true, status: true, companyId: true },
     });
@@ -313,6 +326,43 @@ export async function contractsForEmployee(ctx: ActorContext, employeeId: string
       notes: true,
       basicSalary: canSeeSalary,
       allowances: canSeeSalary,
+      contractDate: true,
+      positionTitle: true,
+      jobDescriptionId: true,
+      termYears: true,
+      workDaysPerWeek: true,
+      hoursPerDay: true,
+      particulars: true,
+    },
+  });
+}
+
+/** The editable fields of the given contracts (the Contracts page's rows). */
+export async function contractsForEdit(ctx: ActorContext, ids: string[]) {
+  const canSeeSalary = ctx.permissions.has("employees.salary.view");
+
+  return prisma.contract.findMany({
+    where: { id: { in: ids }, ...companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      employeeId: true,
+      companyId: true,
+      contractType: true,
+      startDate: true,
+      endDate: true,
+      probationEndDate: true,
+      status: true,
+      currency: true,
+      notes: true,
+      basicSalary: canSeeSalary,
+      allowances: canSeeSalary,
+      contractDate: true,
+      positionTitle: true,
+      jobDescriptionId: true,
+      termYears: true,
+      workDaysPerWeek: true,
+      hoursPerDay: true,
+      particulars: true,
     },
   });
 }
@@ -325,4 +375,166 @@ export function allowanceValue(
   if (allowances === null || typeof allowances !== "object") return null;
   const value = (allowances as Record<string, unknown>)[key];
   return typeof value === "string" ? value : null;
+}
+
+const dmy = (d: Date | null | undefined) =>
+  d
+    ? [
+        String(d.getUTCDate()).padStart(2, "0"),
+        String(d.getUTCMonth() + 1).padStart(2, "0"),
+        String(d.getUTCFullYear()),
+      ].join("/")
+    : "";
+
+/**
+ * What a new contract starts from: the employee's particulars from their
+ * record, and — when they were hired through an offer — the offer's salary,
+ * term and ticket. Everything here is a suggestion the form can change.
+ */
+export async function contractDefaults(ctx: ActorContext, employeeId: string) {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, ...companyScopeWhere(ctx) },
+    select: {
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      familyName: true,
+      fullNameAr: true,
+      nationality: true,
+      dateOfBirth: true,
+      position: { select: { title: true } },
+      iqama: { select: { iqamaNumber: true } },
+      passport: { select: { passportNumber: true } },
+      jobOfferOrigin: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          contractYears: true,
+          ticketDestination: true,
+          ticketCover: true,
+          candidateAddress: true,
+          basicSalary: true,
+          housingAllowance: true,
+          transportAllowance: true,
+          mobileAllowance: true,
+          candidateIdType: true,
+          candidateIdNumber: true,
+        },
+      },
+    },
+  });
+  if (!employee) throw new NotFoundError("Employee not found.");
+  const offer = employee.jobOfferOrigin[0];
+  const nat = NATIONALITIES[employee.nationality];
+  const legalName = [
+    employee.firstName,
+    employee.middleName,
+    employee.lastName,
+    employee.familyName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+  const canSeeSalary = ctx.permissions.has("employees.salary.view");
+  const str = (v: { toString(): string } | null | undefined) => (v ? v.toString() : "");
+
+  return {
+    positionTitle: employee.position?.title ?? "",
+    termYears: offer?.contractYears ?? 1,
+    salary:
+      canSeeSalary && offer
+        ? {
+            basicSalary: str(offer.basicSalary),
+            housingAllowance: str(offer.housingAllowance),
+            transportAllowance: str(offer.transportAllowance),
+            otherAllowance: str(offer.mobileAllowance),
+          }
+        : null,
+    particulars: {
+      nameEn: legalName,
+      nameAr: employee.fullNameAr ?? "",
+      nationalityEn: nat?.en ?? employee.nationality,
+      nationalityAr: nat?.ar ?? "",
+      iqamaNo:
+        employee.iqama?.iqamaNumber ??
+        (offer?.candidateIdType === "IQAMA" ? (offer.candidateIdNumber ?? "") : ""),
+      passportNo:
+        employee.passport?.passportNumber ??
+        (offer?.candidateIdType === "PASSPORT" ? (offer.candidateIdNumber ?? "") : ""),
+      dateOfBirth: dmy(employee.dateOfBirth),
+      homeAddressEn: offer?.candidateAddress ?? "",
+      homeAddressAr: "",
+      saudiAddressEn: "",
+      saudiAddressAr: "",
+      homePhone: "",
+      ticketDestinationEn: offer?.ticketDestination ?? "",
+      ticketDestinationAr: "",
+      ticketWife: offer?.ticketCover === "SELF_FAMILY",
+      ticketChildren: 0,
+    },
+  };
+}
+
+/** Everything the printed contract needs. */
+export async function getContractForPrint(ctx: ActorContext, id: string) {
+  const contract = await prisma.contract.findFirst({
+    where: { id, ...companyScopeWhere(ctx) },
+    select: {
+      id: true,
+      startDate: true,
+      contractDate: true,
+      createdAt: true,
+      positionTitle: true,
+      jobDescriptionId: true,
+      termYears: true,
+      workDaysPerWeek: true,
+      hoursPerDay: true,
+      particulars: true,
+      basicSalary: true,
+      allowances: true,
+      employee: {
+        select: {
+          id: true,
+          employeeNo: true,
+          fullName: true,
+          gender: true,
+          position: { select: { title: true } },
+        },
+      },
+      company: {
+        select: {
+          id: true,
+          name: true,
+          nameAr: true,
+          crNumber: true,
+          addressLine: true,
+          addressAr: true,
+          city: true,
+          cityAr: true,
+          headOfficeCity: true,
+          headOfficeCityAr: true,
+          signatoryName: true,
+          signatoryNameAr: true,
+          signatoryTitle: true,
+          signatoryTitleAr: true,
+          headerImageFileId: true,
+          footerImageFileId: true,
+        },
+      },
+    },
+  });
+  if (!contract) throw new NotFoundError("Contract not found.");
+
+  const jd = contract.jobDescriptionId
+    ? await prisma.jobDescription.findUnique({
+        where: { id: contract.jobDescriptionId },
+        select: { title: true, departmental: true, organizational: true },
+      })
+    : null;
+
+  return {
+    ...contract,
+    jobDescription: jd,
+    contractDateLabel: dmy(contract.contractDate ?? contract.startDate),
+  };
 }

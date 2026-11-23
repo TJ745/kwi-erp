@@ -54,6 +54,20 @@
   --status-expired-bg: oklch(0.95 0.03 25);
   --status-info: oklch(0.52 0.13 250);
   --status-info-bg: oklch(0.95 0.03 250);
+
+  /* Increment list header bands, after the company's paper sheet. */
+  --inc-current: oklch(0.96 0.005 250);
+  --inc-demand: oklch(0.90 0.06 55);
+  --inc-propose: oklch(0.93 0.04 215);
+  --inc-highlight: oklch(0.95 0.17 105);
+
+  /* Evaluation forms, after the company's paper forms. */
+  --eval-band: oklch(0.42 0.08 225);
+  --eval-band-foreground: oklch(0.99 0 0);
+  --eval-head: oklch(0.93 0.025 240);
+  --eval-meter: oklch(0.82 0.11 350);
+  --eval-meter-fill: oklch(0.52 0.19 355);
+  --eval-summary: oklch(0.95 0.07 145);
   --status-neutral: oklch(0.45 0.01 260);
   --status-neutral-bg: oklch(0.96 0.002 260);
 
@@ -131,6 +145,18 @@
   --status-warning-bg: oklch(0.30 0.05 75);
   --status-expired: oklch(0.75 0.17 25);
   --status-expired-bg: oklch(0.30 0.07 25);
+
+  --inc-current: oklch(0.28 0.01 250);
+  --inc-demand: oklch(0.36 0.06 55);
+  --inc-propose: oklch(0.34 0.05 215);
+  --inc-highlight: oklch(0.45 0.10 105);
+
+  --eval-band: oklch(0.40 0.07 225);
+  --eval-band-foreground: oklch(0.98 0 0);
+  --eval-head: oklch(0.30 0.03 240);
+  --eval-meter: oklch(0.40 0.08 350);
+  --eval-meter-fill: oklch(0.65 0.18 355);
+  --eval-summary: oklch(0.32 0.06 145);
   --status-info: oklch(0.78 0.12 250);
   --status-info-bg: oklch(0.28 0.05 250);
   --status-neutral: oklch(0.75 0.01 260);
@@ -185,6 +211,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-inc-current: var(--inc-current);
+  --color-inc-demand: var(--inc-demand);
+  --color-inc-propose: var(--inc-propose);
+  --color-inc-highlight: var(--inc-highlight);
+  --color-eval-band: var(--eval-band);
+  --color-eval-band-foreground: var(--eval-band-foreground);
+  --color-eval-head: var(--eval-head);
+  --color-eval-meter: var(--eval-meter);
+  --color-eval-meter-fill: var(--eval-meter-fill);
+  --color-eval-summary: var(--eval-summary);
 
   --color-status-valid: var(--status-valid);
   --color-status-valid-bg: var(--status-valid-bg);
@@ -344,6 +381,270 @@
 }
 .letter-frame > tfoot > tr > td {
   padding-top: 2.5rem;
+}
+
+/* Company forms — personnel request, interview report, joining letter,
+   clearance form. Their black bars, green boxes and tick marks are the form,
+   so they print in colour. */
+.form-sheet {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+/* Arial unless the form asks for Times (joining letter, clearance form,
+   maintenance request): this rule sits outside Tailwind's layers, so it would
+   otherwise beat the font-serif utility. */
+.form-sheet:not(.font-serif) {
+  font-family: Arial, Helvetica, sans-serif;
+}
+/* The handover letter is typed in Calibri, like the company's Word original. */
+.form-sheet.handover-letter {
+  font-family: Calibri, Carlito, Arial, sans-serif;
+}
+/* The paper forms are set in Times New Roman, not the app's display serif. */
+.form-sheet.font-serif {
+  font-family: "Times New Roman", Times, serif;
+}
+/* One sheet per form: a smaller logo leaves the grid room to fit. */
+.letter-sheet--form .form-logo img {
+  max-height: 22mm;
+}
+.small-caps {
+  font-variant: small-caps;
+}
+.joining-title {
+  font-family: "Comic Sans MS", "Comic Neue", cursive;
+}
+/* The joining letter's blue double border, round the letterhead and form. */
+.letter-frame.form-bordered {
+  border: 6px double #1f2f86;
+}
+.letter-frame.form-bordered > thead > tr > td,
+.letter-frame.form-bordered > tbody > tr > td {
+  padding-inline: 1.5rem !important;
+}
+.letter-frame.form-bordered > thead > tr > td {
+  padding-top: 1rem !important;
+}
+.letter-frame.form-bordered > tbody > tr > td {
+  padding-bottom: 1rem !important;
+}
+
+/* Sub-contract agreement: the rate schedule and signature block, styled after
+   the company's paper agreement (green header row, boxed cells). */
+.subcontract-rates th,
+.subcontract-rates td {
+  border: 1px solid #1f4e9c;
+  padding: 0.1rem 0.5rem;
+}
+.subcontract-rates th {
+  background: #00b050;
+  color: #0b2a5b;
+  text-transform: uppercase;
+  /* Browsers drop backgrounds when printing unless asked to keep them. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.subcontract-rates,
+.subcontract-signatures {
+  break-inside: avoid;
+}
+
+/* Bilingual warning letter: justified paragraphs with a first-line indent, as
+   on the company's paper letter. Arabic is set in a face that shapes it well
+   rather than the serif used for the English column. */
+.warning-letter .warning-para {
+  text-align: justify;
+  text-indent: 3em;
+}
+.warning-letter .warning-ar {
+  font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+}
+
+/* Increment list print (landscape is set by the page itself): coloured header
+   bands kept when printing — browsers drop backgrounds unless asked. */
+.increment-sheet th,
+.increment-sheet td {
+  border: 1px solid #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Evaluation forms, printed: the sheet is always paper-coloured, so these are
+   fixed colours rather than theme tokens. Backgrounds are kept when printing. */
+.eval-sheet .eval-band {
+  background: #0b5876;
+  color: #fff;
+}
+.eval-sheet .eval-head {
+  background: #dce6f1;
+  color: #1f3864;
+}
+.eval-sheet .eval-label {
+  color: #1f3864;
+}
+.eval-sheet .eval-box {
+  border: 1px solid #1f4e79;
+}
+.eval-sheet .eval-table th,
+.eval-sheet .eval-table td {
+  border: 1px solid #1f4e79;
+}
+.eval-sheet .eval-table .eval-split {
+  border-right: 6px solid #0b5876;
+}
+.eval-sheet .eval-meter {
+  background: #ff99cc;
+}
+.eval-sheet .eval-meter-fill {
+  background: #c2185b;
+}
+.eval-sheet .eval-summary {
+  background: #ccffcc;
+}
+.eval-sheet,
+.eval-sheet * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.eval-sheet .eval-page + .eval-page {
+  margin-top: 1.5rem;
+}
+@media print {
+  .eval-sheet .eval-page {
+    break-after: page;
+  }
+  .eval-sheet .eval-page:last-child {
+    break-after: auto;
+  }
+  .eval-sheet .eval-page + .eval-page {
+    margin-top: 0;
+  }
+}
+
+/* Job description, after the company template: Cambria, a boxed header
+   table, grey section bars, blue rules and small blue diamond bullets. */
+.jd-sheet {
+  font-family: Cambria, "Times New Roman", serif;
+}
+.jd-sheet .jd-rule {
+  height: 3px;
+  background: #8db3e2;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.15);
+}
+.jd-sheet .jd-rule-thin {
+  height: 1px;
+  background: #8db3e2;
+}
+.jd-sheet .jd-table th,
+.jd-sheet .jd-table td {
+  border: 1px solid #000;
+  padding: 0.15rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.jd-sheet .jd-section {
+  border: 1px solid #000;
+  background: #f2f2f2;
+}
+.jd-sheet .jd-list {
+  padding-left: 2.2rem;
+}
+.jd-sheet .jd-list li {
+  list-style: none;
+  position: relative;
+}
+.jd-sheet .jd-list li::before {
+  content: "◆";
+  position: absolute;
+  left: -1.1rem;
+  top: 0.18em;
+  font-size: 0.6em;
+  color: #2e74b5;
+}
+.jd-sheet .jd-keep {
+  break-inside: avoid;
+}
+@media print {
+  /* Repeats at the foot of every printed page, above the page number. */
+  .jd-sheet .jd-foot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: 0;
+  }
+}
+.jd-sheet,
+.jd-sheet * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Employment offer letter, after the company's: Times for the text, a
+   sans-serif for the figures, and the boxed acceptance block. */
+.offer-sheet {
+  font-family: "Times New Roman", Times, serif;
+}
+.offer-sheet .offer-sans {
+  font-family: Arial, Helvetica, sans-serif;
+}
+.offer-sheet .offer-terms td {
+  padding: 0;
+  vertical-align: top;
+}
+.offer-sheet .offer-box {
+  border: 1px solid #000;
+  border-collapse: collapse;
+  break-inside: avoid;
+}
+.offer-sheet .offer-box td {
+  border: 1px solid #000;
+  padding: 0.1rem 0.25rem;
+}
+
+/* Employment contract, after the company's original: English and Arabic in
+   two equal columns, Calibri, the signature page and each annexure on a page
+   of its own. */
+.contract-sheet {
+  font-family: Calibri, Carlito, Arial, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.contract-sheet [lang="ar"] {
+  font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+}
+.contract-sheet .contract-cols {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 1.5rem 0;
+  table-layout: fixed;
+}
+.contract-sheet .contract-cols > tbody > tr > td {
+  width: 50%;
+  vertical-align: top;
+  padding: 0 0 0.9rem;
+  text-align: justify;
+}
+.contract-sheet .contract-cols > tbody > tr > td[lang="ar"] {
+  text-align: right;
+}
+.contract-sheet .contract-cols > tbody > tr {
+  break-inside: avoid;
+}
+.contract-sheet .contract-salary td {
+  padding: 0;
+  font-weight: 700;
+  text-align: start;
+}
+.contract-sheet .contract-page {
+  break-before: page;
+}
+@media screen {
+  .contract-sheet .contract-page {
+    margin-top: 2rem;
+    border-top: 1px dashed #bbb;
+    padding-top: 2rem;
+  }
 }
 
 /* Letters render to PDF through the browser print dialog (ADR-004). */
@@ -587,4 +888,208 @@
   .org-item > .org-node::before {
     border-color: black;
   }
+}
+
+/* "Print list" (components/shared/print-list-button.tsx). Scoped to the
+   attribute that button sets, so Ctrl+P elsewhere — letters, reports, the org
+   chart — keeps its own print styling untouched. */
+@media print {
+  /* Controls mean nothing on paper. A select that shows a value (a letter's
+     status, an applied filter) is kept but drawn as plain text. */
+  html[data-print-list] main button:not([role="combobox"]),
+  html[data-print-list] main input,
+  html[data-print-list] main textarea,
+  html[data-print-list] main [role="tablist"],
+  html[data-print-list] main [data-print-hide] {
+    display: none !important;
+  }
+  html[data-print-list] main [role="combobox"] {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    height: auto;
+  }
+  html[data-print-list] main [role="combobox"] svg {
+    display: none;
+  }
+
+  /* Wide tables scroll on screen; on paper they must be whole. */
+  html[data-print-list] main .overflow-x-auto,
+  html[data-print-list] main .overflow-auto {
+    overflow: visible !important;
+  }
+  /* Cells mix text-sm and text-xs on screen; paper gets one size. */
+  html[data-print-list] main table,
+  html[data-print-list] main table :is(th, td, th *, td *) {
+    font-size: 10px !important;
+  }
+  /* Sort arrows are a screen affordance. */
+  html[data-print-list] main th svg {
+    display: none;
+  }
+  html[data-print-list] main th,
+  html[data-print-list] main td {
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    padding: 4px 6px;
+  }
+  /* Column headings on every page, and no row split across two. */
+  html[data-print-list] main thead {
+    display: table-header-group;
+  }
+  html[data-print-list] main tr {
+    break-inside: avoid;
+  }
+  html[data-print-list] main a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* Organization chart, after the company's paper chart: position boxes in a
+   tree joined by elbow lines, people in coloured boxes beneath each title. */
+.pchart {
+  --pchart-line: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.pchart ul {
+  display: flex;
+  justify-content: center;
+  position: relative;
+  margin: 0;
+  padding: 14px 0 0;
+}
+.pchart > ul {
+  padding-top: 0;
+}
+.pchart li {
+  list-style: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 4px 0;
+}
+.pchart > ul > li {
+  padding-top: 0;
+}
+/* The horizontal rail above siblings, and the drop into each box. */
+.pchart ul ul > li::before,
+.pchart ul ul > li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 14px;
+  border-top: 1px solid var(--pchart-line);
+}
+.pchart ul ul > li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid var(--pchart-line);
+}
+.pchart ul ul > li:first-child::before,
+.pchart ul ul > li:last-child::after {
+  border-top: 0;
+}
+.pchart ul ul > li:last-child::before {
+  border-right: 1px solid var(--pchart-line);
+}
+.pchart ul ul > li:only-child::before {
+  display: none;
+}
+.pchart ul ul > li:only-child::after {
+  border-top: 0;
+}
+/* The line down from a parent to its children's rail. */
+.pchart li > ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 14px;
+  border-left: 1px solid var(--pchart-line);
+}
+.pchart-box {
+  width: 112px;
+  border: 1px solid #555;
+  background: #fff;
+  font-size: 9.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+.pchart-title {
+  padding: 3px 2px;
+  font-weight: 700;
+  border-bottom: 1px solid #555;
+}
+.pchart-person {
+  padding: 1px 2px;
+  font-weight: 700;
+  border-top: 1px solid #888;
+}
+@media print {
+  .fit-to-page {
+    zoom: var(--fit, 1);
+  }
+}
+/* A column of end-of-line positions: a spine down the left with a tick to
+   each box, joined to the parent's drop line. */
+.pchart ul.pchart-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.pchart ul.pchart-stack::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 6px;
+  width: calc(50% - 6px);
+  border-top: 1px solid var(--pchart-line);
+}
+.pchart ul.pchart-stack > li:nth-child(n) {
+  padding: 0 0 0 16px;
+}
+.pchart ul.pchart-stack > li:nth-child(n)::before {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -6px;
+  bottom: 0;
+  left: 6px;
+  right: auto;
+  width: 0;
+  height: auto;
+  border: 0;
+  border-left: 1px solid var(--pchart-line);
+}
+.pchart ul.pchart-stack > li:first-child::before {
+  top: 0;
+}
+.pchart ul.pchart-stack > li:last-child::before {
+  bottom: auto;
+  height: 12px;
+}
+.pchart ul.pchart-stack > li:nth-child(n)::after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: 12px;
+  left: 6px;
+  right: auto;
+  width: 10px;
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--pchart-line);
 }

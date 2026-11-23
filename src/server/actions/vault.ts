@@ -13,10 +13,7 @@ import {
   toggleFavorite,
   updateCredential,
 } from "@/server/services/vault/credentials";
-import {
-  createCredentialGrant,
-  revokeCredentialGrant,
-} from "@/server/services/vault/grants";
+import { createCredentialGrant, revokeCredentialGrant } from "@/server/services/vault/grants";
 import { lockVault, unlockVault } from "@/server/services/vault/session";
 import { generateSecret } from "@/server/services/vault/generator";
 
@@ -168,7 +165,10 @@ export const lockVaultAction = defineAction({
 export async function revealCredentialAction(
   rawInput: unknown,
 ): Promise<ActionResult<{ secret: string }>> {
-  const parsed = z.object({ id: z.string().min(1) }).strict().safeParse(rawInput);
+  const parsed = z
+    .object({ id: z.string().min(1) })
+    .strict()
+    .safeParse(rawInput);
   if (!parsed.success) return err("VALIDATION", "Invalid request.");
 
   let ctx;
@@ -198,9 +198,9 @@ export async function revealCredentialAction(
 }
 
 /** Server-side generation, so the value comes from a CSPRNG we control. */
-export async function generatePasswordAction(rawInput: unknown): Promise<
-  ActionResult<{ password: string }>
-> {
+export async function generatePasswordAction(
+  rawInput: unknown,
+): Promise<ActionResult<{ password: string }>> {
   const parsed = z
     .object({
       length: z.coerce.number().int().min(8).max(128).default(20),

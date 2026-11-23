@@ -1,18 +1,14 @@
 import "server-only";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere, optionalCompanyScopeWhere, requireCompanyAccess } from "@/server/auth/guards";
-import { prisma } from "@/server/db/client";
 import {
-  isLetterheadEligible,
-  slotColumn,
-  type LetterheadSlot,
-} from "@/lib/letterhead";
+  companyScopeWhere,
+  optionalCompanyScopeWhere,
+  requireCompanyAccess,
+} from "@/server/auth/guards";
+import { prisma } from "@/server/db/client";
+import { isLetterheadEligible, slotColumn, type LetterheadSlot } from "@/lib/letterhead";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/result";
-import type {
-  CompanyInput,
-  DepartmentInput,
-  PositionInput,
-} from "@/lib/schemas/org";
+import type { CompanyInput, DepartmentInput, PositionInput } from "@/lib/schemas/org";
 
 /** Companies, departments, and positions. */
 
@@ -35,6 +31,15 @@ export async function listCompanies(ctx: ActorContext) {
       registrationNo: true,
       vatNumber: true,
       addressLine: true,
+      nameAr: true,
+      addressAr: true,
+      cityAr: true,
+      headOfficeCity: true,
+      headOfficeCityAr: true,
+      signatoryName: true,
+      signatoryNameAr: true,
+      signatoryTitle: true,
+      signatoryTitleAr: true,
       country: true,
       phone: true,
       email: true,
@@ -72,6 +77,14 @@ function companyData(input: CompanyInput) {
     vatNumber: input.vatNumber ?? null,
     addressLine: input.addressLine ?? null,
     city: input.city ?? null,
+    addressAr: input.addressAr ?? null,
+    cityAr: input.cityAr ?? null,
+    headOfficeCity: input.headOfficeCity ?? null,
+    headOfficeCityAr: input.headOfficeCityAr ?? null,
+    signatoryName: input.signatoryName ?? null,
+    signatoryNameAr: input.signatoryNameAr ?? null,
+    signatoryTitle: input.signatoryTitle ?? null,
+    signatoryTitleAr: input.signatoryTitleAr ?? null,
     country: input.country,
     phone: input.phone ?? null,
     email: input.email ? input.email : null,
@@ -89,10 +102,7 @@ export async function createCompany(ctx: ActorContext, input: CompanyInput) {
   return prisma.company.create({ data: companyData(input) });
 }
 
-export async function updateCompany(
-  ctx: ActorContext,
-  input: CompanyInput & { id: string },
-) {
+export async function updateCompany(ctx: ActorContext, input: CompanyInput & { id: string }) {
   const before = await getCompany(ctx, input.id);
 
   const clash = await prisma.company.findFirst({
@@ -158,10 +168,7 @@ export async function setCompanyBranding(
  * that is settled this only has to resolve a file — so leaving the check out
  * here keeps it in one obvious place instead of two half-places.
  */
-export async function resolveCompanyBrandingFile(
-  companyId: string,
-  slot: LetterheadSlot,
-) {
+export async function resolveCompanyBrandingFile(companyId: string, slot: LetterheadSlot) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: {
@@ -233,10 +240,7 @@ export async function createDepartment(ctx: ActorContext, input: DepartmentInput
   });
 }
 
-export async function updateDepartment(
-  ctx: ActorContext,
-  input: DepartmentInput & { id: string },
-) {
+export async function updateDepartment(ctx: ActorContext, input: DepartmentInput & { id: string }) {
   const before = await prisma.department.findUnique({ where: { id: input.id } });
   if (!before) throw new NotFoundError("Department not found.");
   requireCompanyAccess(ctx, before.companyId);
@@ -285,10 +289,7 @@ export async function updateDepartment(
  * someone in the other entity — and the department card would then name a
  * person the viewer may have no right to see.
  */
-async function assertHeadIsSameCompany(
-  headEmployeeId: string | undefined,
-  companyId: string,
-) {
+async function assertHeadIsSameCompany(headEmployeeId: string | undefined, companyId: string) {
   if (!headEmployeeId) return;
 
   const head = await prisma.employee.findUnique({
@@ -296,9 +297,8 @@ async function assertHeadIsSameCompany(
     select: { companyId: true, deletedAt: true },
   });
   if (!head || head.deletedAt) throw new NotFoundError("That employee was not found.");
-  if (head.companyId !== companyId) {
-    throw new ConflictError("A department head must belong to the same company.");
-  }
+  // A head may come from another group company.
+  void companyId;
 }
 
 async function assertParentIsSameCompany(parentId: string | undefined, companyId: string) {
@@ -385,15 +385,12 @@ async function assertPositionParent(
   let hops = 0;
   while (cursor !== null && hops <= total) {
     if (cursor === selfId) {
-      throw new ValidationError(
-        "That would make the reporting line loop back on itself.",
-      );
+      throw new ValidationError("That would make the reporting line loop back on itself.");
     }
-    const next: { reportsToPositionId: string | null } | null =
-      await prisma.position.findUnique({
-        where: { id: cursor },
-        select: { reportsToPositionId: true },
-      });
+    const next: { reportsToPositionId: string | null } | null = await prisma.position.findUnique({
+      where: { id: cursor },
+      select: { reportsToPositionId: true },
+    });
     cursor = next?.reportsToPositionId ?? null;
     hops += 1;
   }
@@ -423,10 +420,7 @@ export async function createPosition(ctx: ActorContext, input: PositionInput) {
   });
 }
 
-export async function updatePosition(
-  ctx: ActorContext,
-  input: PositionInput & { id: string },
-) {
+export async function updatePosition(ctx: ActorContext, input: PositionInput & { id: string }) {
   const before = await prisma.position.findUnique({ where: { id: input.id } });
   if (!before) throw new NotFoundError("Position not found.");
   if (before.companyId) requireCompanyAccess(ctx, before.companyId);

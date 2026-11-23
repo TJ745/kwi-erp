@@ -9,6 +9,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { assignableEmployees, getAsset } from "@/server/services/assets";
 import { orgOptions } from "@/server/services/org";
 import { AssetDialog } from "../asset-dialog";
+import { assetTypeLabel } from "@/lib/schemas/it";
 import { AssetHandover } from "./asset-handover";
 import { DocumentsPanel } from "@/components/shared/documents-panel";
 
@@ -46,7 +47,7 @@ export default async function AssetDetailPage({
 
       <PageHeader
         title={`${asset.brand} ${asset.model}`}
-        description={`${asset.assetCode} · ${asset.type.replace(/_/g, " ").toLowerCase()} · ${asset.company.code}`}
+        description={`${asset.assetCode} · ${assetTypeLabel(asset.type)} · ${asset.company.code}`}
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={asset.status} />
@@ -61,6 +62,8 @@ export default async function AssetDetailPage({
                   model: asset.model,
                   serialNumber: asset.serialNumber,
                   assetTag: asset.assetTag,
+                  macAddress: asset.macAddress,
+                  ipAddress: asset.ipAddress,
                   purchaseDate: asset.purchaseDate
                     ? asset.purchaseDate.toISOString().slice(0, 10)
                     : null,
@@ -87,6 +90,16 @@ export default async function AssetDetailPage({
             <dl className="space-y-3 text-sm">
               <Detail label="Serial number" value={asset.serialNumber} mono />
               <Detail label="Asset tag" value={asset.assetTag} mono />
+              {asset.macAddress ? (
+                <Detail label="MAC address" value={asset.macAddress} mono />
+              ) : null}
+              {asset.ipAddress ? <Detail label="IP address" value={asset.ipAddress} mono /> : null}
+              {asset.cctv ? (
+                <Detail label="CCTV" value={`${asset.cctv.type} — on the CCTV page`} />
+              ) : null}
+              {asset.ipPhone ? (
+                <Detail label="Phone extension" value={asset.ipPhone.extension} mono />
+              ) : null}
               <Detail label="Condition" value={asset.condition.toLowerCase()} />
               <Detail label="Location" value={asset.location} />
               <Detail
@@ -141,9 +154,7 @@ export default async function AssetDetailPage({
             </CardHeader>
             <CardContent>
               {history.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No previous handovers recorded.
-                </p>
+                <p className="text-muted-foreground text-sm">No previous handovers recorded.</p>
               ) : (
                 <ul className="divide-y">
                   {history.map((h) => (
@@ -167,9 +178,7 @@ export default async function AssetDetailPage({
                           ? ` · Missing: ${accessoriesText(h.missingAccessories) ?? ""}`
                           : ""}
                       </p>
-                      {h.remarksIn ? (
-                        <p className="mt-1 text-sm">{h.remarksIn}</p>
-                      ) : null}
+                      {h.remarksIn ? <p className="mt-1 text-sm">{h.remarksIn}</p> : null}
                     </li>
                   ))}
                 </ul>
@@ -192,15 +201,7 @@ export default async function AssetDetailPage({
   );
 }
 
-function Detail({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string | null;
-  mono?: boolean;
-}) {
+function Detail({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
     <div>
       <dt className="text-muted-foreground text-xs">{label}</dt>

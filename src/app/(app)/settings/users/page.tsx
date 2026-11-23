@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/shared/data-table";
@@ -7,7 +8,7 @@ import { SearchInput } from "@/components/shared/search-input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/states";
 import { parseListQuery, type SearchParams } from "@/lib/list-query";
-import { PERMISSIONS, PERMISSION_KEYS } from "@/lib/permissions";
+import { PERMISSIONS, PERMISSION_KEYS, SUPER_ADMIN_ROLE_KEY } from "@/lib/permissions";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { listUsers, type UserListRow } from "@/server/services/users";
 import { UserRowActions } from "./user-row-actions";
@@ -21,11 +22,7 @@ import {
 
 export const metadata: Metadata = { title: "Users" };
 
-export default async function UsersPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function UsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const ctx = await requirePagePermission("users.view");
   const params = await searchParams;
   const query = parseListQuery(params);
@@ -36,7 +33,7 @@ export default async function UsersPage({
     listUsers(ctx, query),
     listRolesForAssignment(ctx),
     listCompaniesForAssignment(ctx),
-    // Only needed by the create dialog, which only a manager sees.
+    // For the create dialog and the "Link to employee" action, which only a manager sees.
     canManage ? employeesWithoutUser(ctx) : Promise.resolve([]),
   ]);
 
@@ -80,11 +77,26 @@ export default async function UsersPage({
       ),
     },
     {
+      key: "employee",
+      header: "Employee",
+      cell: (row) =>
+        row.employee ? (
+          <Link href={`/people/employees/${row.employee.id}`} className="text-sm hover:underline">
+            {row.employee.fullName}
+            <span className="text-muted-foreground ml-1 font-mono text-xs">
+              {row.employee.employeeNo}
+            </span>
+          </Link>
+        ) : (
+          <span className="text-muted-foreground text-sm">—</span>
+        ),
+    },
+    {
       key: "companies",
       header: "Companies",
       cell: (row) => (
         <span className="text-muted-foreground text-sm tabular-nums">
-          {row.companyCount === 0 ? "None" : row.companyCount}
+          {row.allCompanies ? "All" : row.companyCount === 0 ? "None" : row.companyCount}
         </span>
       ),
     },
@@ -108,10 +120,19 @@ export default async function UsersPage({
       cell: (row) =>
         canManage ? (
           <UserRowActions
-            user={{ id: row.id, name: row.name, status: row.status, roleKey: row.roleKey }}
+            user={{
+              id: row.id,
+              name: row.name,
+              status: row.status,
+              roleKey: row.roleKey,
+              employee: row.employee,
+              allCompanies: row.allCompanies,
+            }}
             roles={roles}
             companies={companies}
             isSelf={row.id === ctx.userId}
+            canLinkSelf={ctx.roleKey === SUPER_ADMIN_ROLE_KEY}
+            employees={unlinkedEmployees}
             overrides={row.overrides.map((o) => ({
               key: o.key,
               label: o.label,
@@ -128,6 +149,7 @@ export default async function UsersPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Users"
         description="Accounts, roles, and company access. Users are created by an administrator; there is no self-registration."
         action={

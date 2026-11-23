@@ -187,9 +187,7 @@ export function EmergencyContacts({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit contact" : "Add emergency contact"}</DialogTitle>
-            <DialogDescription>
-              Who to call about this employee in an emergency.
-            </DialogDescription>
+            <DialogDescription>Who to call about this employee in an emergency.</DialogDescription>
           </DialogHeader>
 
           <form onSubmit={onSubmit} noValidate className="space-y-4">
@@ -259,8 +257,8 @@ export function EmergencyContacts({
           <DialogHeader>
             <DialogTitle>Remove “{confirmDelete?.name}”?</DialogTitle>
             <DialogDescription>
-              The contact is deleted outright. Emergency contacts are not history — a stale one
-              is worse than none.
+              The contact is deleted outright. Emergency contacts are not history — a stale one is
+              worse than none.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -50,10 +50,7 @@ export type RateLimitName = keyof typeof RATE_LIMITS;
  * Throws RateLimitedError when the window is exhausted. The window is fixed
  * rather than sliding — simpler, and adequate for abuse prevention.
  */
-export async function consumeRateLimit(
-  name: RateLimitName,
-  identifier: string,
-): Promise<void> {
+export async function consumeRateLimit(name: RateLimitName, identifier: string): Promise<void> {
   const rule = RATE_LIMITS[name];
   const key = `${name}:${identifier}`;
   const now = new Date();
@@ -81,10 +78,7 @@ export async function consumeRateLimit(
 }
 
 /** Clears a bucket after a legitimate success (e.g. a correct login). */
-export async function resetRateLimit(
-  name: RateLimitName,
-  identifier: string,
-): Promise<void> {
+export async function resetRateLimit(name: RateLimitName, identifier: string): Promise<void> {
   await prisma.rateLimitBucket.deleteMany({ where: { key: `${name}:${identifier}` } });
 }
 

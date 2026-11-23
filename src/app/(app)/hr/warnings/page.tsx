@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { requirePagePermission } from "@/server/auth/page-guards";
@@ -39,8 +41,9 @@ export default async function WarningsPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Warning Letters"
-        description="Disciplinary record. Once an employee acknowledges a warning it can no longer be edited or deleted — it is what they signed for."
+        description="Warning letters issued to employees. Each one prints as the bilingual English / Arabic letter."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="warning-register" ctx={ctx} />
@@ -64,8 +67,7 @@ export default async function WarningsPage({
                 <th className="px-3 py-2 text-left font-medium">Level</th>
                 <th className="px-3 py-2 text-left font-medium">Reason</th>
                 <th className="px-3 py-2 text-left font-medium">Issued</th>
-                <th className="px-3 py-2 text-left font-medium">Acknowledged</th>
-                {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                <th className="w-32 px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -89,30 +91,30 @@ export default async function WarningsPage({
                     {w.issuedDate.toISOString().slice(0, 10)}
                   </td>
                   <td className="px-3 py-2">
-                    {w.acknowledgedAt ? (
-                      <span className="text-muted-foreground tabular-nums">
-                        {w.acknowledgedAt.toISOString().slice(0, 10)}
-                      </span>
-                    ) : (
-                      <Badge variant="outline">Not acknowledged</Badge>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/hr/warnings/${w.id}`}>
+                          <Printer />
+                          Print
+                        </Link>
+                      </Button>
+                      {canManage ? (
+                        <WarningRowActions
+                          warning={{
+                            id: w.id,
+                            employeeId: w.employeeId,
+                            level: w.level,
+                            reason: w.reason,
+                            description: w.description,
+                            descriptionAr: w.descriptionAr ?? "",
+                            project: w.project,
+                            issuedDate: w.issuedDate.toISOString().slice(0, 10),
+                          }}
+                          employees={employees}
+                        />
+                      ) : null}
+                    </div>
                   </td>
-                  {canManage ? (
-                    <td className="px-3 py-2">
-                      <WarningRowActions
-                        warning={{
-                          id: w.id,
-                          employeeId: w.employeeId,
-                          level: w.level,
-                          reason: w.reason,
-                          description: w.description,
-                          issuedDate: w.issuedDate.toISOString().slice(0, 10),
-                          acknowledged: w.acknowledgedAt !== null,
-                        }}
-                        employees={employees}
-                      />
-                    </td>
-                  ) : null}
                 </tr>
               ))}
             </tbody>

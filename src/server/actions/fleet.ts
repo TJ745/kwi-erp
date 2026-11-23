@@ -115,11 +115,7 @@ export const addMaintenanceAction = defineAction({
     });
     return { id: result.record.id };
   },
-  revalidate: (input) => [
-    "/vehicles",
-    `/vehicles/${input.vehicleId}`,
-    "/vehicles/maintenance",
-  ],
+  revalidate: (input) => ["/vehicles", `/vehicles/${input.vehicleId}`, "/vehicles/maintenance"],
 });
 
 export const recordHandoverAction = defineAction({
@@ -141,9 +137,5 @@ export const recordHandoverAction = defineAction({
     });
     return { id: result.id };
   },
-  revalidate: (input) => [
-    "/vehicles",
-    `/vehicles/${input.vehicleId}`,
-    "/vehicles/handovers",
-  ],
+  revalidate: (input) => ["/vehicles", `/vehicles/${input.vehicleId}`, "/vehicles/handovers"],
 });

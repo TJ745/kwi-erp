@@ -8,8 +8,13 @@ import { EmptyState } from "@/components/shared/states";
 import { SearchInput } from "@/components/shared/search-input";
 import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { listSubcontractors, vendorCounts } from "@/server/services/vendors";
+import {
+  getSubcontractDefaultTerms,
+  listSubcontractors,
+  vendorCounts,
+} from "@/server/services/vendors";
 import { SubcontractorDialog } from "./subcontractor-dialog";
+import { DefaultTermsDialog } from "./default-terms-dialog";
 import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "Subcontractors" };
@@ -23,25 +28,28 @@ export default async function SubcontractorsPage({
   const { q, status } = await searchParams;
   const canManage = ctx.permissions.has("subcontractors.manage");
 
-  const [subcontractors, counts] = await Promise.all([
+  const [subcontractors, counts, defaultTerms] = await Promise.all([
     listSubcontractors(ctx, { ...(q ? { q } : {}), ...(status ? { status } : {}) }),
     vendorCounts(ctx),
+    canManage ? getSubcontractDefaultTerms() : Promise.resolve(""),
   ]);
 
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Subcontractors"
         description="Companies working under contract. Contract end dates feed the expiry register and the reminder engine."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="subcontractor-register" ctx={ctx} />
+            {canManage ? <DefaultTermsDialog terms={defaultTerms} /> : null}
             {canManage ? <SubcontractorDialog /> : null}
           </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <CountCard label="Active subcontractors" value={counts.subcontractors} />
         <CountCard label="Active contracts" value={counts.activeContracts} />
         <CountCard
@@ -49,7 +57,6 @@ export default async function SubcontractorsPage({
           value={counts.expiringContracts}
           tone="warning"
         />
-        <CountCard label="Suppliers" value={counts.suppliers} />
       </div>
 
       <SearchInput placeholder="Search name, code, or CR number…" />
@@ -90,9 +97,7 @@ export default async function SubcontractorsPage({
                   <td className="text-muted-foreground px-3 py-2">{s.crNumber ?? "—"}</td>
                   <td className="px-3 py-2">
                     {s.contactPerson ?? <span className="text-muted-foreground">—</span>}
-                    {s.phone ? (
-                      <p className="text-muted-foreground text-xs">{s.phone}</p>
-                    ) : null}
+                    {s.phone ? <p className="text-muted-foreground text-xs">{s.phone}</p> : null}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{s._count.contracts}</td>
                   <td className="px-3 py-2">

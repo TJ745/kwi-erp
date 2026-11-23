@@ -99,9 +99,7 @@ describe("tamper detection", () => {
     const tampered = Buffer.from(sealed.authTag);
     tampered[0] = (tampered[0] ?? 0) ^ 0xff;
 
-    expect(() => openSecret(key, ID, { ...sealed, authTag: tampered })).toThrow(
-      VaultCryptoError,
-    );
+    expect(() => openSecret(key, ID, { ...sealed, authTag: tampered })).toThrow(VaultCryptoError);
   });
 
   it("rejects a modified IV", () => {
@@ -141,9 +139,7 @@ describe("tamper detection", () => {
     expect(() => openSecret(key, ID, { ...sealed, wrappedDek: Buffer.alloc(4) })).toThrow(
       VaultCryptoError,
     );
-    expect(() => openSecret(key, ID, { ...sealed, iv: Buffer.alloc(4) })).toThrow(
-      VaultCryptoError,
-    );
+    expect(() => openSecret(key, ID, { ...sealed, iv: Buffer.alloc(4) })).toThrow(VaultCryptoError);
     expect(() => openSecret(key, ID, { ...sealed, authTag: Buffer.alloc(4) })).toThrow(
       VaultCryptoError,
     );

@@ -1,138 +1,108 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, Network } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Network, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
+import { ChartTotals, PositionChart } from "@/components/shared/position-chart";
+import { cn } from "@/lib/utils";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { buildOrgChart, orgChartStats, type OrgNode } from "@/server/services/org-chart";
-import { ReportLink } from "@/components/shared/report-link";
-import {
-  assignCompanyColours,
-  OrgLegend,
-  OrgTree,
-} from "@/components/shared/org-tree";
+import { positionChart } from "@/server/services/org-chart";
 
-export const metadata: Metadata = { title: "Organisation Chart" };
+export const metadata: Metadata = { title: "Organization Chart" };
+
+/** `?c=id1,id2` — the companies on the chart; none means all. */
+function parseCompanies(value: string | undefined): string[] {
+  return value ? value.split(",").filter(Boolean) : [];
+}
 
 export default async function OrgChartPage({
   searchParams,
 }: {
-  searchParams: Promise<{ companyId?: string }>;
+  searchParams: Promise<{ c?: string }>;
 }) {
   const ctx = await requirePagePermission("employees.view");
-  const { companyId } = await searchParams;
+  const { c } = await searchParams;
+  const selected = parseCompanies(c);
+  const chart = await positionChart(ctx, selected);
+  const codes = chart.companies.map((x) => x.code);
+  const query = selected.length ? `?c=${selected.join(",")}` : "";
 
-  const chart = await buildOrgChart(ctx, { ...(companyId ? { companyId } : {}) });
-  const stats = orgChartStats(chart);
-
-  // Counted from the tree itself rather than queried separately, so the legend
-  // cannot disagree with the boxes it sits under.
-  const byCompany = new Map<string, number>();
-  const tally = (node: OrgNode): void => {
-    // Vacancies are seats, not headcount. Counting them here would invent a
-    // company for a role that has no holder — and inflate the total with
-    // people who do not exist. They have their own KPI above.
-    if (!node.vacant) {
-      byCompany.set(node.companyCode, (byCompany.get(node.companyCode) ?? 0) + 1);
-    }
-    for (const child of node.reports) tally(child);
+  // A company chip adds or removes that company from the selection.
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    return `/people/org-chart${next.length ? `?c=${next.join(",")}` : ""}`;
   };
-  for (const root of chart.roots) tally(root);
-
-  const counts = [...byCompany.entries()]
-    .map(([code, count]) => ({ code, count }))
-    .sort((a, b) => a.code.localeCompare(b.code));
-  const colours = assignCompanyColours(counts.map((c) => c.code));
 
   return (
     <PageShell>
       <PageHeader
-        title="Organisation Chart"
-        description="Reporting lines from each employee's manager. Someone whose manager is outside the companies you can see appears as a root here."
-              action={<ReportLink reportId="reporting-lines" ctx={ctx} />}
+        title="Organization Chart"
+        description="Positions along their reporting lines, with the people in each. The structure comes from each position's “Reports to” in Settings → Departments."
+        action={
+          <Button asChild variant="outline">
+            <Link href={`/people/org-chart/print${query}`}>
+              <Printer />
+              Print
+            </Link>
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="People shown" value={chart.total} />
-        <StatCard label="Top-level" value={stats.roots} />
-        <StatCard label="With reports" value={stats.managers} />
-        <StatCard label="Deepest level" value={stats.deepest} />
-        <StatCard label="Vacant seats" value={chart.vacancies} />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-muted-foreground mr-1 text-xs">Companies</span>
+        <Link
+          href="/people/org-chart"
+          className={cn(
+            "rounded-md border px-2.5 py-1 text-xs",
+            selected.length === 0
+              ? "bg-primary text-primary-foreground border-transparent"
+              : "hover:bg-accent text-muted-foreground",
+          )}
+        >
+          All
+        </Link>
+        {chart.companies.map((co) => (
+          <Link
+            key={co.id}
+            href={toggle(co.id)}
+            className={cn(
+              "rounded-md border px-2.5 py-1 text-xs",
+              selected.includes(co.id)
+                ? "bg-primary text-primary-foreground border-transparent"
+                : "hover:bg-accent text-muted-foreground",
+            )}
+          >
+            {co.code}
+          </Link>
+        ))}
       </div>
 
-      {chart.cycles.length > 0 ? (
-        <div
-          role="alert"
-          className="border-status-expired/40 bg-status-expired/5 rounded-md border p-3"
-        >
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <AlertTriangle className="size-4" aria-hidden="true" />
-            {chart.cycles.length} reporting cycle
-            {chart.cycles.length === 1 ? "" : "s"} detected
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Following the manager chain for these people leads back to themselves, so
-            they are shown at the top level instead. Fix the manager on their record.
-          </p>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {chart.cycles.map((c) => (
-              <li key={c.id}>
-                <Link href={`/people/employees/${c.id}`} className="hover:underline">
-                  {c.fullName} ({c.employeeNo})
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {chart.unplaced.length > 0 ? (
-        <div className="border-status-warning/40 bg-status-warning/5 rounded-md border p-3">
-          <p className="text-sm font-medium">
-            {chart.unplaced.length} budgeted role
-            {chart.unplaced.length === 1 ? "" : "s"} could not be placed on the chart
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            These have budgeted seats but nobody in them, and no “reports to” role set — so
-            there is nowhere to draw them. Set the reporting role on the position to place
-            them.
-          </p>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {chart.unplaced.map((u) => (
-              <li key={`${u.positionTitle}:${u.companyCode ?? ""}`}>
-                {u.positionTitle}
-                {u.companyCode ? ` (${u.companyCode})` : ""} — {u.seats} seat
-                {u.seats === 1 ? "" : "s"}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {chart.roots.length === 0 ? (
+      {chart.tree.length === 0 ? (
         <EmptyState
           icon={Network}
-          title="No employees to chart"
-          description="Active employees with reporting lines appear here."
+          title="No structure yet"
+          description="Give positions a “Reports to” in Settings → Departments, and employees a position."
         />
       ) : (
         <>
-          <OrgLegend counts={counts} colours={colours} />
-          <OrgTree roots={chart.roots} colours={colours} />
+          <div className="overflow-auto rounded-lg border bg-white p-4">
+            <div className="w-max">
+              <PositionChart tree={chart.tree} codes={codes} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <p className="text-muted-foreground max-w-xl text-xs">
+              Carpenters, painters and helpers show as a count per company (Saudis apart); other
+              positions list their people. A position nobody holds shows Vacant.
+              {chart.unplaced > 0
+                ? ` ${String(chart.unplaced)} active employee(s) have no position and are not on the chart.`
+                : ""}
+            </p>
+            <ChartTotals totals={chart.totals} total={chart.total} codes={codes} />
+          </div>
         </>
       )}
     </PageShell>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <Card className="gap-0 py-4">
-      <CardContent className="px-4">
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
   );
 }

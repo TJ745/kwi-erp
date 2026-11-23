@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building } from "lucide-react";
+import { Building, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
@@ -33,11 +34,18 @@ export default async function AccommodationPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Accommodation"
         description="Properties, rooms, and beds. Occupancy is counted from live check-ins, and one occupant per bed is enforced by the database, not by the form."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="accommodation-occupancy" ctx={ctx} />
+            <Button asChild variant="outline">
+              <Link href="/admin/accommodation/occupancy">
+                <Printer />
+                Occupancy sheet
+              </Link>
+            </Button>
             {canManage ? <AccommodationDialog companies={options.companies} /> : null}
           </div>
         }
@@ -61,9 +69,7 @@ export default async function AccommodationPage({
           icon={Building}
           title={q ? "No matching properties" : "No accommodation"}
           description={
-            q
-              ? "Try a different search term."
-              : "Add a property, then give it rooms and beds."
+            q ? "Try a different search term." : "Add a property, then give it rooms and beds."
           }
         />
       ) : (
@@ -83,9 +89,7 @@ export default async function AccommodationPage({
                           {a.city ? ` · ${a.city}` : ""}
                         </p>
                       </div>
-                      {a.status !== "ACTIVE" ? (
-                        <Badge variant="outline">{a.status}</Badge>
-                      ) : null}
+                      {a.status !== "ACTIVE" ? <Badge variant="outline">{a.status}</Badge> : null}
                     </div>
 
                     <div className="flex items-baseline gap-2">
@@ -112,8 +116,7 @@ export default async function AccommodationPage({
                     </div>
 
                     <p className="text-muted-foreground text-xs">
-                      {a.roomCount} room{a.roomCount === 1 ? "" : "s"} · {a.available}{" "}
-                      available
+                      {a.roomCount} room{a.roomCount === 1 ? "" : "s"} · {a.available} available
                       {a.outOfService > 0 ? ` · ${a.outOfService} out of service` : ""}
                     </p>
                   </CardContent>

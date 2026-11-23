@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAINTENANCE_SERVICE_KEYS } from "@/lib/vehicle-maintenance";
 
 const optionalText = (max: number) =>
   z
@@ -100,24 +101,35 @@ export const assignDriverSchema = z
   })
   .strict();
 
-export const unassignDriverSchema = z
-  .object({ vehicleId: z.string().min(1) })
-  .strict();
+export const unassignDriverSchema = z.object({ vehicleId: z.string().min(1) }).strict();
 
 export const maintenanceSchema = z
   .object({
     vehicleId: z.string().min(1),
     date: requiredDate,
     type: z.enum(MAINTENANCE_TYPES),
-    description: z.string().trim().min(3, "Describe the work").max(1000),
+    /** Blank uses the requested services as the description. */
+    description: optionalText(1000),
     mileage: optionalInt,
     workshop: optionalText(150),
     cost: optionalMoney,
     nextDueDate: optionalDate,
     nextDueMileage: optionalInt,
     notes: optionalText(1000),
+    // The printed maintenance request.
+    requestNo: optionalText(40),
+    driverId: optionalText(40),
+    services: z.array(z.enum(MAINTENANCE_SERVICE_KEYS)).max(20).default([]),
+    otherService: optionalText(200),
+    additionalDetails: optionalText(1000),
+    driverNotes: optionalText(1000),
+    requiredParts: optionalText(1000),
   })
   .strict()
+  .refine((d) => d.description !== undefined || d.services.length > 0, {
+    message: "Describe the work or tick the services required",
+    path: ["description"],
+  })
   .refine((d) => !d.nextDueDate || d.nextDueDate.getTime() >= d.date.getTime(), {
     message: "The next service cannot be due before this one",
     path: ["nextDueDate"],
@@ -137,8 +149,10 @@ export const vehicleHandoverSchema = z
     fuelLevel: z.enum(FUEL_LEVELS),
     condition: z.enum(["NEW", "GOOD", "FAIR", "POOR", "DAMAGED"]),
     accessories: optionalText(500),
-    damages: optionalText(500),
+    /** One note per line; each prints as a numbered note on the letter. */
+    damages: optionalText(2000),
     remarks: optionalText(1000),
+    vehicleLabel: optionalText(40),
   })
   .strict();
 

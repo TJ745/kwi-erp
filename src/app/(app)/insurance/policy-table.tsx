@@ -41,7 +41,13 @@ export function PolicyTable({
   policies: PolicyRow[];
   canManage: boolean;
   enrolments: { policyId: string; rows: EnrolmentRow[] }[];
-  employees: { id: string; fullName: string; employeeNo: string; companyId: string }[];
+  employees: {
+    id: string;
+    fullName: string;
+    employeeNo: string;
+    companyId: string;
+    status: string;
+  }[];
   companies: { id: string; code: string; name: string }[];
   providers: { id: string; name: string }[];
 }) {
@@ -66,14 +72,10 @@ export function PolicyTable({
             <tr key={policy.id} className="border-t">
               <td className="px-4 py-2">
                 <p className="font-medium">{policy.providerName}</p>
-                <p className="text-muted-foreground font-mono text-xs">
-                  {policy.policyNumber}
-                </p>
+                <p className="text-muted-foreground font-mono text-xs">{policy.policyNumber}</p>
               </td>
               <td className="px-4 py-2">{policy.companyCode}</td>
-              <td className="text-muted-foreground px-4 py-2">
-                {policy.className ?? "—"}
-              </td>
+              <td className="text-muted-foreground px-4 py-2">{policy.className ?? "—"}</td>
               <td className="px-4 py-2">
                 <ExpiryDate date={policy.expiryDate} horizonDays={60} />
               </td>
@@ -91,30 +93,23 @@ export function PolicyTable({
                       id: policy.id,
                       policyNumber: policy.policyNumber,
                       className: policy.className,
+                      closed: policy.status === "EXPIRED" || policy.status === "CANCELLED",
                     }}
-                    enrolments={
-                      enrolments.find((e) => e.policyId === policy.id)?.rows ?? []
-                    }
-                    // Only this policy's company: the server refuses anyone
-                    // else, so offering them would be offering a failure.
-                    employees={employees
-                      .filter((e) => e.companyId === policy.companyId)
-                      .map((e) => ({
-                        id: e.id,
-                        fullName: e.fullName,
-                        employeeNo: e.employeeNo,
-                      }))}
+                    enrolments={enrolments.find((e) => e.policyId === policy.id)?.rows ?? []}
+                    // Employees of every company can be covered.
+                    employees={employees.map((e) => ({
+                      id: e.id,
+                      fullName: e.fullName,
+                      employeeNo: e.employeeNo,
+                      status: e.status,
+                    }))}
                     canManage={canManage}
                   />
                 </span>
               </td>
               {canManage ? (
                 <td className="px-4 py-2 text-right">
-                  <PolicyDialog
-                    companies={companies}
-                    providers={providers}
-                    policy={policy}
-                  />
+                  <PolicyDialog companies={companies} providers={providers} policy={policy} />
                 </td>
               ) : null}
             </tr>
@@ -130,13 +125,7 @@ export function PolicyTable({
  * phone from a clinic and needs recording immediately — opening a full edit
  * form for it would mean it often does not get recorded at all.
  */
-function WorkingToggle({
-  policy,
-  canManage,
-}: {
-  policy: PolicyRow;
-  canManage: boolean;
-}) {
+function WorkingToggle({ policy, canManage }: { policy: PolicyRow; canManage: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
@@ -161,11 +150,7 @@ function WorkingToggle({
             isWorking: !policy.isWorking,
           });
           if (result.success) {
-            toast.success(
-              policy.isWorking
-                ? "Marked as not working."
-                : "Marked as working again.",
-            );
+            toast.success(policy.isWorking ? "Marked as not working." : "Marked as working again.");
             router.refresh();
           } else {
             toast.error(result.error);

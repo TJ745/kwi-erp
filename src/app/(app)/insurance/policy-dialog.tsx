@@ -22,7 +22,10 @@ import { createPolicyAction, updatePolicyAction } from "@/server/actions/insuran
 import type { PolicyRow } from "./policy-table";
 
 const titleCase = (v: string) =>
-  v.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  v
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
 
 export function PolicyDialog({
   companies,
@@ -103,8 +106,8 @@ export function PolicyDialog({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "Add policy" : "Edit policy"}</DialogTitle>
             <DialogDescription>
-              Status is the contractual state. &ldquo;Working&rdquo; is whether the card
-              actually functions at a clinic — a policy can be in-date and not working.
+              Status is the contractual state. &ldquo;Working&rdquo; is whether the card actually
+              functions at a clinic — a policy can be in-date and not working.
             </DialogDescription>
           </DialogHeader>
 

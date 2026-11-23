@@ -55,6 +55,7 @@ export default async function DocumentsPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Documents"
         description="Every governed document across the companies you can see. The per-record tabs answer what one employee holds; this answers what is about to lapse."
       />

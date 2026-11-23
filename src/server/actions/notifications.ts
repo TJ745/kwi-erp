@@ -2,7 +2,9 @@
 
 import { z } from "zod";
 import { defineAction } from "./define-action";
-import { markAllRead, markRead,
+import {
+  markAllRead,
+  markRead,
   listNotifications,
   unreadCount,
 } from "@/server/services/notifications";

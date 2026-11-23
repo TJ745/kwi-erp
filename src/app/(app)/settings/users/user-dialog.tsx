@@ -115,19 +115,14 @@ export function UserDialog({
           <DialogHeader>
             <DialogTitle>Add user</DialogTitle>
             <DialogDescription>
-              The account is created with a temporary password. They will be asked to
-              change it the first time they sign in.
+              The account is created with a temporary password. They will be asked to change it the
+              first time they sign in.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={onSubmit} noValidate className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
-                name="name"
-                label="Full name"
-                required
-                errors={errors.name}
-              />
+              <TextField name="name" label="Full name" required errors={errors.name} />
               <TextField
                 name="email"
                 label="Email"
@@ -182,8 +177,8 @@ export function UserDialog({
             <div className="space-y-2">
               <Label>Company access</Label>
               <p className="text-muted-foreground text-xs">
-                Leave all unticked for an account with no company data — useful for a
-                pure administrator.
+                Leave all unticked for an account with no company data — useful for a pure
+                administrator.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {companies.map((c) => (
@@ -192,9 +187,7 @@ export function UserDialog({
                       checked={companyIds.includes(c.id)}
                       onCheckedChange={(checked) => {
                         setCompanyIds((prev) =>
-                          checked === true
-                            ? [...prev, c.id]
-                            : prev.filter((id) => id !== c.id),
+                          checked === true ? [...prev, c.id] : prev.filter((id) => id !== c.id),
                         );
                       }}
                     />

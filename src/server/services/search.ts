@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
-import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
+import { companyScopeWhere } from "@/server/auth/guards";
 import type { PermissionKey } from "@/lib/permissions";
 
 /**
@@ -32,10 +32,7 @@ export type SearchHit = {
 const MIN_QUERY_LENGTH = 2;
 const PER_SOURCE_LIMIT = 5;
 
-export async function globalSearch(
-  ctx: ActorContext,
-  rawQuery: string,
-): Promise<SearchHit[]> {
+export async function globalSearch(ctx: ActorContext, rawQuery: string): Promise<SearchHit[]> {
   const query = rawQuery.trim().slice(0, 100);
   if (query.length < MIN_QUERY_LENGTH) return [];
   if (!ctx.permissions.has("search.global")) return [];
@@ -148,66 +145,6 @@ export async function globalSearch(
             title: r.title,
             subtitle: `${r.documentType.name}${r.documentNo ? ` · ${r.documentNo}` : ""}`,
             href: "/documents",
-          })),
-        ),
-    );
-  }
-
-  if (can("tasks.view")) {
-    sources.push(
-      prisma.task
-        .findMany({
-          where: { ...companyScopeWhere(ctx), title: insensitive },
-          take: PER_SOURCE_LIMIT,
-          select: { id: true, taskNo: true, title: true, status: true },
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            group: "Tasks",
-            title: r.title,
-            subtitle: `${r.taskNo} · ${r.status.toLowerCase()}`,
-            href: `/tasks/${r.id}`,
-          })),
-        ),
-    );
-  }
-
-  if (can("it.tickets.view")) {
-    sources.push(
-      prisma.iTTicket
-        .findMany({
-          where: { ...companyScopeWhere(ctx), subject: insensitive },
-          take: PER_SOURCE_LIMIT,
-          select: { id: true, ticketNo: true, subject: true, status: true },
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            group: "Tickets",
-            title: r.subject,
-            subtitle: `${r.ticketNo} · ${r.status.toLowerCase()}`,
-            href: `/it/helpdesk/${r.id}`,
-          })),
-        ),
-    );
-  }
-
-  if (can("suppliers.view")) {
-    sources.push(
-      prisma.supplier
-        .findMany({
-          where: { deletedAt: null, ...optionalCompanyScopeWhere(ctx), name: insensitive },
-          take: PER_SOURCE_LIMIT,
-          select: { id: true, name: true, code: true },
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            group: "Suppliers",
-            title: r.name,
-            subtitle: r.code,
-            href: "/admin/suppliers",
           })),
         ),
     );

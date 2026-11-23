@@ -123,9 +123,7 @@ export function AccommodationDialog({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <form onSubmit={onSubmit} noValidate>
             <DialogHeader>
-              <DialogTitle>
-                {accommodation ? "Edit property" : "Add property"}
-              </DialogTitle>
+              <DialogTitle>{accommodation ? "Edit property" : "Add property"}</DialogTitle>
               <DialogDescription>
                 Rooms and beds are added from the property&apos;s own page.
               </DialogDescription>

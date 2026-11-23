@@ -118,9 +118,9 @@ export function PermissionOverridesDialog({
         <DialogHeader>
           <DialogTitle>Permission overrides</DialogTitle>
           <DialogDescription>
-            {user.name} inherits {user.roleKey.replace(/_/g, " ")}. Overrides adjust that for
-            this person alone. A denial always beats a grant, and an expired override stops
-            applying on its own.
+            {user.name} inherits {user.roleKey.replace(/_/g, " ")}. Overrides adjust that for this
+            person alone. A denial always beats a grant, and an expired override stops applying on
+            its own.
           </DialogDescription>
         </DialogHeader>
 

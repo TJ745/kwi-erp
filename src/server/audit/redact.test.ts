@@ -53,7 +53,10 @@ describe("diffRecords", () => {
   });
 
   it("serialises dates and bigints to stable values", () => {
-    const changes = diffRecords({ at: new Date("2026-01-01"), n: 1n }, { at: new Date("2026-02-01"), n: 2n });
+    const changes = diffRecords(
+      { at: new Date("2026-01-01"), n: 1n },
+      { at: new Date("2026-02-01"), n: 2n },
+    );
     expect(changes.at?.after).toBe("2026-02-01T00:00:00.000Z");
     expect(changes.n?.after).toBe("2");
   });

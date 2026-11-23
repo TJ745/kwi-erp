@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { leaveFormSchema } from "@/lib/leave-form";
+import { HOURS_PER_DAY, MAX_CHILDREN, TERM_YEARS, WORK_DAYS } from "@/lib/employment-contract";
 
 const optionalText = (max: number) =>
   z
@@ -29,6 +31,34 @@ const optionalMoney = z
 
 // --- Contracts ---------------------------------------------------------------
 
+const text = (max: number) => z.string().trim().max(max).default("");
+
+/** The employee's particulars and ticket family, as printed in the contract. */
+export const contractParticularsSchema = z
+  .object({
+    nameEn: text(200),
+    nameAr: text(200),
+    nationalityEn: text(60),
+    nationalityAr: text(60),
+    iqamaNo: text(30),
+    passportNo: text(30),
+    dateOfBirth: text(20),
+    homeAddressEn: text(300),
+    homeAddressAr: text(300),
+    saudiAddressEn: text(300),
+    saudiAddressAr: text(300),
+    homePhone: text(40),
+    ticketDestinationEn: text(80),
+    ticketDestinationAr: text(80),
+    ticketWife: z.boolean().default(false),
+    ticketChildren: z.coerce.number().int().min(0).max(MAX_CHILDREN).default(0),
+  })
+  .strict();
+export type ContractParticulars = z.infer<typeof contractParticularsSchema>;
+
+const oneOf = (values: readonly number[], message: string) =>
+  z.coerce.number().refine((v) => values.includes(v), message);
+
 export const CONTRACT_TYPES = [
   "PERMANENT",
   "FIXED_TERM",
@@ -37,13 +67,7 @@ export const CONTRACT_TYPES = [
   "CONSULTANCY",
 ] as const;
 
-export const CONTRACT_STATUSES = [
-  "DRAFT",
-  "ACTIVE",
-  "EXPIRED",
-  "TERMINATED",
-  "RENEWED",
-] as const;
+export const CONTRACT_STATUSES = ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED", "RENEWED"] as const;
 
 const contractSchemaObject = z
   .object({
@@ -60,6 +84,14 @@ const contractSchemaObject = z
     currency: z.string().trim().length(3).default("SAR"),
     status: z.enum(CONTRACT_STATUSES).default("ACTIVE"),
     notes: optionalText(1000),
+    // The printed contract.
+    contractDate: optionalDate,
+    positionTitle: optionalText(150),
+    jobDescriptionId: optionalText(60),
+    termYears: oneOf(TERM_YEARS, "Choose 1 or 2 years").default(1),
+    workDaysPerWeek: oneOf(WORK_DAYS, "Choose 5 or 6 days").default(5),
+    hoursPerDay: oneOf(HOURS_PER_DAY, "Choose 8, 9 or 10 hours").default(8),
+    particulars: contractParticularsSchema.optional(),
   })
   .strict();
 
@@ -108,13 +140,15 @@ export const contractSchema = contractSchemaObject.superRefine(checkContractDate
 
 export type ContractInput = z.infer<typeof contractSchema>;
 
-export const updateContractSchema = contractSchemaObject.extend({ id: z.string().min(1) }).superRefine(checkContractDates);
+export const updateContractSchema = contractSchemaObject
+  .extend({ id: z.string().min(1) })
+  .superRefine(checkContractDates);
 
 // --- Leave -------------------------------------------------------------------
 
 export const LEAVE_STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
 
-export const leaveRequestSchema = z
+const leaveRequestObject = z
   .object({
     employeeId: z.string().min(1, "Employee is required"),
     leaveTypeId: z.string().min(1, "Leave type is required"),
@@ -125,12 +159,22 @@ export const leaveRequestSchema = z
       .string()
       .optional()
       .transform((v) => (v === "" || v === "none" ? undefined : v)),
+    /** The printed form's other fields. */
+    form: leaveFormSchema.optional(),
   })
-  .strict()
-  .refine((d) => d.endDate.getTime() >= d.startDate.getTime(), {
-    message: "End date cannot precede the start date",
-    path: ["endDate"],
-  });
+  .strict();
+
+const endAfterStart = (d: { startDate: Date; endDate: Date }) =>
+  d.endDate.getTime() >= d.startDate.getTime();
+const endAfterStartIssue = {
+  message: "End date cannot precede the start date",
+  path: ["endDate"],
+};
+
+export const leaveRequestSchema = leaveRequestObject.refine(endAfterStart, endAfterStartIssue);
+export const updateLeaveRequestSchema = leaveRequestObject
+  .extend({ id: z.string().min(1) })
+  .refine(endAfterStart, endAfterStartIssue);
 
 export type LeaveRequestInput = z.infer<typeof leaveRequestSchema>;
 
@@ -148,37 +192,3 @@ export const leaveDecisionSchema = z
   });
 
 export const leaveCancelSchema = z.object({ id: z.string().min(1) }).strict();
-
-// --- Checklists --------------------------------------------------------------
-
-export const CHECKLIST_TYPES = ["ONBOARDING", "OFFBOARDING", "CLEARANCE"] as const;
-
-/** Mirrors the Prisma enum, but declared here so the UI layer never imports
- *  generated code (docs/ARCHITECTURE.md §4). */
-export type ChecklistTypeValue = (typeof CHECKLIST_TYPES)[number];
-
-export const CHECKLIST_ITEM_STATUSES = [
-  "PENDING",
-  "IN_PROGRESS",
-  "COMPLETED",
-  "NOT_APPLICABLE",
-  "BLOCKED",
-] as const;
-
-export const startChecklistSchema = z
-  .object({
-    employeeId: z.string().min(1),
-    templateId: z.string().min(1, "Select a template"),
-    targetDate: optionalDate,
-  })
-  .strict();
-
-export const checklistItemSchema = z
-  .object({
-    itemId: z.string().min(1),
-    status: z.enum(CHECKLIST_ITEM_STATUSES),
-    notes: optionalText(500),
-  })
-  .strict();
-
-export const completeChecklistSchema = z.object({ instanceId: z.string().min(1) }).strict();

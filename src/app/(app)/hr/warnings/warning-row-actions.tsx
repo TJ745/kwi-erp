@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileSignature, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,12 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DateField } from "@/components/forms/field";
-import { readString } from "@/lib/form-data";
-import {
-  acknowledgeWarningAction,
-  deleteWarningAction,
-} from "@/server/actions/hr-records";
+import { deleteWarningAction } from "@/server/actions/hr-records";
 import { WarningDialog, type WarningValues } from "./warning-dialog";
 
 export function WarningRowActions({
@@ -36,29 +32,8 @@ export function WarningRowActions({
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
-  const [ackOpen, setAckOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
-
-  function onAcknowledge(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    const fd = new FormData(event.currentTarget);
-
-    startTransition(async () => {
-      const result = await acknowledgeWarningAction({
-        id: warning.id,
-        acknowledgedAt: readString(fd, "acknowledgedAt"),
-      });
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      toast.success("Acknowledgement recorded.");
-      setAckOpen(false);
-      router.refresh();
-    });
-  }
 
   function onDelete() {
     startTransition(async () => {
@@ -68,6 +43,7 @@ export function WarningRowActions({
         return;
       }
       toast.success("Warning deleted.");
+      setDeleteOpen(false);
       router.refresh();
     });
   }
@@ -81,21 +57,13 @@ export function WarningRowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {!warning.acknowledged ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                setAckOpen(true);
-              }}
-            >
-              <FileSignature className="size-4" />
-              Record acknowledgement
-            </DropdownMenuItem>
-          ) : null}
-
-          {/* An acknowledged warning is what the employee signed for, so both
-              edit and delete are withheld rather than offered and refused. */}
+          <DropdownMenuItem asChild>
+            <Link href={`/hr/warnings/${warning.id}`}>
+              <Printer className="size-4" />
+              Print letter
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={warning.acknowledged}
             onSelect={() => {
               setEditOpen(true);
             }}
@@ -105,9 +73,8 @@ export function WarningRowActions({
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            disabled={warning.acknowledged || pending}
             onSelect={() => {
-              onDelete();
+              setDeleteOpen(true);
             }}
           >
             <Trash2 className="size-4" />
@@ -123,49 +90,28 @@ export function WarningRowActions({
         onOpenChange={setEditOpen}
       />
 
-      <Dialog open={ackOpen} onOpenChange={setAckOpen}>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
-          <form onSubmit={onAcknowledge} noValidate>
-            <DialogHeader>
-              <DialogTitle>Record acknowledgement</DialogTitle>
-              <DialogDescription>
-                Once recorded, this warning becomes read-only — it is the text the
-                employee signed for.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              {error ? (
-                <div
-                  role="alert"
-                  className="border-destructive/40 bg-destructive/5 text-destructive rounded-md border p-3 text-sm"
-                >
-                  {error}
-                </div>
-              ) : null}
-              <DateField
-                name="acknowledgedAt"
-                label="Acknowledged on"
-                required
-                defaultValue={new Date().toISOString().slice(0, 10)}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setAckOpen(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Record"}
-              </Button>
-            </DialogFooter>
-          </form>
+          <DialogHeader>
+            <DialogTitle>Delete this warning?</DialogTitle>
+            <DialogDescription>
+              It is removed from the employee&apos;s record and the warnings list. This cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={onDelete} disabled={pending}>
+              {pending ? "Deleting…" : "Delete warning"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

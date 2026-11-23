@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/shared/page-header";
 import { ExpiryAlert } from "@/components/shared/expiry-alert";
 import { AppError } from "@/lib/result";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import { getSubcontractor } from "@/server/services/vendors";
+import { getSubcontractor, getSubcontractDefaultTerms } from "@/server/services/vendors";
 import { orgOptions } from "@/server/services/org";
 import { ContractDialog } from "./contract-dialog";
 import { ContractRowActions } from "./contract-row-actions";
@@ -30,7 +30,10 @@ export default async function SubcontractorPage({
     if (error instanceof AppError) notFound();
     throw error;
   });
-  const options = await orgOptions(ctx);
+  const [options, defaultTerms] = await Promise.all([
+    orgOptions(ctx),
+    canManage ? getSubcontractDefaultTerms() : Promise.resolve(""),
+  ]);
 
   return (
     <PageShell>
@@ -50,6 +53,9 @@ export default async function SubcontractorPage({
               {subcontractor.contactPerson ? ` · ${subcontractor.contactPerson}` : ""}
               {subcontractor.phone ? ` · ${subcontractor.phone}` : ""}
             </p>
+            {subcontractor.address ? (
+              <p className="text-muted-foreground text-xs">{subcontractor.address}</p>
+            ) : null}
           </div>
         </div>
 
@@ -68,6 +74,7 @@ export default async function SubcontractorPage({
                   phone: subcontractor.phone,
                   email: subcontractor.email,
                   crNumber: subcontractor.crNumber,
+                  address: subcontractor.address,
                   status: subcontractor.status,
                   notes: subcontractor.notes,
                 }}
@@ -75,6 +82,7 @@ export default async function SubcontractorPage({
               <ContractDialog
                 subcontractorId={subcontractor.id}
                 companies={options.companies}
+                defaultTerms={defaultTerms}
               />
               {subcontractor.status === "ACTIVE" ? (
                 <SubcontractorArchiveButton
@@ -91,9 +99,7 @@ export default async function SubcontractorPage({
       </div>
 
       {subcontractor.notes ? (
-        <p className="text-muted-foreground rounded-lg border p-3 text-sm">
-          {subcontractor.notes}
-        </p>
+        <p className="text-muted-foreground rounded-lg border p-3 text-sm">{subcontractor.notes}</p>
       ) : null}
 
       <section className="space-y-3">
@@ -114,7 +120,7 @@ export default async function SubcontractorPage({
                   <th className="px-3 py-2 text-left font-medium">Period</th>
                   <th className="px-3 py-2 text-right font-medium">Value</th>
                   <th className="px-3 py-2 text-left font-medium">Status</th>
-                  {canManage ? <th className="w-10 px-3 py-2" /> : null}
+                  <th className="w-24 px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -140,25 +146,45 @@ export default async function SubcontractorPage({
                         {c.status}
                       </Badge>
                     </td>
-                    {canManage ? (
-                      <td className="px-3 py-2">
-                        <ContractRowActions
-                          contract={{
-                            id: c.id,
-                            subcontractorId: subcontractor.id,
-                            companyId: c.companyId,
-                            contractNo: c.contractNo,
-                            scope: c.scope,
-                            startDate: c.startDate.toISOString().slice(0, 10),
-                            endDate: c.endDate.toISOString().slice(0, 10),
-                            value: c.value ? c.value.toString() : null,
-                            currency: c.currency,
-                            status: c.status,
-                          }}
-                          companies={options.companies}
-                        />
-                      </td>
-                    ) : null}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button asChild size="sm" variant="outline">
+                          <Link
+                            href={`/admin/subcontractors/${subcontractor.id}/contracts/${c.id}`}
+                          >
+                            <Printer />
+                            Print
+                          </Link>
+                        </Button>
+                        {canManage ? (
+                          <ContractRowActions
+                            contract={{
+                              id: c.id,
+                              subcontractorId: subcontractor.id,
+                              companyId: c.companyId,
+                              contractNo: c.contractNo,
+                              scope: c.scope,
+                              startDate: c.startDate.toISOString().slice(0, 10),
+                              endDate: c.endDate.toISOString().slice(0, 10),
+                              agreementDate: c.agreementDate
+                                ? c.agreementDate.toISOString().slice(0, 10)
+                                : null,
+                              value: c.value ? c.value.toString() : null,
+                              currency: c.currency,
+                              status: c.status,
+                              notes: c.notes,
+                              terms: c.terms,
+                              rates: c.rates.map((r) => ({
+                                category: r.category,
+                                rate: r.rate.toString(),
+                                unit: r.unit,
+                              })),
+                            }}
+                            companies={options.companies}
+                          />
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

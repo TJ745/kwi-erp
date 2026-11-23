@@ -30,11 +30,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PermissionOverridesDialog, type OverrideRow } from "./permission-overrides-dialog";
 import {
-  PermissionOverridesDialog,
-  type OverrideRow,
-} from "./permission-overrides-dialog";
-import {
+  linkUserEmployeeAction,
   setUserCompanyAccessAction,
   updateUserRoleAction,
   updateUserStatusAction,
@@ -42,17 +40,32 @@ import {
 
 type Role = { id: string; key: string; name: string; description: string | null; rank: number };
 type Company = { id: string; code: string; name: string };
+type LinkedEmployee = { id: string; fullName: string; employeeNo: string };
 
 export function UserRowActions({
   user,
   roles,
   companies,
   isSelf,
+  canLinkSelf,
+  employees,
   overrides,
   grantablePermissions,
   allPermissions,
 }: {
-  user: { id: string; name: string; status: string; roleKey: string };
+  user: {
+    id: string;
+    name: string;
+    status: string;
+    roleKey: string;
+    employee: LinkedEmployee | null;
+    /** Sees every company already, so an access list would do nothing. */
+    allCompanies: boolean;
+  };
+  /** A super admin may link their own account; nobody else may. */
+  canLinkSelf: boolean;
+  /** Employees without an account, to link this user to. */
+  employees: LinkedEmployee[];
   roles: Role[];
   companies: Company[];
   isSelf: boolean;
@@ -65,6 +78,7 @@ export function UserRowActions({
   const [roleOpen, setRoleOpen] = React.useState(false);
   const [companyOpen, setCompanyOpen] = React.useState(false);
   const [overridesOpen, setOverridesOpen] = React.useState(false);
+  const [employeeOpen, setEmployeeOpen] = React.useState(false);
 
   function run(fn: () => Promise<{ success: boolean; error?: string }>, successMessage: string) {
     startTransition(async () => {
@@ -73,6 +87,7 @@ export function UserRowActions({
         toast.success(successMessage);
         setRoleOpen(false);
         setCompanyOpen(false);
+        setEmployeeOpen(false);
         router.refresh();
       } else {
         toast.error(result.error ?? "Something went wrong.");
@@ -100,11 +115,20 @@ export function UserRowActions({
             Change role
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={user.allCompanies}
             onSelect={() => {
               setCompanyOpen(true);
             }}
           >
-            Company access
+            {user.allCompanies ? "Company access: all companies" : "Company access"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isSelf && !canLinkSelf}
+            onSelect={() => {
+              setEmployeeOpen(true);
+            }}
+          >
+            {user.employee ? "Change linked employee" : "Link to employee"}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={isSelf}
@@ -164,6 +188,20 @@ export function UserRowActions({
         grantablePermissions={grantablePermissions}
         allPermissions={allPermissions}
         isSelf={isSelf}
+      />
+
+      <EmployeeDialog
+        open={employeeOpen}
+        onOpenChange={setEmployeeOpen}
+        user={user}
+        employees={employees}
+        pending={pending}
+        onSubmit={(employeeId) => {
+          run(
+            () => linkUserEmployeeAction({ userId: user.id, employeeId }),
+            employeeId ? "Linked to the employee." : "Employee link removed.",
+          );
+        }}
       />
 
       <CompanyDialog
@@ -233,7 +271,12 @@ function RoleDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); }}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
             Cancel
           </Button>
           <Button
@@ -300,13 +343,106 @@ function CompanyDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); }}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
             Cancel
           </Button>
           <Button
             disabled={pending}
             onClick={() => {
               onSubmit([...selected]);
+            }}
+          >
+            {pending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const UNLINK = "none";
+
+function EmployeeDialog({
+  open,
+  onOpenChange,
+  user,
+  employees,
+  pending,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: { name: string; employee: LinkedEmployee | null };
+  employees: LinkedEmployee[];
+  pending: boolean;
+  onSubmit: (employeeId: string | null) => void;
+}) {
+  const current = user.employee?.id ?? "";
+  const [employeeId, setEmployeeId] = React.useState<string>(current);
+  // The current link is listed too, so the dialog opens on what is saved.
+  const options = user.employee
+    ? [user.employee, ...employees.filter((e) => e.id !== current)]
+    : employees;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setEmployeeId(current);
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Linked employee</DialogTitle>
+          <DialogDescription>
+            Link {user.name}&apos;s account to their employee record. Only employees without an
+            account are listed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label htmlFor="link-employee">Employee</Label>
+          <Select value={employeeId} onValueChange={setEmployeeId}>
+            <SelectTrigger id="link-employee" className="w-full">
+              <SelectValue placeholder="Select an employee" />
+            </SelectTrigger>
+            <SelectContent>
+              {user.employee ? (
+                <SelectItem value={UNLINK}>None — remove the link</SelectItem>
+              ) : null}
+              {options.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.fullName} · {e.employeeNo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {options.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              Every active employee already has an account.
+            </p>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={!employeeId || employeeId === current || pending}
+            onClick={() => {
+              onSubmit(employeeId === UNLINK ? null : employeeId);
             }}
           >
             {pending ? "Saving…" : "Save"}

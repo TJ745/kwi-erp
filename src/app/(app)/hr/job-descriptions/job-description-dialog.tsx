@@ -17,21 +17,30 @@ import {
 } from "@/components/ui/dialog";
 import { SelectField, TextAreaField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
-import {
-  createJobDescriptionAction,
-  updateJobDescriptionAction,
-} from "@/server/actions/hiring";
+import { JD_LISTS, type JdListKey } from "@/lib/job-description";
+import { createJobDescriptionAction, updateJobDescriptionAction } from "@/server/actions/hiring";
 
 export type JobDescriptionValues = {
   id: string;
   companyId: string | null;
   positionId: string | null;
   title: string;
-  summary: string | null;
-  responsibilities: string | null;
-  requirements: string | null;
+  department: string | null;
+  reportsTo: string | null;
+  oversees: string | null;
   isActive: boolean;
   offerCount: number;
+} & Record<JdListKey, string | null>;
+
+const PLACEHOLDERS: Record<JdListKey, string> = {
+  organizational: "Al-Kuhaimi Wood Industries.",
+  departmental:
+    "Know how to read shop drawings.\nKnow how to make cutting list and work on provided cutting list.",
+  education: "Should have degree or technical draftsman diploma",
+  experience: "Minimum experience of 2 years in wooden work.",
+  skills: "Should have knowledge in wood joinery, wooden works, doors, cabinets, cladding etc.",
+  others:
+    "Willing to work at allocated region upon joining.\nShould have good ethics to work as team.",
 };
 
 export function JobDescriptionDialog({
@@ -75,9 +84,15 @@ export function JobDescriptionDialog({
       companyId: readString(fd, "companyId"),
       positionId: readString(fd, "positionId"),
       title: readString(fd, "title"),
-      summary: readString(fd, "summary"),
-      responsibilities: readString(fd, "responsibilities"),
-      requirements: readString(fd, "requirements"),
+      department: readString(fd, "department"),
+      reportsTo: readString(fd, "reportsTo"),
+      oversees: readString(fd, "oversees"),
+      organizational: readString(fd, "organizational"),
+      departmental: readString(fd, "departmental"),
+      education: readString(fd, "education"),
+      experience: readString(fd, "experience"),
+      skills: readString(fd, "skills"),
+      others: readString(fd, "others"),
       isActive,
     };
 
@@ -113,16 +128,15 @@ export function JobDescriptionDialog({
       ) : null}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <form onSubmit={onSubmit} noValidate>
             <DialogHeader>
               <DialogTitle>
                 {description ? "Edit job description" : "New job description"}
               </DialogTitle>
               <DialogDescription>
-                {description && description.offerCount > 0
-                  ? `${String(description.offerCount)} offer(s) reference this. Saving bumps the version rather than rewriting what they quoted.`
-                  : "Leave the company blank to share it across both entities."}
+                Fill it in like the company template; it prints the same way. Lists take one item
+                per line — each line becomes a bullet.
               </DialogDescription>
             </DialogHeader>
 
@@ -136,70 +150,108 @@ export function JobDescriptionDialog({
                 </div>
               ) : null}
 
-              <TextField
-                name="title"
-                label="Title"
-                required
-                defaultValue={description?.title ?? ""}
-                errors={errors.title}
-              />
-
               <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField
-                  name="companyId"
-                  label="Company"
-                  placeholder="All companies"
-                  options={companies.map((c) => ({
-                    value: c.id,
-                    label: `${c.code} — ${c.name}`,
-                  }))}
-                  defaultValue={description?.companyId ?? ""}
-                  errors={errors.companyId}
+                <TextField
+                  name="title"
+                  label="Job Title"
+                  required
+                  placeholder="Carpenter"
+                  defaultValue={description?.title ?? ""}
+                  errors={errors.title}
                 />
-                <SelectField
-                  name="positionId"
-                  label="Position"
-                  placeholder="Not linked"
-                  options={positions.map((p) => ({ value: p.id, label: p.title }))}
-                  defaultValue={description?.positionId ?? ""}
-                  errors={errors.positionId}
+                <TextField
+                  name="department"
+                  label="Department"
+                  placeholder="KWI – Riyadh"
+                  defaultValue={description?.department ?? ""}
+                  errors={errors.department}
+                />
+                <TextField
+                  name="reportsTo"
+                  label="Reports to"
+                  placeholder="Technical Manager"
+                  defaultValue={description?.reportsTo ?? ""}
+                  errors={errors.reportsTo}
+                />
+                <TextField
+                  name="oversees"
+                  label="Oversees"
+                  hint="Blank prints “(Optional)”, as on the template."
+                  defaultValue={description?.oversees ?? ""}
+                  errors={errors.oversees}
                 />
               </div>
 
-              <TextAreaField
-                name="summary"
-                label="Summary"
-                rows={3}
-                defaultValue={description?.summary ?? ""}
-                errors={errors.summary}
-              />
-              <TextAreaField
-                name="responsibilities"
-                label="Responsibilities"
-                rows={6}
-                defaultValue={description?.responsibilities ?? ""}
-                errors={errors.responsibilities}
-              />
-              <TextAreaField
-                name="requirements"
-                label="Requirements"
-                rows={6}
-                defaultValue={description?.requirements ?? ""}
-                errors={errors.requirements}
-              />
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-semibold">Duties &amp; Responsibilities</legend>
+                {JD_LISTS.filter((l) => l.group === "duties").map((l) => (
+                  <TextAreaField
+                    key={l.key}
+                    name={l.key}
+                    label={l.label}
+                    rows={l.key === "departmental" ? 7 : 2}
+                    placeholder={PLACEHOLDERS[l.key]}
+                    defaultValue={description?.[l.key] ?? ""}
+                    errors={errors[l.key]}
+                  />
+                ))}
+              </fieldset>
 
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="isActive"
-                  checked={isActive}
-                  onCheckedChange={(checked) => {
-                    setIsActive(checked === true);
-                  }}
-                />
-                <Label htmlFor="isActive" className="font-normal">
-                  Active — available to attach to new offers
-                </Label>
-              </div>
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-semibold">Desired Job Profile</legend>
+                {JD_LISTS.filter((l) => l.group === "profile").map((l) => (
+                  <TextAreaField
+                    key={l.key}
+                    name={l.key}
+                    label={l.label}
+                    rows={3}
+                    placeholder={PLACEHOLDERS[l.key]}
+                    defaultValue={description?.[l.key] ?? ""}
+                    errors={errors[l.key]}
+                  />
+                ))}
+              </fieldset>
+
+              <details className="rounded-md border p-3 text-sm">
+                <summary className="cursor-pointer font-medium">
+                  More (company, position, status)
+                </summary>
+                <div className="mt-3 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <SelectField
+                      name="companyId"
+                      label="Company"
+                      placeholder="All companies"
+                      options={companies.map((c) => ({
+                        value: c.id,
+                        label: `${c.code} — ${c.name}`,
+                      }))}
+                      defaultValue={description?.companyId ?? ""}
+                      errors={errors.companyId}
+                    />
+                    <SelectField
+                      name="positionId"
+                      label="Position"
+                      placeholder="Not linked"
+                      options={positions.map((p) => ({ value: p.id, label: p.title }))}
+                      defaultValue={description?.positionId ?? ""}
+                      errors={errors.positionId}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="isActive"
+                      checked={isActive}
+                      onCheckedChange={(checked) => {
+                        setIsActive(checked === true);
+                      }}
+                    />
+                    <Label htmlFor="isActive" className="font-normal">
+                      Active — available to attach to new offers
+                    </Label>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <DialogFooter>

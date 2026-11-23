@@ -28,9 +28,7 @@ export default async function DepartmentsPage() {
     canViewPositions ? listPositions(ctx) : Promise.resolve([]),
     // Only fetched for actors who can manage departments AND read employees —
     // the head picker is the only thing that needs it, and it is a list of people.
-    canManage && ctx.permissions.has("employees.view")
-      ? employeeOptions(ctx)
-      : Promise.resolve([]),
+    canManage && ctx.permissions.has("employees.view") ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
 
   // Offered as "reports to" targets. Built here rather than in the dialog so
@@ -51,6 +49,7 @@ export default async function DepartmentsPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Departments & Positions"
         description="Departments are company-scoped and can nest — a manager's visibility follows the department subtree. Positions are job titles, optionally shared across companies."
         action={
@@ -96,9 +95,7 @@ export default async function DepartmentsPage() {
                     <p className="text-muted-foreground font-mono text-xs">{dept.code}</p>
                   </td>
                   <td className="px-4 py-2">{dept.company.code}</td>
-                  <td className="text-muted-foreground px-4 py-2">
-                    {dept.parent?.name ?? "—"}
-                  </td>
+                  <td className="text-muted-foreground px-4 py-2">{dept.parent?.name ?? "—"}</td>
                   <td className="text-muted-foreground px-4 py-2">
                     {dept.headEmployee?.fullName ?? "—"}
                   </td>
@@ -137,11 +134,7 @@ export default async function DepartmentsPage() {
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">Positions</h2>
             {canManagePositions ? (
-              <PositionDialog
-                mode="create"
-                companies={options}
-                positions={positionOptions}
-              />
+              <PositionDialog mode="create" companies={options} positions={positionOptions} />
             ) : null}
           </div>
 
@@ -177,9 +170,7 @@ export default async function DepartmentsPage() {
                       <td className="text-muted-foreground px-4 py-2">
                         {position.company?.code ?? "All companies"}
                       </td>
-                      <td className="text-muted-foreground px-4 py-2">
-                        {position.grade ?? "—"}
-                      </td>
+                      <td className="text-muted-foreground px-4 py-2">{position.grade ?? "—"}</td>
                       <td className="px-4 py-2 tabular-nums">{position._count.employees}</td>
                       <td className="px-4 py-2">
                         <StatusBadge status={position.status} />

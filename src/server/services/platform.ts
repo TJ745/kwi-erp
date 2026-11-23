@@ -4,14 +4,11 @@ import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere, optionalCompanyScopeWhere } from "@/server/auth/guards";
 import { ConflictError, NotFoundError } from "@/lib/result";
-import { DEFAULT_PAGE_SIZE } from "@/lib/list-query";
-import type {
-  ChecklistTemplateInput,
-  DocumentTypeInput,
-} from "@/lib/schemas/platform";
+import { DEFAULT_PAGE_SIZE, PRINT_PAGE_SIZE } from "@/lib/list-query";
+import type { DocumentTypeInput } from "@/lib/schemas/platform";
 
 /**
- * Platform administration — audit log, document types, checklist templates.
+ * Platform administration — audit log and document types.
  *
  * The audit log is READ-ONLY here on purpose. Entries are written by the action
  * pipeline (`defineAction`) and by nothing else; a service function that could
@@ -84,17 +81,19 @@ export async function listAuditEntries(
   ctx: ActorContext,
   filters: AuditFilters,
   page = 1,
+  pageSize: number = AUDIT_PAGE_SIZE,
 ) {
   const where = auditWhere(ctx, filters);
 
   const safePage = Math.max(1, Math.min(page, 1000));
+  const size = Math.max(1, Math.min(pageSize, PRINT_PAGE_SIZE));
 
   const [entries, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      skip: (safePage - 1) * AUDIT_PAGE_SIZE,
-      take: AUDIT_PAGE_SIZE,
+      skip: (safePage - 1) * size,
+      take: size,
       select: {
         id: true,
         actorLabel: true,
@@ -116,8 +115,8 @@ export async function listAuditEntries(
     entries,
     total,
     page: safePage,
-    pageSize: AUDIT_PAGE_SIZE,
-    pageCount: Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE)),
+    pageSize: size,
+    pageCount: Math.max(1, Math.ceil(total / size)),
   };
 }
 
@@ -245,8 +244,8 @@ export async function updateDocumentType(
   });
   if (clash) throw new ConflictError(`A document type with key "${input.key}" exists.`);
 
-  // A system type is referenced by seeded logic and by the onboarding
-  // checklists; renaming it is fine, changing what it means is not.
+  // A system type is referenced by seeded logic; renaming it is fine,
+  // changing what it means is not.
   const after = await prisma.documentType.update({
     where: { id: input.id },
     data: {
@@ -360,167 +359,4 @@ export async function documentCounts(ctx: ActorContext) {
   ]);
 
   return { total, expiring, expired };
-}
-
-// --- Checklist templates -----------------------------------------------------
-
-export async function listChecklistTemplates(ctx: ActorContext) {
-  return prisma.checklistTemplate.findMany({
-    where: { ...optionalCompanyScopeWhere(ctx) },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      type: true,
-      isActive: true,
-      companyId: true,
-      company: { select: { code: true } },
-      _count: { select: { items: true, instances: true } },
-    },
-  });
-}
-
-export async function getChecklistTemplate(ctx: ActorContext, id: string) {
-  const template = await prisma.checklistTemplate.findFirst({
-    where: { id, ...optionalCompanyScopeWhere(ctx) },
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      type: true,
-      isActive: true,
-      companyId: true,
-      _count: { select: { instances: true } },
-      items: {
-        orderBy: { order: "asc" },
-        select: {
-          id: true,
-          order: true,
-          label: true,
-          category: true,
-          requiresAttachment: true,
-          requiresDate: true,
-          defaultDueDays: true,
-          responsibleDepartmentId: true,
-          responsibleDepartment: { select: { name: true } },
-        },
-      },
-    },
-  });
-  if (!template) throw new NotFoundError("Template not found.");
-  return template;
-}
-
-export async function saveChecklistTemplate(
-  ctx: ActorContext,
-  input: ChecklistTemplateInput & { id?: string | undefined },
-) {
-  if (input.companyId && ctx.companyScope !== "ALL" && !ctx.companyScope.includes(input.companyId)) {
-    throw new NotFoundError("Company not found.");
-  }
-
-  const clash = await prisma.checklistTemplate.findFirst({
-    where: { key: input.key, ...(input.id ? { id: { not: input.id } } : {}) },
-    select: { id: true },
-  });
-  if (clash) throw new ConflictError(`A template with key "${input.key}" already exists.`);
-
-  const data = {
-    key: input.key,
-    name: input.name,
-    type: input.type,
-    companyId: input.companyId ?? null,
-    isActive: input.isActive,
-  };
-
-  return prisma.$transaction(async (tx) => {
-    if (!input.id) {
-      const created = await tx.checklistTemplate.create({
-        data: {
-          ...data,
-          items: {
-            create: input.items.map((item, index) => ({
-              order: index + 1,
-              label: item.label,
-              category: item.category,
-              requiresAttachment: item.requiresAttachment,
-              requiresDate: item.requiresDate,
-              defaultDueDays: item.defaultDueDays ?? null,
-              responsibleDepartmentId: item.responsibleDepartmentId ?? null,
-            })),
-          },
-        },
-        select: { id: true, key: true, name: true, companyId: true },
-      });
-      return { template: created, before: null };
-    }
-
-    const before = await tx.checklistTemplate.findFirst({
-      where: { id: input.id },
-      select: {
-        id: true,
-        name: true,
-        isActive: true,
-        _count: { select: { items: true, instances: true } },
-      },
-    });
-    if (!before) throw new NotFoundError("Template not found.");
-
-    // Items are replaced wholesale. Running instances keep their own copied
-    // ChecklistItem rows, so an in-flight onboarding does not change under
-    // the person completing it.
-    await tx.checklistTemplateItem.deleteMany({ where: { templateId: input.id } });
-
-    const updated = await tx.checklistTemplate.update({
-      where: { id: input.id },
-      data: {
-        ...data,
-        items: {
-          create: input.items.map((item, index) => ({
-            order: index + 1,
-            label: item.label,
-            category: item.category,
-            requiresAttachment: item.requiresAttachment,
-            requiresDate: item.requiresDate,
-            defaultDueDays: item.defaultDueDays ?? null,
-            responsibleDepartmentId: item.responsibleDepartmentId ?? null,
-          })),
-        },
-      },
-      select: { id: true, key: true, name: true, companyId: true },
-    });
-
-    return {
-      template: updated,
-      before: {
-        name: before.name,
-        isActive: before.isActive,
-        items: before._count.items,
-        instances: before._count.instances,
-      },
-    };
-  });
-}
-
-export async function deleteChecklistTemplate(ctx: ActorContext, id: string) {
-  const template = await prisma.checklistTemplate.findFirst({
-    where: { id, ...optionalCompanyScopeWhere(ctx) },
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      companyId: true,
-      _count: { select: { instances: true } },
-    },
-  });
-  if (!template) throw new NotFoundError("Template not found.");
-  if (template._count.instances > 0) {
-    throw new ConflictError(
-      `${template._count.instances} checklist(s) were started from this template. Deactivate it instead.`,
-    );
-  }
-
-  await prisma.checklistTemplate.delete({ where: { id } });
-  return template;
 }

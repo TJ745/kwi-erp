@@ -30,16 +30,11 @@ import { decideEmail } from "@/lib/notification-routing";
  * justifies the whole feature: an approval queue nobody is told about only
  * moves when somebody happens to look.
  *
- * EXPIRY and the task kinds are deliberately absent — they have rules, and a
- * rule always wins, so listing them here would describe behaviour that cannot
- * happen. Expiry emails are switched on by its rules (see prisma/seed.ts);
- * task reminders stay in-app, because one message per task per day is how
- * people learn to filter the sender.
+ * EXPIRY is deliberately absent — it has rules, and a rule always wins, so
+ * listing it here would describe behaviour that cannot happen. Expiry emails
+ * are switched on by its rules (see prisma/seed.ts).
  */
-const DEFAULT_EMAIL_KINDS: ReadonlySet<NotificationKind> = new Set([
-  "APPROVAL_REQUIRED",
-  "TICKET_ASSIGNED",
-]);
+const DEFAULT_EMAIL_KINDS: ReadonlySet<NotificationKind> = new Set(["APPROVAL_REQUIRED"]);
 
 /** Gives up after this many attempts; the row keeps FAILED and its reason. */
 const MAX_ATTEMPTS = 3;
@@ -198,8 +193,8 @@ export async function dispatchPendingEmails(
 /**
  * Fire-and-forget dispatch for the request path.
  *
- * Never throws and never awaited by the caller's critical work: a petty cash
- * transaction is committed before anyone tries to email about it, and an email
+ * Never throws and never awaited by the caller's critical work: a leave
+ * request is committed before anyone tries to email about it, and an email
  * failing must not undo one.
  */
 export function dispatchEmailsInBackground(limit = 25): void {

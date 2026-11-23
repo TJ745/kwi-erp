@@ -16,6 +16,7 @@ export default async function DocumentTypesPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Document Types"
         description="What kinds of document exist, which records they attach to, and when to start warning about renewal. System types are seeded and cannot be deleted."
         action={<DocumentTypeControls mode="create" />}

@@ -112,9 +112,7 @@ export function DateField({
   ...base
 }: BaseProps & { defaultValue?: Date | string | null | undefined }) {
   const value =
-    defaultValue instanceof Date
-      ? defaultValue.toISOString().slice(0, 10)
-      : (defaultValue ?? "");
+    defaultValue instanceof Date ? defaultValue.toISOString().slice(0, 10) : (defaultValue ?? "");
 
   return <TextField {...base} type="date" defaultValue={value} />;
 }
@@ -122,11 +120,13 @@ export function DateField({
 export function TextAreaField({
   defaultValue,
   rows = 3,
+  placeholder,
   onChange,
   ...base
 }: BaseProps & {
   defaultValue?: string | undefined;
   rows?: number;
+  placeholder?: string | undefined;
   /** Notified on every keystroke, for live hints. The field stays uncontrolled. */
   onChange?: ((value: string) => void) | undefined;
 }) {
@@ -137,6 +137,7 @@ export function TextAreaField({
           id={id}
           name={base.name}
           rows={rows}
+          placeholder={placeholder ?? ""}
           defaultValue={defaultValue ?? ""}
           {...(onChange
             ? {
@@ -221,9 +222,7 @@ export function FieldSet({
     <fieldset className="space-y-4">
       <div>
         <legend className="text-sm font-semibold">{legend}</legend>
-        {description ? (
-          <p className="text-muted-foreground text-xs">{description}</p>
-        ) : null}
+        {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
     </fieldset>

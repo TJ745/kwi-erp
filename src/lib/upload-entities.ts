@@ -17,9 +17,7 @@ export const UPLOAD_ENTITY_TYPES = [
   "CONTRACT",
   "JOB_OFFER",
   "ACCOMMODATION",
-  "SUPPLIER",
   "SUBCONTRACTOR",
-  "ELECTRICITY_BILL",
   "COMPANY_CERTIFICATE",
   "MEDICAL_INSURANCE_POLICY",
 ] as const;
@@ -36,9 +34,7 @@ export const UPLOAD_ENTITY_LABELS: Record<UploadEntityType, string> = {
   CONTRACT: "Contract",
   JOB_OFFER: "Job offer",
   ACCOMMODATION: "Accommodation",
-  SUPPLIER: "Supplier",
   SUBCONTRACTOR: "Subcontractor",
-  ELECTRICITY_BILL: "Electricity bill",
   COMPANY_CERTIFICATE: "Company certificate",
   MEDICAL_INSURANCE_POLICY: "Insurance policy",
 };

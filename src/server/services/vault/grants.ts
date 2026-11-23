@@ -208,9 +208,7 @@ export async function createCredentialGrant(
   const duplicate = await prisma.credentialGrant.findFirst({
     where: {
       credentialId: credential.id,
-      ...(input.subjectKind === "USER"
-        ? { userId: input.subjectId }
-        : { roleId: input.subjectId }),
+      ...(input.subjectKind === "USER" ? { userId: input.subjectId } : { roleId: input.subjectId }),
     },
     select: { id: true },
   });
@@ -242,9 +240,7 @@ export async function createCredentialGrant(
   const grant = await prisma.credentialGrant.create({
     data: {
       credentialId: credential.id,
-      ...(input.subjectKind === "USER"
-        ? { userId: input.subjectId }
-        : { roleId: input.subjectId }),
+      ...(input.subjectKind === "USER" ? { userId: input.subjectId } : { roleId: input.subjectId }),
       level: input.level,
       grantedById: ctx.userId,
       expiresAt: input.expiresAt ?? null,

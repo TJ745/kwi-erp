@@ -14,6 +14,7 @@ import { requirePagePermission } from "@/server/auth/page-guards";
 import { assetCounts, listAssets, type AssetListRow } from "@/server/services/assets";
 import { orgOptions } from "@/server/services/org";
 import { AssetDialog } from "./asset-dialog";
+import { assetTypeLabel } from "@/lib/schemas/it";
 import { ReportLink } from "@/components/shared/report-link";
 
 export const metadata: Metadata = { title: "IT Assets" };
@@ -60,7 +61,7 @@ export default async function AssetsPage({
       header: "Type",
       primary: true,
       cell: (row) => (
-        <span className="text-sm">{row.type.replace(/_/g, " ").toLowerCase()}</span>
+        <span className="text-sm">{assetTypeLabel(row.type)}</span>
       ),
     },
     {
@@ -104,6 +105,7 @@ export default async function AssetsPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="IT Assets"
         description="Hardware register and handover history. An asset can only be issued to one person at a time."
         action={

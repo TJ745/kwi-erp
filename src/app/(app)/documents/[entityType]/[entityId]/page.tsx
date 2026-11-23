@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Documents" };
 /**
  * The document library for any record, at one address.
  *
- * Most modules are list-only — there is no supplier or bill detail page to
+ * Most modules are list-only — there is no certificate or policy detail page to
  * host an upload panel, and building eleven detail pages to carry one card
  * each would be a lot of surface for very little. This route gives every
  * record a documents page reachable from its row.

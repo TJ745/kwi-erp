@@ -24,13 +24,7 @@ import { lockVaultAction, unlockVaultAction } from "@/server/actions/vault";
  * Re-entering the password is a deliberate second factor of intent: it means a
  * walk-up attacker on an already-signed-in machine still cannot read secrets.
  */
-export function VaultLock({
-  unlocked,
-  canReveal,
-}: {
-  unlocked: boolean;
-  canReveal: boolean;
-}) {
+export function VaultLock({ unlocked, canReveal }: { unlocked: boolean; canReveal: boolean }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -103,8 +97,8 @@ export function VaultLock({
             <DialogHeader>
               <DialogTitle>Unlock the vault</DialogTitle>
               <DialogDescription>
-                Confirm your password to reveal credentials. The vault locks itself again after
-                a period of inactivity, and every reveal is recorded.
+                Confirm your password to reveal credentials. The vault locks itself again after a
+                period of inactivity, and every reveal is recorded.
               </DialogDescription>
             </DialogHeader>
 

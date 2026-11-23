@@ -18,10 +18,7 @@ import {
 import { DateField, TextField } from "@/components/forms/field";
 import { maskIban } from "@/lib/bank";
 import { readString } from "@/lib/form-data";
-import {
-  deleteBankDetailAction,
-  upsertBankDetailAction,
-} from "@/server/actions/employees";
+import { deleteBankDetailAction, upsertBankDetailAction } from "@/server/actions/employees";
 
 export type BankDetail = {
   bankName: string;
@@ -158,9 +155,7 @@ export function BankDetails({
             <div className="flex items-baseline justify-between gap-4">
               <dt className="text-muted-foreground">IBAN</dt>
               <dd className="flex items-center gap-1.5">
-                <span className="font-mono">
-                  {revealed ? detail.iban : maskIban(detail.iban)}
-                </span>
+                <span className="font-mono">{revealed ? detail.iban : maskIban(detail.iban)}</span>
                 <Button
                   size="icon-sm"
                   variant="ghost"
@@ -208,8 +203,8 @@ export function BankDetails({
             <DialogTitle>{detail ? "Edit bank details" : "Add bank details"}</DialogTitle>
             <DialogDescription>
               The IBAN is checked against its country length and checksum before it is stored.
-              Changing it clears the verification, because whoever checked the old account did
-              not check this one.
+              Changing it clears the verification, because whoever checked the old account did not
+              check this one.
             </DialogDescription>
           </DialogHeader>
 

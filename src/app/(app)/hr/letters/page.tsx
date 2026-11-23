@@ -6,11 +6,7 @@ import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/states";
 import { LETTER_TYPE_LABELS } from "@/lib/schemas/letters";
 import { requirePagePermission } from "@/server/auth/page-guards";
-import {
-  letterRecipients,
-  listGeneratedLetters,
-  listTemplates,
-} from "@/server/services/letters";
+import { letterRecipients, listGeneratedLetters, listTemplates } from "@/server/services/letters";
 import { GenerateLetterDialog } from "./generate-letter-dialog";
 import { LetterStatusSelect } from "./letter-status-select";
 
@@ -39,6 +35,7 @@ export default async function LettersPage() {
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Letters & Memos"
         description="Every generated letter keeps a frozen copy of the data it was built from, so it stays valid after the underlying record changes."
         action={

@@ -107,8 +107,8 @@ export function RoomDialog({
             <DialogHeader>
               <DialogTitle>{room ? "Edit room" : "Add room"}</DialogTitle>
               <DialogDescription>
-                Capacity is how many beds the room should hold. It caps how many bed
-                records can be added; single occupancy is enforced per bed.
+                Capacity is how many beds the room should hold. It caps how many bed records can be
+                added; single occupancy is enforced per bed.
               </DialogDescription>
             </DialogHeader>
 

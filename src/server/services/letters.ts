@@ -75,7 +75,11 @@ export async function upsertTemplate(
   ctx: ActorContext,
   input: TemplateInput & { id?: string | undefined },
 ) {
-  if (input.companyId && ctx.companyScope !== "ALL" && !ctx.companyScope.includes(input.companyId)) {
+  if (
+    input.companyId &&
+    ctx.companyScope !== "ALL" &&
+    !ctx.companyScope.includes(input.companyId)
+  ) {
     throw new ForbiddenError("Record not found.");
   }
 

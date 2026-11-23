@@ -46,18 +46,17 @@ export function DepartmentDialog({
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
-  const [companyId, setCompanyId] = React.useState(
-    department?.companyId ?? companies[0]?.id ?? "",
-  );
+  const [companyId, setCompanyId] = React.useState(department?.companyId ?? companies[0]?.id ?? "");
 
   // A parent must be in the same company, and a department cannot parent itself.
-  const parentChoices = parents.filter(
-    (p) => p.companyId === companyId && p.id !== department?.id,
-  );
+  const parentChoices = parents.filter((p) => p.companyId === companyId && p.id !== department?.id);
 
-  // The server refuses a head from another company, so only same-company
-  // employees are offered.
-  const headChoices = employees.filter((e) => e.companyId === companyId);
+  // A department head can be an employee of any company.
+  const headChoices = employees;
+  const codeOf = (id: string) => {
+    const code = companies.find((c) => c.id === id)?.code;
+    return code ? ` · ${code}` : "";
+  };
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,9 +113,7 @@ export function DepartmentDialog({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {mode === "create" ? "Add department" : "Edit department"}
-            </DialogTitle>
+            <DialogTitle>{mode === "create" ? "Add department" : "Edit department"}</DialogTitle>
             <DialogDescription>
               The code must be unique within its company. Nesting is optional.
             </DialogDescription>
@@ -177,13 +174,13 @@ export function DepartmentDialog({
             <SelectField
               name="headEmployeeId"
               label="Department head"
-              hint="Must be an employee of the same company."
+              hint="An employee of any company."
               defaultValue={department?.headEmployeeId ?? "none"}
               options={[
                 { value: "none", label: "— Not set —" },
                 ...headChoices.map((e) => ({
                   value: e.id,
-                  label: `${e.fullName} (${e.employeeNo})`,
+                  label: `${e.fullName} (${e.employeeNo}${codeOf(e.companyId)})`,
                 })),
               ]}
               errors={errors.headEmployeeId}

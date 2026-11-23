@@ -2,8 +2,12 @@
 
 import { z } from "zod";
 import { defineAction } from "./define-action";
-import { policySchema, providerSchema, updatePolicySchema,
+import {
+  policySchema,
+  providerSchema,
+  updatePolicySchema,
   endEnrolmentSchema,
+  bulkEnrolmentSchema,
   enrolmentSchema,
 } from "@/lib/schemas/insurance";
 import {
@@ -13,6 +17,7 @@ import {
   updatePolicy,
   endEnrolment,
   enrolEmployee,
+  enrolEmployees,
 } from "@/server/services/insurance";
 
 export const createPolicyAction = defineAction({
@@ -124,6 +129,28 @@ export const enrolEmployeeAction = defineAction({
     return { id: enrolment.id };
   },
   revalidate: (input) => ["/insurance", `/people/employees/${input.employeeId}`],
+});
+
+export const enrolEmployeesAction = defineAction({
+  permission: "insurance.manage",
+  schema: bulkEnrolmentSchema,
+  audit: { action: "UPDATE", entity: "MEDICAL_INSURANCE_POLICY" },
+  handler: async ({ input, ctx, audit }) => {
+    const { policy, added, skipped } = await enrolEmployees(ctx, input);
+    if (added.length > 0) {
+      audit.record({
+        entityId: policy.id,
+        companyId: policy.companyId,
+        summary:
+          added.length === 1
+            ? `Enrolled ${added[0]!.fullName} on policy ${policy.policyNumber}`
+            : `Enrolled ${String(added.length)} employees on policy ${policy.policyNumber}`,
+        after: { employees: added.map((e) => e.fullName) },
+      });
+    }
+    return { added: added.length, skipped };
+  },
+  revalidate: () => ["/insurance"],
 });
 
 export const endEnrolmentAction = defineAction({

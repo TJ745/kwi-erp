@@ -45,6 +45,7 @@ export default async function CertificatesPage({
   return (
     <PageShell>
       <PageHeader
+        printable
         title="Company Certificates"
         description="CR, VAT, GOSI, Zakat and the rest. Active certificates feed the expiry register, so renewals surface on the dashboard and in reminders."
         action={

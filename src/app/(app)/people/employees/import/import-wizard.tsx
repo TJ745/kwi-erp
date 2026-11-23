@@ -142,8 +142,8 @@ export function ImportWizard() {
               Upload the filled file
             </CardTitle>
             <CardDescription>
-              Up to {IMPORT_MAX_ROWS.toLocaleString("en")} rows. Nothing is saved until you
-              confirm the preview.
+              Up to {IMPORT_MAX_ROWS.toLocaleString("en")} rows. Nothing is saved until you confirm
+              the preview.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -232,17 +232,14 @@ export function ImportWizard() {
               disabled={preview.errorCount > 0 || busy !== null}
               onClick={onCommit}
             >
-              {busy === "commit"
-                ? "Importing…"
-                : `Import ${String(preview.readyCount)} employees`}
+              {busy === "commit" ? "Importing…" : `Import ${String(preview.readyCount)} employees`}
             </Button>
           </CardHeader>
           <CardContent>
             {preview.errorCount > 0 ? (
               <p className="text-muted-foreground mb-3 text-sm">
                 Fix the rows below in Excel — the row numbers are the spreadsheet&apos;s — then
-                choose the file again and re-check. Nothing is imported while any row has an
-                error.
+                choose the file again and re-check. Nothing is imported while any row has an error.
               </p>
             ) : null}
             <div className="overflow-x-auto">
@@ -276,7 +273,9 @@ export function ImportWizard() {
                             {row.issues.map((issue, index) => (
                               <li key={index} className="text-status-expired">
                                 {issue.column ? (
-                                  <span className="font-medium">{columnHeader(issue.column)}: </span>
+                                  <span className="font-medium">
+                                    {columnHeader(issue.column)}:{" "}
+                                  </span>
                                 ) : null}
                                 {issue.message}
                               </li>

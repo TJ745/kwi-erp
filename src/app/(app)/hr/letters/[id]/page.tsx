@@ -38,7 +38,7 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
       // space-y gap above the sheet survive into print, and a quarter inch
       // past the bottom of a full page emits an entirely blank extra sheet.
       className={`mx-auto w-full max-w-4xl space-y-6 p-6 print:space-y-0 print:p-0${
-        isForm ? " letter-sheet--form" : ""
+        isForm ? "letter-sheet--form" : ""
       }`}
     >
       {/* Screen-only chrome; the print stylesheet hides it. */}
@@ -54,8 +54,8 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
             <div>
               <h1 className="font-mono text-lg font-semibold">{letter.letterNo}</h1>
               <p className="text-muted-foreground text-xs">
-                {LETTER_TYPE_LABELS[letter.template.type]} · {letter.template.name} ·
-                generated {letter.generatedAt.toISOString().slice(0, 10)}
+                {LETTER_TYPE_LABELS[letter.template.type]} · {letter.template.name} · generated{" "}
+                {letter.generatedAt.toISOString().slice(0, 10)}
               </p>
             </div>
           </div>
@@ -73,8 +73,7 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
             role="alert"
             className="border-destructive/40 bg-destructive/5 text-destructive mt-4 rounded-md border p-3 text-sm"
           >
-            This letter has been cancelled. It is kept for the audit trail and should not be
-            issued.
+            This letter has been cancelled. It is kept for the audit trail and should not be issued.
           </p>
         ) : null}
       </div>
@@ -195,9 +194,7 @@ function CompanyFootline({
     website: string | null;
   };
 }) {
-  const address = [company.addressLine, company.city, company.country]
-    .filter(Boolean)
-    .join(", ");
+  const address = [company.addressLine, company.city, company.country].filter(Boolean).join(", ");
   const registrations = [
     company.crNumber ? `CR ${company.crNumber}` : null,
     company.vatNumber ? `VAT ${company.vatNumber}` : null,

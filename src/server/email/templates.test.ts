@@ -8,11 +8,11 @@ import { renderNotificationEmail } from "./templates";
 
 const base = {
   recipientName: "Ahmed Khan",
-  title: "Petty cash expense needs approval: 250 SAR",
-  body: "Main float — taxi fare",
+  title: "Leave request needs approval: 5 days",
+  body: "Annual leave — 1 to 5 March",
   kind: "APPROVAL_REQUIRED" as const,
   appUrl: "https://oms.example.com",
-  entityType: "PETTY_CASH_TRANSACTION" as const,
+  entityType: "LEAVE_REQUEST" as const,
   entityId: "abc123",
 };
 
@@ -20,21 +20,21 @@ describe("renderNotificationEmail", () => {
   it("produces a subject, an HTML body, and a text alternative", () => {
     const mail = renderNotificationEmail(base);
     expect(mail.subject).toBe(base.title);
-    expect(mail.html).toContain("Petty cash expense needs approval");
-    expect(mail.text).toContain("Petty cash expense needs approval");
+    expect(mail.html).toContain("Leave request needs approval");
+    expect(mail.text).toContain("Leave request needs approval");
     // A text/plain part is not optional: some clients show nothing without it.
     expect(mail.text.length).toBeGreaterThan(40);
   });
 
   it("links into the app rather than reproducing the record", () => {
     const mail = renderNotificationEmail(base);
-    expect(mail.html).toContain("https://oms.example.com/admin/petty-cash");
-    expect(mail.text).toContain("https://oms.example.com/admin/petty-cash");
+    expect(mail.html).toContain("https://oms.example.com/people/leave");
+    expect(mail.text).toContain("https://oms.example.com/people/leave");
   });
 
   it("does not double the slash when APP_URL has a trailing one", () => {
     const mail = renderNotificationEmail({ ...base, appUrl: "https://oms.example.com/" });
-    expect(mail.html).not.toContain("com//admin");
+    expect(mail.html).not.toContain("com//people");
   });
 
   it("falls back to the notifications list for an unmapped entity", () => {
@@ -73,7 +73,7 @@ describe("renderNotificationEmail", () => {
     const mail = renderNotificationEmail({ ...base, body: null });
     expect(mail.html).toContain(base.title);
     // No empty paragraph left behind.
-    expect(mail.html).not.toContain("<p style=\"margin:0 0 16px");
+    expect(mail.html).not.toContain('<p style="margin:0 0 16px');
   });
 
   it("labels the kind without inventing detail", () => {

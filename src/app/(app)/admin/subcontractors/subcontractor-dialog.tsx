@@ -16,10 +16,7 @@ import {
 import { SelectField, TextAreaField, TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
 import { RECORD_STATUSES } from "@/lib/schemas/vendors";
-import {
-  createSubcontractorAction,
-  updateSubcontractorAction,
-} from "@/server/actions/vendors";
+import { createSubcontractorAction, updateSubcontractorAction } from "@/server/actions/vendors";
 
 export type SubcontractorValues = {
   id: string;
@@ -29,6 +26,7 @@ export type SubcontractorValues = {
   phone: string | null;
   email: string | null;
   crNumber: string | null;
+  address: string | null;
   status: string;
   notes: string | null;
 };
@@ -72,6 +70,7 @@ export function SubcontractorDialog({
       phone: readString(fd, "phone"),
       email: readString(fd, "email"),
       crNumber: readString(fd, "crNumber"),
+      address: readString(fd, "address"),
       status: readString(fd, "status"),
       notes: readString(fd, "notes"),
     };
@@ -180,6 +179,14 @@ export function SubcontractorDialog({
                 />
               </div>
 
+              <TextAreaField
+                name="address"
+                label="Address"
+                hint="Printed under the second party on contracts."
+                rows={2}
+                defaultValue={subcontractor?.address ?? ""}
+                errors={errors.address}
+              />
               <TextAreaField
                 name="notes"
                 label="Notes"

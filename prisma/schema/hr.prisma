@@ -1,6 +1,5 @@
 // =============================================================================
-// HR: contracts, leave, timesheet, evaluation, increments, warnings, offers,
-// correspondence.
+// HR: contracts, leave, timesheet, evaluation, increments, warnings, offers.
 // =============================================================================
 
 enum ContractType {
@@ -43,27 +42,8 @@ enum OfferStatus {
   CONVERTED
 }
 
-enum CorrespondenceType {
-  IQAMA_RENEWAL
-  VISA
-  GOVERNMENT
-  INSURANCE
-  BANK
-  INTERNAL
-  SUPPLIER
-  OTHER
-}
-
-enum CorrespondenceStatus {
-  DRAFT
-  SENT
-  WAITING
-  FOLLOW_UP_REQUIRED
-  COMPLETED
-}
-
 model Contract {
-  id               String    @id @default(cuid(2))
+  id               String       @id @default(cuid(2))
   employeeId       String
   companyId        String
   contractType     ContractType
@@ -80,6 +60,18 @@ model Contract {
   status     ContractStatus @default(ACTIVE)
   documentId String?
   notes      String?
+
+  /// The printed employment contract.
+  contractDate     DateTime?
+  positionTitle    String?
+  jobDescriptionId String?
+  termYears        Int       @default(1)
+  workDaysPerWeek  Int       @default(5)
+  hoursPerDay      Int       @default(8)
+  /// The employee's particulars as printed (names, nationality, IDs,
+  /// addresses, home phone) and the ticket destination / family. A snapshot:
+  /// the signed contract keeps what it said. Shape validated by Zod.
+  particulars      Json?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -124,6 +116,8 @@ model LeaveRequest {
   decidedAt       DateTime?
   decisionComment String?
   handoverToId    String?
+  /// The rest of the printed Leave Request form (src/lib/leave-form.ts).
+  form            Json?
   createdById     String
 
   createdAt DateTime @default(now())
@@ -141,104 +135,146 @@ model LeaveRequest {
   @@index([handoverToId])
 }
 
-model TimesheetEntry {
+/// One timesheet file per company per month. The timesheet itself is kept in
+/// Excel; the system stores the file and says which company and month it is.
+model TimesheetFile {
   id           String   @id @default(cuid(2))
-  employeeId   String
-  date         DateTime @db.Date
-  normalHours  Decimal  @default(0) @db.Decimal(4, 2)
-  overtimeHours Decimal @default(0) @db.Decimal(4, 2)
-  /// Late arrival / early departure, feeds the Delayed Hours report.
-  delayedHours Decimal  @default(0) @db.Decimal(4, 2)
-  absent       Boolean  @default(false)
+  companyId    String
+  /// Always the first day of the month.
+  month        DateTime @db.Date
+  fileId       String   @unique
   notes        String?
+  uploadedById String
 
-  status       ApprovalStatus @default(PENDING)
-  approvedById String?
-  approvedAt   DateTime?
+  createdAt DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id])
+  file    FileObject @relation(fields: [fileId], references: [id])
+
+  @@unique([companyId, month])
+  @@index([month])
+}
+
+enum EvaluationTemplate {
+  STAFF
+  WORKER
+}
+
+/// An evaluation round, e.g. "Annual Evaluation 2026": a list of employees,
+/// each evaluated on the Staff or the Worker form.
+model EvaluationList {
+  id          String   @id @default(cuid(2))
+  title       String
+  listDate    DateTime
+  notes       String?
+  createdById String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  evaluations Evaluation[]
 
-  @@unique([employeeId, date])
-  @@index([date, status])
-  @@index([status])
+  @@index([listDate])
 }
 
+/// One employee's filled form. The form body (goals, competencies, scores,
+/// development plan) is JSON whose shape is fixed per template and validated
+/// by Zod on every save — the forms are documents, not query targets.
 model Evaluation {
-  id           String   @id @default(cuid(2))
-  employeeId   String
-  evaluatorId  String
-  periodStart  DateTime
-  periodEnd    DateTime
-  overallScore Decimal? @db.Decimal(4, 2)
-  summary      String?
-  status       ApprovalStatus @default(PENDING)
-  documentId   String?
+  id             String             @id @default(cuid(2))
+  listId         String
+  employeeId     String
+  template       EvaluationTemplate
+  evaluationDate DateTime
+
+  /// Staff form: the evaluating manager, and plan dates.
+  managerId      String?
+  timeInPosition String?
+  pdpStarted     DateTime?
+  pdpCompleted   DateTime?
+  /// Worker form.
+  section        String?
+
+  data             Json
+  managerComments  String?
+  employeeComments String?
+  /// Staff form: typed by the evaluator.
+  finalRating      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee  Employee          @relation("EvaluationSubject", fields: [employeeId], references: [id])
-  evaluator Employee          @relation("EvaluationEvaluator", fields: [evaluatorId], references: [id])
-  document  FileObject?       @relation(fields: [documentId], references: [id])
-  scores    EvaluationScore[]
+  list     EvaluationList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  employee Employee       @relation("EvaluationSubject", fields: [employeeId], references: [id])
+  manager  Employee?      @relation("EvaluationManager", fields: [managerId], references: [id])
 
-  @@index([employeeId, periodEnd])
-  @@index([evaluatorId])
-  @@index([status])
-  @@index([documentId])
+  @@unique([listId, employeeId])
+  @@index([employeeId, evaluationDate])
+  @@index([managerId])
 }
 
-model EvaluationScore {
-  id           String  @id @default(cuid(2))
-  evaluationId String
-  criterion    String
-  weight       Decimal @db.Decimal(5, 2)
-  score        Decimal @db.Decimal(5, 2)
-  comment      String?
-
-  evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
-
-  @@index([evaluationId])
-}
-
-model Increment {
-  id            String   @id @default(cuid(2))
-  employeeId    String
-  currentSalary Decimal  @db.Decimal(14, 2)
-  newSalary     Decimal  @db.Decimal(14, 2)
-  amount        Decimal  @db.Decimal(14, 2)
-  percentage    Decimal  @db.Decimal(6, 3)
-  currency      String   @default("SAR")
-  effectiveDate DateTime
-
-  status        ApprovalStatus @default(PENDING)
-  requestedById String
-  approvedById  String?
-  decidedAt     DateTime?
-  notes         String?
+/// A salary increment list: employees, their current salary, the salary they
+/// demanded and the salary proposed. A document to print and file; it never
+/// changes anyone's salary.
+model IncrementList {
+  id          String   @id @default(cuid(2))
+  title       String
+  listDate    DateTime
+  notes       String?
+  createdById String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  lines IncrementListLine[]
 
-  @@index([employeeId, effectiveDate])
-  @@index([status, effectiveDate])
+  @@index([listDate])
+}
+
+/// One employee on a list. Current figures are copied from the employee when
+/// added, so the list keeps showing what the salary WAS at the time. Demanded
+/// and proposed start equal to current; the increment is the difference.
+model IncrementListLine {
+  id         String @id @default(cuid(2))
+  listId     String
+  employeeId String
+  sortOrder  Int
+
+  curBasic     Decimal @default(0) @db.Decimal(12, 2)
+  curTransport Decimal @default(0) @db.Decimal(12, 2)
+  curHousing   Decimal @default(0) @db.Decimal(12, 2)
+  curOther     Decimal @default(0) @db.Decimal(12, 2)
+
+  demBasic     Decimal @default(0) @db.Decimal(12, 2)
+  demTransport Decimal @default(0) @db.Decimal(12, 2)
+  demHousing   Decimal @default(0) @db.Decimal(12, 2)
+  demOther     Decimal @default(0) @db.Decimal(12, 2)
+
+  propBasic     Decimal @default(0) @db.Decimal(12, 2)
+  propTransport Decimal @default(0) @db.Decimal(12, 2)
+  propHousing   Decimal @default(0) @db.Decimal(12, 2)
+  propOther     Decimal @default(0) @db.Decimal(12, 2)
+
+  list     IncrementList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  employee Employee      @relation(fields: [employeeId], references: [id])
+
+  @@unique([listId, employeeId])
+  @@index([employeeId])
 }
 
 model WarningLetter {
-  id             String       @id @default(cuid(2))
-  employeeId     String
-  level          WarningLevel
-  reason         String
-  description    String
-  issuedDate     DateTime
-  issuedById     String
-  documentId     String?
-  acknowledgedAt DateTime?
+  id            String       @id @default(cuid(2))
+  employeeId    String
+  level         WarningLevel
+  reason        String
+  /// The incident sentence of the printed letter, in English and Arabic.
+  description   String
+  descriptionAr String?
+  /// Optional project or site, printed in brackets after the incident.
+  project       String?
+  issuedDate    DateTime
+  issuedById    String
+  documentId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,15 +288,24 @@ model WarningLetter {
 }
 
 model JobDescription {
-  id               String  @id @default(cuid(2))
-  companyId        String?
-  positionId       String?
-  title            String
-  summary          String?
-  responsibilities String?
-  requirements     String?
-  isActive         Boolean @default(true)
-  version          Int     @default(1)
+  id             String  @id @default(cuid(2))
+  companyId      String?
+  positionId     String?
+  title          String
+  /// Printed as written, e.g. "KWI – Riyadh".
+  department     String?
+  reportsTo      String?
+  oversees       String?
+  /// The six lists of the company's job description template, one item per
+  /// line: duties (organizational, departmental) and the desired profile.
+  organizational String?
+  departmental   String?
+  education      String?
+  experience     String?
+  skills         String?
+  others         String?
+  isActive       Boolean @default(true)
+  version        Int     @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -275,16 +320,42 @@ model JobDescription {
 }
 
 model JobOffer {
-  id             String  @id @default(cuid(2))
-  companyId      String
-  candidateName  String
-  candidateEmail String?
-  candidatePhone String?
-  positionId     String?
+  id               String  @id @default(cuid(2))
+  companyId        String
+  candidateName    String
+  candidateEmail   String?
+  candidatePhone   String?
+  positionId       String?
   jobDescriptionId String?
 
-  proposedSalary      Decimal? @db.Decimal(14, 2)
-  currency            String   @default("SAR")
+  /// The employment offer letter, as printed.
+  salutation        String    @default("Mr.")
+  /// PASSPORT or IQAMA — whichever document the candidate has.
+  candidateIdType   String?
+  candidateIdNumber String?
+  candidateAddress  String?
+  offerDate         DateTime?
+  /// "Our Ref.", e.g. KWI/17/26 — assigned on create when left blank.
+  refNo             String?
+
+  basicSalary        Decimal? @db.Decimal(12, 2)
+  housingAllowance   Decimal? @db.Decimal(12, 2)
+  transportAllowance Decimal? @db.Decimal(12, 2)
+  mobileAllowance    Decimal? @db.Decimal(12, 2)
+
+  /// Terms, each one of a fixed set of choices (validated by Zod).
+  contractYears     Int     @default(1)
+  probationDays     Int     @default(90)
+  familyStatus      String  @default("WITHOUT_FAMILY")
+  leavePlan         String  @default("30_AFTER_1Y")
+  ticketCover       String  @default("SELF")
+  /// The vacation ticket's destination, e.g. "Amman".
+  ticketDestination String?
+  medicalCover      String  @default("SELF")
+
+  /// The total package (sum of the four parts above when they are given).
+  proposedSalary      Decimal?  @db.Decimal(14, 2)
+  currency            String    @default("SAR")
   benefits            Json?
   proposedJoiningDate DateTime?
 
@@ -292,6 +363,8 @@ model JobOffer {
   sentAt              DateTime?
   decidedAt           DateTime?
   convertedEmployeeId String?
+  /// The interview the candidate came through, if any.
+  interviewId         String?
   notes               String?
 
   createdById String
@@ -299,42 +372,71 @@ model JobOffer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company           Company         @relation(fields: [companyId], references: [id])
-  position          Position?       @relation(fields: [positionId], references: [id])
-  jobDescription    JobDescription? @relation(fields: [jobDescriptionId], references: [id])
-  convertedEmployee Employee?       @relation("OfferConvertedEmployee", fields: [convertedEmployeeId], references: [id])
+  company           Company              @relation(fields: [companyId], references: [id])
+  position          Position?            @relation(fields: [positionId], references: [id])
+  jobDescription    JobDescription?      @relation(fields: [jobDescriptionId], references: [id])
+  convertedEmployee Employee?            @relation("OfferConvertedEmployee", fields: [convertedEmployeeId], references: [id])
+  interview         InterviewEvaluation? @relation(fields: [interviewId], references: [id])
 
   @@index([companyId, status])
   @@index([positionId])
   @@index([jobDescriptionId])
   @@index([convertedEmployeeId])
+  @@index([interviewId])
 }
 
-/// Proof-of-action record: "we emailed Head Office about this Iqama on X".
-model Correspondence {
-  id         String  @id @default(cuid(2))
-  companyId  String
-  employeeId String?
+enum TimesheetGroup {
+  ALL
+  NON_SAUDI
+  SAUDI
+}
 
-  type      CorrespondenceType
-  subject   String
-  recipient String
-  sentDate  DateTime?
-
-  status       CorrespondenceStatus @default(DRAFT)
-  followUpDate DateTime?
-  notes        String?
+/// A monthly attendance sheet, after the company's TIME SHEET: one row per
+/// employee, one column per day from the 16th of the previous month to the
+/// 15th of `month`. Printed, signed by management, and the signed copy
+/// uploaded back against it.
+model Timesheet {
+  id           String         @id @default(cuid(2))
+  /// The month it is named for (first day); covers 16th of the month before to the 15th.
+  month        DateTime       @db.Date
+  /// As printed above the sheet's file name, e.g. "KWI & KMI".
+  title        String
+  companyIds   String[]
+  group        TimesheetGroup @default(NON_SAUDI)
+  signedFileId String?        @unique
+  signedAt     DateTime?
   createdById  String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id])
-  employee Employee? @relation(fields: [employeeId], references: [id])
+  signedFile FileObject?      @relation("TimesheetSigned", fields: [signedFileId], references: [id])
+  entries    TimesheetEntry[]
 
-  iqamaRenewals IqamaRenewal[]
+  @@index([month])
+}
 
-  @@index([status, followUpDate])
+/// One employee's row on a timesheet.
+model TimesheetEntry {
+  id            String   @id @default(cuid(2))
+  timesheetId   String
+  employeeId    String
+  sortOrder     Int      @default(0)
+  /// "FRI" or "FRI_SAT": the weekly days off printed in grey.
+  weekend       String   @default("FRI")
+  /// One code per day of the period: P A V S L FRI SAT, or "" outside employment.
+  days          Json
+  /// One number per day: overtime hours, or delay minutes on a Saudi sheet.
+  extra         Json
+  /// Food allowance for the month in SAR, typed on the sheet.
+  foodAllowance Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  timesheet Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+
+  @@unique([timesheetId, employeeId])
   @@index([employeeId])
-  @@index([companyId, type])
 }

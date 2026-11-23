@@ -11,6 +11,12 @@ import { z } from "zod";
 
 export const DEFAULT_PAGE_SIZE = 10;
 export const MAX_PAGE_SIZE = 100;
+/**
+ * Rows returned when a list is opened for printing (`?print=1`): the whole
+ * filtered list on one page, so "Print list" prints everything, not page 1.
+ * Capped so a print request cannot become an unbounded export.
+ */
+export const PRINT_PAGE_SIZE = 5000;
 
 export const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).catch(1),
@@ -29,12 +35,18 @@ export type ListQuery = z.infer<typeof listQuerySchema>;
 export type SearchParams = Record<string, string | string[] | undefined>;
 
 export function parseListQuery(searchParams: SearchParams): ListQuery {
-  return listQuerySchema.parse({
+  const query = listQuerySchema.parse({
     page: first(searchParams.page),
     pageSize: first(searchParams.pageSize),
     q: first(searchParams.q),
     sort: first(searchParams.sort),
   });
+  return isPrintRequest(searchParams) ? { ...query, page: 1, pageSize: PRINT_PAGE_SIZE } : query;
+}
+
+/** True when the list was opened by "Print list". */
+export function isPrintRequest(searchParams: SearchParams): boolean {
+  return first(searchParams.print) === "1";
 }
 
 function first(value: string | string[] | undefined): string | undefined {
