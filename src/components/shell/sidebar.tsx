@@ -71,7 +71,7 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "bg-sidebar text-sidebar-foreground border-sidebar-border hidden shrink-0 flex-col border-r transition-[width] duration-200 lg:flex print:lg:hidden",
+        "bg-sidebar text-sidebar-foreground border-sidebar-border sticky top-0 hidden h-dvh shrink-0 flex-col border-r transition-[width] duration-200 lg:flex print:lg:hidden",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -225,10 +225,10 @@ export function SidebarNav({
                         {...(onNavigate ? { onClick: onNavigate } : {})}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
-                          "block rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+                          "relative block rounded-lg px-3 py-[7px] text-[13.5px] font-medium transition-colors",
                           isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                            : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold shadow-[0_6px_16px_-8px] shadow-sidebar-primary/60"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                         )}
                       >
                         {item.label}

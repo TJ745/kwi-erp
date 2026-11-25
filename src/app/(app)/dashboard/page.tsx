@@ -113,7 +113,7 @@ async function KpiRow({ ctx }: { ctx: ActorContext }) {
   const onStrength = staff?.reduce((s, r) => s + r.active, 0) ?? null;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Kpi
         icon={ClipboardList}
         label="Pending tasks"
@@ -190,10 +190,10 @@ function Kpi({
   return (
     <Link href={href} className="group">
       <Card className="h-full gap-0 py-4 transition-shadow group-hover:shadow-md">
-        <CardContent className="flex items-start gap-3 px-4">
+        <CardContent className="flex items-start gap-3 px-3.5 sm:px-4">
           <span
             className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-lg",
+              "hidden size-10 shrink-0 items-center justify-center rounded-xl sm:flex",
               TONE_CHIP[value > 0 ? tone : "neutral"],
             )}
           >
@@ -203,13 +203,13 @@ function Kpi({
             <p className="text-muted-foreground text-xs font-medium">{label}</p>
             <p
               className={cn(
-                "text-3xl leading-tight font-bold tracking-tight tabular-nums",
+                "text-2xl leading-tight font-bold tracking-tight tabular-nums sm:text-3xl",
                 value > 0 ? TONE_TEXT[tone] : "text-foreground",
               )}
             >
               {value}
             </p>
-            <p className="text-muted-foreground truncate text-xs">{sub}</p>
+            <p className="text-muted-foreground line-clamp-2 text-xs sm:truncate">{sub}</p>
           </div>
         </CardContent>
       </Card>

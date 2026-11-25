@@ -22,21 +22,23 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between",
+        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
         className,
       )}
     >
       <div className="min-w-0 space-y-1">
-        <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-balance sm:text-[1.75rem]">{title}</h1>
         {description ? (
-          <p className="text-muted-foreground text-sm print:hidden">{description}</p>
+          <p className="text-muted-foreground max-w-3xl text-sm text-pretty print:hidden">
+            {description}
+          </p>
         ) : null}
         {printable ? (
           <p className="hidden text-xs print:block">Printed {printedOn()}</p>
         ) : null}
       </div>
       {action || printable ? (
-        <div className="flex shrink-0 items-center gap-2 print:hidden">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
           {printable ? (
             // useSearchParams needs a boundary; the fallback keeps the header
             // from shifting while it resolves.
@@ -70,5 +72,14 @@ export function PageShell({
   children: React.ReactNode;
   className?: string | undefined;
 }) {
-  return <div className={cn("space-y-6 p-6", className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        "mx-auto w-full max-w-[1600px] space-y-6 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 print:max-w-none print:p-0",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }

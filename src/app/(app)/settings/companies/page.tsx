@@ -35,6 +35,15 @@ export default async function CompaniesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <CardTitle className="truncate">{company.name}</CardTitle>
+                    {company.nameAr ? (
+                      <p dir="rtl" lang="ar" className="mt-1 truncate text-right text-sm font-medium">
+                        {company.nameAr}
+                      </p>
+                    ) : (
+                      <p className="text-status-warning mt-1 text-xs">
+                        Arabic name not set — Edit to add it
+                      </p>
+                    )}
                     <p className="text-muted-foreground mt-0.5 font-mono text-xs">{company.code}</p>
                   </div>
                   <StatusBadge status={company.status} />

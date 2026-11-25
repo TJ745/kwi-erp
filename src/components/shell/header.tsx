@@ -41,7 +41,7 @@ export function Header({
   const match = findNavItem(pathname);
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 flex h-16 items-center gap-3 px-5 backdrop-blur print:hidden">
+    <header className="bg-background/85 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-30 flex h-16 items-center gap-2 border-b px-3 backdrop-blur-xl backdrop-saturate-150 sm:gap-3 sm:px-6 lg:px-8 print:hidden">
       {/* Sidebar collapses to a sheet below lg — the desktop layout is not
           simply shrunk (docs/ARCHITECTURE.md, brief §42). */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -50,8 +50,13 @@ export function Header({
             <Menu />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-72 overflow-y-auto p-0">
-          <SheetTitle className="px-5 pt-5 text-sm font-semibold">Operations</SheetTitle>
+        <SheetContent
+          side="left"
+          className="bg-sidebar text-sidebar-foreground border-sidebar-border w-[82vw] max-w-xs overflow-y-auto p-0"
+        >
+          <SheetTitle className="text-sidebar-foreground border-sidebar-border border-b px-5 pt-5 pb-4 text-base font-bold">
+            Operations
+          </SheetTitle>
           <SidebarNav
             sections={sections}
             onNavigate={() => {
@@ -141,21 +146,32 @@ function initials(name: string): string {
 }
 
 function SearchHint() {
+  const open = () => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+  };
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="text-muted-foreground bg-card hidden h-9 w-60 justify-start gap-2 rounded-lg border-transparent shadow-[0_1px_2px_oklch(0.3_0.03_60_/_0.06),0_8px_24px_-12px_oklch(0.3_0.03_60_/_0.18)] md:inline-flex dark:border-border dark:shadow-none"
-      onClick={() => {
-        document.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
-        );
-      }}
-    >
-      <Search className="size-3.5" />
-      <span className="text-xs">Search anything…</span>
-      <kbd className="bg-muted ml-auto rounded px-1 text-[10px]">⌘K</kbd>
-    </Button>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="text-muted-foreground bg-card hover:border-primary/40 hidden h-9 w-64 justify-start gap-2 rounded-xl md:inline-flex"
+        onClick={open}
+      >
+        <Search className="size-3.5" />
+        <span className="text-xs">Search anything…</span>
+        <kbd className="bg-muted ml-auto rounded-md border px-1.5 text-[10px] font-medium">⌘K</kbd>
+      </Button>
+      {/* Phones get the same search as an icon. */}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="md:hidden"
+        aria-label="Search"
+        onClick={open}
+      >
+        <Search />
+      </Button>
+    </>
   );
 }
 

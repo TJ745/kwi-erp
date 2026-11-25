@@ -30,15 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     /*
-      The shell is a fixed viewport with two independent scroll regions: the
-      sidebar's own nav, and the main content. Previously the whole page
-      scrolled, which carried the sidebar and header off the top — on a long
-      page like the dashboard the navigation disappeared exactly when it was
-      most useful.
-
-      Print is exempted: a clipped, fixed-height page prints one screenful.
+      The page itself scrolls; the sidebar and header stay put by being
+      sticky. A fixed-height shell with its own scrolling panel scrolled
+      twice — the panel, then the page under it — and on a phone a nested
+      scroller also stops the browser bar from tucking away.
     */
-    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
+    <div className="flex min-h-dvh">
       <AppSidebar
         sections={sections}
         companyLabel={companyLabel}
@@ -46,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         initialClosed={closedSections(jar.get(NAV_CLOSED_COOKIE)?.value)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header
           sections={sections}
           user={{
@@ -60,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             await logoutAction();
           }}
         />
-        <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+        <main className="min-w-0 flex-1">
           {children}
         </main>
       </div>

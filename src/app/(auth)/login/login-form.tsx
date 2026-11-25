@@ -49,7 +49,7 @@ export function LoginForm({ nextPath }: { nextPath: string | null }) {
       {formError ? (
         <div
           role="alert"
-          className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm"
+          className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-xl border p-3 text-sm"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{formError}</span>
@@ -76,7 +76,7 @@ export function LoginForm({ nextPath }: { nextPath: string | null }) {
       <button
         type="submit"
         disabled={isPending}
-        className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+        className="bg-primary text-primary-foreground focus-visible:ring-ring shadow-primary/40 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-[0_6px_18px_-6px] transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
       >
         {isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
         {isPending ? "Signing in…" : "Sign in"}
@@ -117,7 +117,7 @@ function Field({
         disabled={disabled}
         aria-invalid={hasError}
         aria-describedby={hasError ? errorId : undefined}
-        className="border-input bg-background focus-visible:ring-ring aria-invalid:border-destructive h-10 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+        className="border-input bg-card focus-visible:ring-ring/40 focus-visible:border-ring aria-invalid:border-destructive h-11 w-full rounded-xl border px-3.5 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
       />
       {hasError ? (
         <p id={errorId} className="text-destructive text-xs">

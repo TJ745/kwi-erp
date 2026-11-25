@@ -148,7 +148,7 @@ export function TextAreaField({
             : {})}
           aria-invalid={Boolean(base.errors?.length)}
           {...(describedBy ? { "aria-describedby": describedBy } : {})}
-          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive bg-card w-full rounded-lg border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
         />
       )}
     </FieldFrame>

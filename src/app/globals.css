@@ -19,31 +19,31 @@
  */
 :root {
   /* 10px base: sm 6 · md 8 · lg 10 · xl 14, which is the card radius. */
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: oklch(0.965 0.012 75);
-  --foreground: oklch(0.24 0.02 50);
+  --background: oklch(0.977 0.004 255);
+  --foreground: oklch(0.21 0.025 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.02 50);
+  --card-foreground: oklch(0.21 0.025 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.02 50);
-  --primary: oklch(0.6 0.13 40);
-  --primary-foreground: oklch(0.99 0.01 75);
-  --secondary: oklch(0.94 0.012 75);
-  --secondary-foreground: oklch(0.24 0.02 50);
-  --muted: oklch(0.94 0.012 75);
-  --muted-foreground: oklch(0.5 0.03 50);
-  --accent: oklch(0.94 0.012 75);
-  --accent-foreground: oklch(0.24 0.02 50);
-  --destructive: oklch(0.577 0.245 27.325);
+  --popover-foreground: oklch(0.21 0.025 265);
+  --primary: oklch(0.5 0.2 272);
+  --primary-foreground: oklch(0.99 0.005 270);
+  --secondary: oklch(0.955 0.008 260);
+  --secondary-foreground: oklch(0.25 0.03 265);
+  --muted: oklch(0.962 0.006 260);
+  --muted-foreground: oklch(0.52 0.025 262);
+  --accent: oklch(0.955 0.02 272);
+  --accent-foreground: oklch(0.3 0.09 272);
+  --destructive: oklch(0.58 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.9 0.012 75);
-  --input: oklch(0.9 0.012 75);
-  --ring: oklch(0.6 0.13 200);
+  --border: oklch(0.918 0.008 260);
+  --input: oklch(0.885 0.01 260);
+  --ring: oklch(0.55 0.19 272);
 
   /* The second accent. Same chroma and lightness as --primary, hue 200. */
-  --brand-teal: oklch(0.6 0.13 200);
-  --brand-teal-foreground: oklch(0.99 0.01 75);
+  --brand-teal: oklch(0.6 0.12 195);
+  --brand-teal-foreground: oklch(0.99 0.005 195);
 
   /* Status scale — one definition, used by StatusBadge and ExpiryAlert. */
   --status-valid: oklch(0.52 0.13 150);
@@ -84,8 +84,8 @@
   --chart-sev-5: #efa49d;
   /* Single-series magnitude bars. One series, so one colour and no legend. */
   --chart-bar: oklch(0.52 0.13 250);
-  --chart-grid: oklch(0.9 0.012 75);
-  --chart-axis: oklch(0.5 0.03 50);
+  --chart-grid: oklch(0.918 0.008 260);
+  --chart-axis: oklch(0.52 0.025 262);
   /* Categorical, for part-to-whole only. Four slots, not more: six hues could
      not clear the CVD floor at any lightness we tried, and the fifth slice is
      always "Other" in muted ink. Hue AND lightness both vary, because lightness
@@ -99,15 +99,15 @@
 
   /* The sidebar is the dark element in light mode: a warm charcoal panel
      that gives the sand page an anchor. The active item is terracotta. */
-  --sidebar: oklch(0.26 0.025 50);
-  --sidebar-foreground: oklch(0.9 0.015 75);
-  --sidebar-primary: oklch(0.6 0.13 40);
-  --sidebar-primary-foreground: oklch(0.99 0.01 75);
-  --sidebar-accent: oklch(0.32 0.025 50);
-  --sidebar-accent-foreground: oklch(0.95 0.012 75);
-  --sidebar-border: oklch(0.32 0.02 50);
-  --sidebar-ring: oklch(0.6 0.13 200);
-  --sidebar-muted: oklch(0.62 0.03 60);
+  --sidebar: oklch(0.2 0.03 268);
+  --sidebar-foreground: oklch(0.86 0.02 265);
+  --sidebar-primary: oklch(0.58 0.2 272);
+  --sidebar-primary-foreground: oklch(0.99 0.005 270);
+  --sidebar-accent: oklch(0.26 0.035 268);
+  --sidebar-accent-foreground: oklch(0.97 0.01 265);
+  --sidebar-border: oklch(0.27 0.03 268);
+  --sidebar-ring: oklch(0.6 0.18 272);
+  --sidebar-muted: oklch(0.62 0.03 265);
 }
 
 .dark {
@@ -115,28 +115,28 @@
      rather than grey, and both accents lifted in lightness so they still
      read. Shadows vanish on a dark ground, so cards get a hairline border
      instead (see the card rules below). */
-  --background: oklch(0.19 0.012 50);
-  --foreground: oklch(0.93 0.012 75);
-  --card: oklch(0.235 0.014 50);
-  --card-foreground: oklch(0.93 0.012 75);
-  --popover: oklch(0.235 0.014 50);
-  --popover-foreground: oklch(0.93 0.012 75);
-  --primary: oklch(0.68 0.13 40);
-  --primary-foreground: oklch(0.15 0.01 50);
-  --secondary: oklch(0.28 0.014 50);
-  --secondary-foreground: oklch(0.93 0.012 75);
-  --muted: oklch(0.28 0.014 50);
-  --muted-foreground: oklch(0.66 0.02 60);
-  --accent: oklch(0.28 0.014 50);
-  --accent-foreground: oklch(0.93 0.012 75);
+  --background: oklch(0.165 0.018 268);
+  --foreground: oklch(0.94 0.008 265);
+  --card: oklch(0.205 0.022 268);
+  --card-foreground: oklch(0.94 0.008 265);
+  --popover: oklch(0.215 0.022 268);
+  --popover-foreground: oklch(0.94 0.008 265);
+  --primary: oklch(0.66 0.17 275);
+  --primary-foreground: oklch(0.16 0.03 272);
+  --secondary: oklch(0.26 0.022 268);
+  --secondary-foreground: oklch(0.94 0.008 265);
+  --muted: oklch(0.245 0.02 268);
+  --muted-foreground: oklch(0.68 0.02 265);
+  --accent: oklch(0.27 0.04 272);
+  --accent-foreground: oklch(0.94 0.02 272);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.31 0.016 50);
-  --input: oklch(0.31 0.016 50);
-  --ring: oklch(0.7 0.12 200);
+  --border: oklch(0.29 0.022 268);
+  --input: oklch(0.33 0.024 268);
+  --ring: oklch(0.66 0.17 275);
 
-  --brand-teal: oklch(0.7 0.12 200);
-  --brand-teal-foreground: oklch(0.15 0.01 50);
+  --brand-teal: oklch(0.72 0.11 195);
+  --brand-teal-foreground: oklch(0.16 0.02 195);
 
   /* Lightened for contrast on dark surfaces; backgrounds become tinted fills. */
   --status-valid: oklch(0.78 0.15 150);
@@ -169,8 +169,8 @@
   --chart-sev-4: #a2504b;
   --chart-sev-5: #79403c;
   --chart-bar: oklch(0.78 0.12 250);
-  --chart-grid: oklch(0.31 0.016 50);
-  --chart-axis: oklch(0.66 0.02 60);
+  --chart-grid: oklch(0.29 0.022 268);
+  --chart-axis: oklch(0.68 0.02 265);
   --chart-cat-1: #0077cd;
   --chart-cat-2: #c17d00;
   --chart-cat-3: #009b92;
@@ -178,15 +178,15 @@
   --chart-cat-other: oklch(0.55 0.01 260);
 
   /* Still the darkest layer, so the depth order matches light mode. */
-  --sidebar: oklch(0.155 0.012 50);
-  --sidebar-foreground: oklch(0.88 0.014 75);
-  --sidebar-primary: oklch(0.68 0.13 40);
-  --sidebar-primary-foreground: oklch(0.15 0.01 50);
-  --sidebar-accent: oklch(0.22 0.014 50);
-  --sidebar-accent-foreground: oklch(0.93 0.012 75);
-  --sidebar-border: oklch(0.27 0.014 50);
-  --sidebar-ring: oklch(0.7 0.12 200);
-  --sidebar-muted: oklch(0.56 0.025 60);
+  --sidebar: oklch(0.135 0.018 268);
+  --sidebar-foreground: oklch(0.84 0.015 265);
+  --sidebar-primary: oklch(0.66 0.17 275);
+  --sidebar-primary-foreground: oklch(0.16 0.03 272);
+  --sidebar-accent: oklch(0.2 0.025 268);
+  --sidebar-accent-foreground: oklch(0.96 0.01 265);
+  --sidebar-border: oklch(0.23 0.022 268);
+  --sidebar-ring: oklch(0.66 0.17 275);
+  --sidebar-muted: oklch(0.58 0.025 265);
 }
 
 @theme inline {
@@ -260,17 +260,25 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  /* Cards lift off the sand with a soft shadow and no visible edge; on the
-     dark ground a shadow is invisible, so the edge does that job instead. */
+  html {
+    /* Room under the sticky header when jumping to an anchor. */
+    scroll-padding-top: 5rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Cards: a hairline edge and a soft, cool shadow — they sit on the page
+     rather than float. On the dark ground the edge alone does the work. */
   [data-slot="card"] {
-    border-color: transparent;
+    border-color: var(--border);
+    border-radius: 1rem;
     box-shadow:
-      0 1px 2px oklch(0.3 0.03 60 / 0.06),
-      0 8px 24px -12px oklch(0.3 0.03 60 / 0.18);
+      0 1px 2px oklch(0.25 0.03 265 / 0.04),
+      0 6px 20px -10px oklch(0.25 0.03 265 / 0.12);
   }
   .dark [data-slot="card"] {
-    border-color: var(--border);
-    box-shadow: none;
+    box-shadow: 0 1px 0 oklch(1 0 0 / 0.03) inset;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
   }
   /* Tabular figures everywhere numbers are compared down a column. */
   th, td {
@@ -1004,6 +1012,53 @@
     color: inherit;
     text-decoration: none;
   }
+
+  /* The list on paper: a ruled grid with a shaded heading row and light
+     banding, so a long register can be read across without a ruler. */
+  html[data-print-list] main table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  html[data-print-list] main thead th {
+    background: #eef0f4 !important;
+    color: #1f2430 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 8.5px !important;
+    border-top: 1.5px solid #1f2430;
+    border-bottom: 1.5px solid #1f2430;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  html[data-print-list] main tbody td {
+    border-bottom: 0.75px solid #d5d9e0;
+    color: #000 !important;
+  }
+  html[data-print-list] main tbody tr:nth-child(even) td {
+    background: #f7f8fa;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Panels lose their screen chrome; badges become plain words. */
+  html[data-print-list] main .overflow-x-auto.rounded-lg.border,
+  html[data-print-list] main [data-slot="card"] {
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: none !important;
+  }
+  html[data-print-list] main [data-slot="badge"] {
+    border: 0;
+    background: none !important;
+    padding: 0;
+    color: #000 !important;
+  }
+  html[data-print-list] main h1 {
+    font-size: 16px;
+    border-bottom: 2px solid #1f2430;
+    padding-bottom: 4px;
+  }
 }
 
 /* Organization chart, after the company's paper chart: position boxes in a
@@ -1150,4 +1205,65 @@
   height: 0;
   border: 0;
   border-top: 1px solid var(--pchart-line);
+}
+
+
+/* ==========================================================================
+   App lists — every list page wraps its table in a bordered, scrollable box.
+   Styled once here so all ~40 lists share one look: a white panel, a quiet
+   uppercase heading row, comfortable rows with a hover tint. Printed
+   documents never use this wrapper, so their tables are untouched.
+   ========================================================================== */
+@media screen {
+  main .overflow-x-auto.rounded-lg.border,
+  main .overflow-x-auto.rounded-xl.border {
+    background: var(--card);
+    border-radius: 1rem;
+    box-shadow:
+      0 1px 2px oklch(0.25 0.03 265 / 0.04),
+      0 6px 20px -12px oklch(0.25 0.03 265 / 0.12);
+  }
+  .dark main .overflow-x-auto.rounded-lg.border,
+  .dark main .overflow-x-auto.rounded-xl.border {
+    box-shadow: none;
+  }
+  main .overflow-x-auto.rounded-lg.border > table > thead,
+  main .overflow-x-auto.rounded-xl.border > table > thead,
+  main [data-slot="table-header"] {
+    background: color-mix(in oklch, var(--muted) 70%, transparent);
+  }
+  main .overflow-x-auto.rounded-lg.border > table > thead th,
+  main .overflow-x-auto.rounded-xl.border > table > thead th,
+  main [data-slot="table-head"] {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    height: 2.5rem;
+    white-space: nowrap;
+  }
+  main .overflow-x-auto.rounded-lg.border > table > tbody > tr,
+  main [data-slot="table-row"] {
+    transition: background-color 120ms ease;
+  }
+  main .overflow-x-auto.rounded-lg.border > table > tbody > tr:hover,
+  main .overflow-x-auto.rounded-xl.border > table > tbody > tr:hover,
+  main [data-slot="table-body"] > [data-slot="table-row"]:hover {
+    background: color-mix(in oklch, var(--primary) 4%, transparent);
+  }
+  main .overflow-x-auto.rounded-lg.border > table > tbody > tr > td,
+  main .overflow-x-auto.rounded-xl.border > table > tbody > tr > td {
+    padding-block: 0.7rem;
+  }
+}
+
+/* Thin, quiet scrollbars for the panels that scroll sideways. */
+@media (pointer: fine) {
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
 }

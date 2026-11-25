@@ -28,13 +28,15 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center",
+        "bg-card/60 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-14 text-center",
         className,
       )}
     >
-      <Icon className="text-muted-foreground size-8" aria-hidden="true" />
+      <span className="bg-accent text-primary flex size-12 items-center justify-center rounded-2xl">
+        <Icon className="size-6" aria-hidden="true" />
+      </span>
       <div className="space-y-1">
-        <p className="font-medium">{title}</p>
+        <p className="font-semibold">{title}</p>
         {description ? (
           <p className="text-muted-foreground mx-auto max-w-sm text-sm">{description}</p>
         ) : null}
