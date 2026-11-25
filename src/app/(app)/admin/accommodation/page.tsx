@@ -51,7 +51,7 @@ export default async function AccommodationPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-print-hide>
         <StatCard label="Properties" value={counts.properties} />
         <StatCard label="Beds" value={counts.beds} />
         <StatCard label="Occupied" value={counts.occupied} />
@@ -73,7 +73,7 @@ export default async function AccommodationPage({
           }
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 print:block print:divide-y">
           {accommodations.map((a) => {
             const occupancy = a.bedCount > 0 ? Math.round((a.occupied / a.bedCount) * 100) : 0;
 

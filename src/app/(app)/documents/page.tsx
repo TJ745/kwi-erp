@@ -60,7 +60,7 @@ export default async function DocumentsPage({
         description="Every governed document across the companies you can see. The per-record tabs answer what one employee holds; this answers what is about to lapse."
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" data-print-hide>
         <StatCard label="Documents held" value={counts.total} href="/documents" />
         <StatCard
           label="Expiring in 60 days"

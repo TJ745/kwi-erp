@@ -217,7 +217,7 @@ export default async function ContractsPage({
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" data-print-hide>
         <CountCard label="Active" value={counts.active} href="/hr/contracts" />
         <CountCard
           label="Expiring in 90 days"

@@ -73,8 +73,9 @@ export function PrintListButton() {
       variant="outline"
       disabled={printing}
       onClick={() => {
-        // A new tab, like every other print: the list being worked on stays put.
-        window.open(urlWith(true), "_blank", "noopener");
+        // Straight to the print dialog, in this tab: there is no preview page
+        // to open. (Buttons that open a printable preview use a new tab.)
+        router.push(urlWith(true), { scroll: false });
       }}
     >
       <Printer />

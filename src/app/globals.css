@@ -277,6 +277,13 @@
   .dark [data-slot="card"] {
     box-shadow: 0 1px 0 oklch(1 0 0 / 0.03) inset;
   }
+  /* A grid cell may shrink below its content's width. Without this, one long
+     row or a wide table inside a card stretched the whole column past the
+     screen on a phone, and the browser zoomed the page out to fit it. Text
+     truncates and tables scroll inside their own box instead. */
+  .grid > * {
+    min-width: 0;
+  }
   ::selection {
     background: color-mix(in oklch, var(--primary) 22%, transparent);
   }

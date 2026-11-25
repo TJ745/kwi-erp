@@ -76,7 +76,7 @@ export default async function InsurancePage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-print-hide>
         <CountCard label="Active" value={counts.active} href="/insurance" />
         <CountCard
           label="Expiring in 60 days"
@@ -152,7 +152,7 @@ export default async function InsurancePage({
       {providers.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">Providers</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 print:block print:divide-y">
             {providers.map((provider) => (
               <Card key={provider.id} className="gap-0 py-4">
                 <CardContent className="px-4">

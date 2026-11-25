@@ -108,7 +108,7 @@ export default async function VehiclesPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-print-hide>
         <CountCard label="Total" value={counts.total} href="/vehicles" />
         <CountCard
           label="Active"

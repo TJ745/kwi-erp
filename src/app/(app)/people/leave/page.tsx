@@ -138,7 +138,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
         }
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-print-hide>
         <CountCard label="On leave today" value={counts.onLeaveNow} href="/people/leave" />
         <CountCard label="Upcoming" value={counts.upcoming} href="/people/leave" />
       </div>

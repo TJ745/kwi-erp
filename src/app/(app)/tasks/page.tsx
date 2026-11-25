@@ -67,7 +67,7 @@ export default async function DailyTasksPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-print-hide>
         <Stat label="Pending" value={counts.pending} href="/tasks?status=PENDING" tone="warning" />
         <Stat
           label="Pending over a week"

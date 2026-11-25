@@ -67,7 +67,7 @@ export default async function JobOffersPage({
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" data-print-hide>
         <StatCard label="Open (draft or sent)" value={counts.open} />
         <StatCard label="Accepted, not yet converted" value={counts.accepted} />
         <StatCard label="Converted to employees" value={counts.converted} />

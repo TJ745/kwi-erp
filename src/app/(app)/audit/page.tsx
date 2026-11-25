@@ -122,7 +122,7 @@ export default async function AuditPage({
         only be granted alongside permission to see salaries.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-print-hide>
         <StatCard label="Entries visible" value={counts.total} />
         <StatCard label="Last 24 hours" value={counts.today} />
         <StatCard label="Deletions today" value={counts.deletes} tone="warning" />

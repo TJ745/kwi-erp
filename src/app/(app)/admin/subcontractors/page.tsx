@@ -49,7 +49,7 @@ export default async function SubcontractorsPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3" data-print-hide>
         <CountCard label="Active subcontractors" value={counts.subcontractors} />
         <CountCard label="Active contracts" value={counts.activeContracts} />
         <CountCard

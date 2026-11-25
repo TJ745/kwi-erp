@@ -86,7 +86,9 @@ export function DataTable<TRow extends { id: string }>({
   return (
     <div className="space-y-4">
       {/* Desktop: a real table, horizontally scrollable if needed. */}
-      <div className="hidden overflow-x-auto rounded-lg border md:block">
+      {/* On paper it is always the table: an A4 page is narrower than the
+          breakpoint, so without print:block a printed list came out as cards. */}
+      <div className="hidden overflow-x-auto rounded-lg border md:block print:block">
         <Table>
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <TableHeader>
@@ -137,7 +139,7 @@ export function DataTable<TRow extends { id: string }>({
       </div>
 
       {/* Mobile: cards, not a squeezed table. */}
-      <ul className="space-y-3 md:hidden">
+      <ul className="space-y-3 md:hidden print:hidden">
         {data.rows.map((row) => {
           const content = (
             <div className="space-y-2 rounded-lg border p-4">
