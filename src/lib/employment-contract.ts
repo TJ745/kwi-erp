@@ -49,7 +49,15 @@ export type ContractValues = {
   company: ContractParty;
   employee: ContractEmployee;
   position: string;
-  salary: { basic: string; transport: string; housing: string; phone: string; total: string };
+  salary: {
+    basic: string;
+    transport: string;
+    housing: string;
+    phone: string;
+    food: string;
+    other: string;
+    total: string;
+  };
   termYears: number;
   workDaysPerWeek: number;
   hoursPerDay: number;
@@ -868,6 +876,8 @@ export const SALARY_TEXT = {
       ["Transportation allowance", "transport"],
       ["Housing allowance", "housing"],
       ["Phone Allowance:", "phone"],
+      ["Food allowance", "food"],
+      ["Other allowance", "other"],
       ["Actual salary :  SR", "total"],
     ] as const,
     unit: "SR",
@@ -881,6 +891,8 @@ export const SALARY_TEXT = {
       ["بدل مواصلات", "transport"],
       ["بـدل سكــن", "housing"],
       ["بدل اتصالات", "phone"],
+      ["بدل طعام", "food"],
+      ["بدلات أخرى", "other"],
       ["الأجر الفعلي", "total"],
     ] as const,
     unit: "ريـال",

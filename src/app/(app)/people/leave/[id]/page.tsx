@@ -54,7 +54,7 @@ export default async function LeavePrintPage({ params }: { params: Promise<{ id:
     <FormSheet
       backHref="/people/leave"
       backLabel="All leave"
-      title={`Leave request — ${employee.fullName}`}
+      title={`${leave.extendsLeave ? "Leave extension" : "Leave request"} — ${employee.fullName}`}
       subtitle={`${leave.leaveType.name} · ${from} to ${to}`}
       company={employee.company}
       footer
@@ -66,6 +66,15 @@ export default async function LeavePrintPage({ params }: { params: Promise<{ id:
           طلب اجازه
         </span>
       </h2>
+      {leave.extendsLeave ? (
+        <p className="mb-1 text-center text-[11px] font-bold">
+          Extension of leave from {dmy(leave.extendsLeave.startDate)} to{" "}
+          {dmy(leave.extendsLeave.endDate)}{" "}
+          <span dir="rtl" lang="ar">
+            تمديد اجازة
+          </span>
+        </p>
+      ) : null}
 
       {/* Employee no. and date */}
       <table className="w-full table-fixed border-collapse">

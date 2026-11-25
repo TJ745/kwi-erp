@@ -1,4 +1,5 @@
 import "server-only";
+import { PAY_FIELDS, PAY_PARTS, PAY_SELECT, payOf, type PayPart } from "@/lib/salary";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere } from "@/server/auth/guards";
@@ -27,15 +28,11 @@ async function inScopeEmployees(ctx: ActorContext) {
       fullName: true,
       companyId: true,
       company: { select: { code: true } },
-      basicSalary: true,
-      transportAllowance: true,
-      housingAllowance: true,
-      otherAllowance: true,
+      ...PAY_SELECT,
     },
   });
 }
 
-const str = (d: { toString(): string } | null) => (d === null ? null : d.toString());
 const num = (d: { toString(): string } | null) => (d === null ? null : Number(d.toString()));
 
 export async function salaryTemplateRows(ctx: ActorContext) {
@@ -44,10 +41,10 @@ export async function salaryTemplateRows(ctx: ActorContext) {
     employeeNo: e.employeeNo,
     name: e.fullName,
     company: e.company.code,
-    basic: num(e.basicSalary),
-    transport: num(e.transportAllowance),
-    housing: num(e.housingAllowance),
-    other: num(e.otherAllowance),
+    ...(Object.fromEntries(PAY_PARTS.map((p) => [p, num(e[PAY_FIELDS[p]])])) as Record<
+      PayPart,
+      number | null
+    >),
   }));
 }
 
@@ -60,12 +57,7 @@ async function references(ctx: ActorContext): Promise<SalaryReferences> {
         {
           id: e.id,
           name: e.fullName,
-          salary: {
-            basic: str(e.basicSalary),
-            transport: str(e.transportAllowance),
-            housing: str(e.housingAllowance),
-            other: str(e.otherAllowance),
-          },
+          salary: payOf(e),
         },
       ]),
     ),
@@ -95,12 +87,7 @@ export async function commitSalaryImport(
       for (const row of changed) {
         await tx.employee.update({
           where: { id: row.employeeId },
-          data: {
-            basicSalary: row.values.basic,
-            transportAllowance: row.values.transport,
-            housingAllowance: row.values.housing,
-            otherAllowance: row.values.other,
-          },
+          data: Object.fromEntries(PAY_PARTS.map((p) => [PAY_FIELDS[p], row.values[p]])),
         });
       }
       // Amounts stay out of the audit log: audit.view does not imply

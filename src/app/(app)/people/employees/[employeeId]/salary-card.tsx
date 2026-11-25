@@ -16,15 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { TextField } from "@/components/forms/field";
 import { readString } from "@/lib/form-data";
-import { formatAmount, SALARY_PART_LABELS, SALARY_PARTS, total } from "@/lib/increments";
+import { formatAmount } from "@/lib/increments";
+import { PAY_PART_LABELS, PAY_PARTS, payTotal, type Pay } from "@/lib/salary";
 import { updateEmployeeSalaryAction } from "@/server/actions/increments";
 
-export type Salary = {
-  basic: string | null;
-  transport: string | null;
-  housing: string | null;
-  other: string | null;
-};
+export type Salary = Pay;
 
 /** Monthly salary breakdown; increment lists copy "current salary" from here. */
 export function SalaryCard({
@@ -41,13 +37,7 @@ export function SalaryCard({
   const [pending, startTransition] = React.useTransition();
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
-  const recorded = SALARY_PARTS.some((p) => salary[p] !== null);
-  const filled = {
-    basic: salary.basic ?? "0",
-    transport: salary.transport ?? "0",
-    housing: salary.housing ?? "0",
-    other: salary.other ?? "0",
-  };
+  const recorded = PAY_PARTS.some((p) => salary[p] !== null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,10 +46,10 @@ export function SalaryCard({
     startTransition(async () => {
       const result = await updateEmployeeSalaryAction({
         employeeId,
-        basic: readString(fd, "basic"),
-        transport: readString(fd, "transport"),
-        housing: readString(fd, "housing"),
-        other: readString(fd, "other"),
+        ...(Object.fromEntries(PAY_PARTS.map((p) => [p, readString(fd, p)])) as Record<
+          (typeof PAY_PARTS)[number],
+          string
+        >),
       });
       if (!result.success) {
         setErrors(result.fieldErrors ?? {});
@@ -95,16 +85,16 @@ export function SalaryCard({
       </CardHeader>
       <CardContent>
         {recorded ? (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
-            {SALARY_PARTS.map((p) => (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4 lg:grid-cols-7">
+            {PAY_PARTS.map((p) => (
               <div key={p}>
-                <dt className="text-muted-foreground text-xs">{SALARY_PART_LABELS[p]}</dt>
-                <dd className="tabular-nums">{formatAmount(filled[p])}</dd>
+                <dt className="text-muted-foreground text-xs">{PAY_PART_LABELS[p]}</dt>
+                <dd className="tabular-nums">{formatAmount(salary[p] ?? "0")}</dd>
               </div>
             ))}
             <div>
               <dt className="text-muted-foreground text-xs">Total (SAR)</dt>
-              <dd className="font-semibold tabular-nums">{formatAmount(total(filled))}</dd>
+              <dd className="font-semibold tabular-nums">{formatAmount(payTotal(salary))}</dd>
             </div>
           </dl>
         ) : (
@@ -122,11 +112,11 @@ export function SalaryCard({
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4 sm:grid-cols-2">
-              {SALARY_PARTS.map((p) => (
+              {PAY_PARTS.map((p) => (
                 <TextField
                   key={p}
                   name={p}
-                  label={SALARY_PART_LABELS[p]}
+                  label={PAY_PART_LABELS[p]}
                   defaultValue={salary[p] === null ? "" : String(Number(salary[p]))}
                   errors={errors[p]}
                 />

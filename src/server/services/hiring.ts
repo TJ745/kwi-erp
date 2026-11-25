@@ -263,6 +263,77 @@ async function assertInterviewInCompany(
   if (!interview) throw new NotFoundError("That interview is not one of this company's.");
 }
 
+/** The employee an offer is made to, checked to be one the actor can see. */
+async function linkableEmployee(ctx: ActorContext, employeeId: string | undefined) {
+  if (!employeeId) return null;
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: { id: true },
+  });
+  if (!employee) throw new NotFoundError("Employee not found.");
+  return employee.id;
+}
+
+/**
+ * A new offer for someone already entered in Employees: everything the letter
+ * needs, from their record. Salary only for those who may see it.
+ */
+export async function offerDefaults(ctx: ActorContext, employeeId: string) {
+  const e = await prisma.employee.findFirst({
+    where: { id: employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: {
+      fullName: true,
+      gender: true,
+      mobile: true,
+      personalEmail: true,
+      workEmail: true,
+      companyId: true,
+      positionId: true,
+      joiningDate: true,
+      homeAddressEn: true,
+      basicSalary: true,
+      housingAllowance: true,
+      transportAllowance: true,
+      mobileAllowance: true,
+      contractYears: true,
+      probationDays: true,
+      familyStatus: true,
+      leavePlan: true,
+      ticketCover: true,
+      ticketDestination: true,
+      medicalCover: true,
+      iqama: { select: { iqamaNumber: true } },
+      passport: { select: { passportNumber: true } },
+    },
+  });
+  if (!e) throw new NotFoundError("Employee not found.");
+  const salary = ctx.permissions.has("employees.salary.view");
+  const money = (v: { toString(): string } | null) => (salary && v ? v.toString() : null);
+  return {
+    companyId: e.companyId,
+    candidateName: e.fullName,
+    candidateEmail: e.personalEmail ?? e.workEmail,
+    candidatePhone: e.mobile,
+    salutation: e.gender === "FEMALE" ? "Ms." : "Mr.",
+    candidateIdType: e.iqama ? "IQAMA" : e.passport ? "PASSPORT" : null,
+    candidateIdNumber: e.iqama?.iqamaNumber ?? e.passport?.passportNumber ?? null,
+    candidateAddress: e.homeAddressEn,
+    positionId: e.positionId,
+    proposedJoiningDate: e.joiningDate.toISOString().slice(0, 10),
+    basicSalary: money(e.basicSalary),
+    housingAllowance: money(e.housingAllowance),
+    transportAllowance: money(e.transportAllowance),
+    mobileAllowance: money(e.mobileAllowance),
+    contractYears: e.contractYears ?? 1,
+    probationDays: e.probationDays ?? 90,
+    familyStatus: e.familyStatus ?? "WITHOUT_FAMILY",
+    leavePlan: e.leavePlan ?? "30_AFTER_1Y",
+    ticketCover: e.ticketCover ?? "SELF",
+    ticketDestination: e.ticketDestination,
+    medicalCover: e.medicalCover ?? "SELF",
+  };
+}
+
 export async function createJobOffer(ctx: ActorContext, input: JobOfferInput) {
   requireCompanyAccess(ctx, input.companyId);
   await assertInterviewInCompany(ctx, input.interviewId, input.companyId);
@@ -290,6 +361,7 @@ export async function createJobOffer(ctx: ActorContext, input: JobOfferInput) {
       sentAt: input.sentAt ?? null,
       notes: input.notes ?? null,
       interviewId: input.interviewId ?? null,
+      convertedEmployeeId: await linkableEmployee(ctx, input.employeeId),
       createdById: ctx.userId,
     },
     select: { id: true, candidateName: true, status: true, companyId: true },
@@ -314,7 +386,7 @@ export async function updateJobOffer(ctx: ActorContext, input: JobOfferInput & {
 
   // Once an offer produced an employee, its terms are what that person was
   // hired on. Editing them afterwards rewrites history.
-  if (before.convertedEmployeeId) {
+  if (before.status === "CONVERTED") {
     throw new ConflictError(
       "This offer has been converted into an employee and can no longer be edited.",
     );
@@ -340,6 +412,7 @@ export async function updateJobOffer(ctx: ActorContext, input: JobOfferInput & {
       sentAt: input.sentAt ?? null,
       notes: input.notes ?? null,
       interviewId: input.interviewId ?? null,
+      convertedEmployeeId: await linkableEmployee(ctx, input.employeeId),
       ...(decided && before.status !== input.status ? { decidedAt: new Date() } : {}),
     },
     select: { id: true, candidateName: true, status: true, companyId: true },
@@ -500,11 +573,11 @@ export async function deleteJobOffer(ctx: ActorContext, id: string) {
       id: true,
       candidateName: true,
       companyId: true,
-      convertedEmployeeId: true,
+      status: true,
     },
   });
   if (!offer) throw new NotFoundError("Offer not found.");
-  if (offer.convertedEmployeeId) {
+  if (offer.status === "CONVERTED") {
     throw new ConflictError("This offer produced an employee record and cannot be deleted.");
   }
 
@@ -516,7 +589,9 @@ export async function offerCounts(ctx: ActorContext) {
   const scope = companyScopeWhere(ctx);
   const [open, accepted, converted] = await Promise.all([
     prisma.jobOffer.count({ where: { status: { in: ["DRAFT", "SENT"] }, ...scope } }),
-    prisma.jobOffer.count({ where: { status: "ACCEPTED", ...scope } }),
+    // Accepted and still to be made an employee (an offer to someone already
+    // in Employees has nothing to convert).
+    prisma.jobOffer.count({ where: { status: "ACCEPTED", convertedEmployeeId: null, ...scope } }),
     prisma.jobOffer.count({ where: { status: "CONVERTED", ...scope } }),
   ]);
   return { open, accepted, converted };

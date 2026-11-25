@@ -33,6 +33,7 @@ export type InterviewValues = {
   id: string;
   companyId: string;
   prrId: string | null;
+  employeeId: string | null;
   applicantName: string;
   positionTitle: string;
   interviewDate: string;
@@ -56,6 +57,18 @@ export type PrrOption = {
   skills: string;
 };
 
+/** An employee the interview can be for, with what fills in from their record. */
+export type IntervieweeOption = {
+  id: string;
+  label: string;
+  name: string;
+  companyId: string;
+  nationality: string;
+  professionInIqama: string;
+  position: string;
+  department: string;
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 const recommendationOptions = RECOMMENDATIONS.map((r) => ({
   value: r,
@@ -71,10 +84,13 @@ const inputClass =
 export function InterviewDialog({
   companies,
   prrs,
+  employees = [],
   interview,
 }: {
   companies: { id: string; code: string }[];
   prrs: PrrOption[];
+  /** Picking one fills the applicant's details from their employee record. */
+  employees?: IntervieweeOption[];
   /** Absent for create. */
   interview?: InterviewValues;
 }) {
@@ -85,6 +101,12 @@ export function InterviewDialog({
   const [formError, setFormError] = React.useState<string | null>(null);
   const [companyId, setCompanyId] = React.useState(interview?.companyId ?? companies[0]?.id ?? "");
   const [prrId, setPrrId] = React.useState(interview?.prrId ?? "");
+  const [employeeId, setEmployeeId] = React.useState(interview?.employeeId ?? "");
+  // A newly picked employee fills in; otherwise the saved values stay.
+  const who =
+    employeeId !== (interview?.employeeId ?? "")
+      ? employees.find((e) => e.id === employeeId)
+      : undefined;
 
   const prr = prrs.find((p) => p.id === prrId);
   // Saved values while the PRR is unchanged; a newly picked PRR fills in.
@@ -97,6 +119,7 @@ export function InterviewDialog({
     if (next) {
       setCompanyId(interview?.companyId ?? companies[0]?.id ?? "");
       setPrrId(interview?.prrId ?? "");
+      setEmployeeId(interview?.employeeId ?? "");
       setErrors({});
       setFormError(null);
     }
@@ -117,6 +140,7 @@ export function InterviewDialog({
     const payload = {
       companyId,
       prrId,
+      employeeId,
       applicantName: s("applicantName"),
       positionTitle: s("positionTitle"),
       interviewDate: s("interviewDate"),
@@ -196,8 +220,29 @@ export function InterviewDialog({
               </p>
             ) : null}
 
+            {employees.length > 0 ? (
+              <SelectField
+                name="employeePick"
+                label="Applicant (from Employees)"
+                placeholder="Not in Employees"
+                hint="Add the applicant in Employees first (status New hire); their name, nationality and Iqama profession fill in."
+                defaultValue={employeeId}
+                options={employees.map((e) => ({ value: e.id, label: e.label }))}
+                onChange={(id) => {
+                  setEmployeeId(id);
+                  const picked = employees.find((e) => e.id === id);
+                  if (picked && picked.companyId !== companyId) {
+                    setCompanyId(picked.companyId);
+                    setPrrId("");
+                  }
+                }}
+                errors={errors.employeeId}
+              />
+            ) : null}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <SelectField
+                key={`company-${companyId}`}
                 name="companyPick"
                 label="Company"
                 required
@@ -230,13 +275,13 @@ export function InterviewDialog({
               />
             </div>
 
-            <div key={`${companyId}-${prrId}`} className="space-y-5">
+            <div key={`${companyId}-${prrId}-${employeeId}`} className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-3">
                 <TextField
                   name="applicantName"
                   label="Name of applicant"
                   required
-                  defaultValue={interview?.applicantName ?? ""}
+                  defaultValue={who?.name ?? interview?.applicantName ?? ""}
                   errors={errors.applicantName}
                 />
                 <TextField
@@ -244,7 +289,11 @@ export function InterviewDialog({
                   label="Position applied for"
                   required
                   defaultValue={
-                    saved?.positionTitle ?? prr?.jobTitle ?? interview?.positionTitle ?? ""
+                    saved?.positionTitle ??
+                    prr?.jobTitle ??
+                    interview?.positionTitle ??
+                    who?.position ??
+                    ""
                   }
                   errors={errors.positionTitle}
                 />
@@ -256,7 +305,7 @@ export function InterviewDialog({
                 <TextField
                   name="nationality"
                   label="Nationality"
-                  defaultValue={interview?.details.nationality ?? ""}
+                  defaultValue={who?.nationality ?? interview?.details.nationality ?? ""}
                 />
                 <TextField
                   name="yearsInKsa"
@@ -266,7 +315,9 @@ export function InterviewDialog({
                 <TextField
                   name="professionInIqama"
                   label="Profession in Iqama (if local)"
-                  defaultValue={interview?.details.professionInIqama ?? ""}
+                  defaultValue={
+                    who?.professionInIqama ?? interview?.details.professionInIqama ?? ""
+                  }
                 />
                 <TextField
                   name="section"
@@ -277,7 +328,11 @@ export function InterviewDialog({
                   name="department"
                   label="Department / Division"
                   defaultValue={
-                    d?.department ?? prr?.department ?? interview?.details.department ?? ""
+                    d?.department ??
+                    prr?.department ??
+                    interview?.details.department ??
+                    who?.department ??
+                    ""
                   }
                   className="sm:col-span-2"
                 />

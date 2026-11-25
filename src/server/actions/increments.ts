@@ -1,5 +1,6 @@
 "use server";
 
+import { PAY_PARTS } from "@/lib/salary";
 import {
   addListEmployeesSchema,
   employeeSalarySchema,
@@ -118,7 +119,7 @@ export const updateEmployeeSalaryAction = defineAction({
   audit: { action: "UPDATE", entity: "EMPLOYEE" },
   handler: async ({ input, ctx, audit }) => {
     const r = await updateEmployeeSalary(ctx, input);
-    const changed = (["basic", "transport", "housing", "other"] as const).filter(
+    const changed = PAY_PARTS.filter(
       (k) => r.before[k] !== r.after[k],
     );
     audit.record({

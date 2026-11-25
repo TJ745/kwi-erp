@@ -131,6 +131,8 @@ export const interviewSchema = z
   .object({
     companyId: z.string().min(1, "Company is required"),
     prrId: optionalId,
+    /** The employee record the applicant was entered as. */
+    employeeId: optionalId,
     applicantName: z.string().trim().min(2, "Applicant name is required").max(150),
     positionTitle: z.string().trim().min(2, "Position is required").max(150),
     interviewDate: requiredDate,

@@ -13,7 +13,7 @@ const refs: SalaryReferences = {
       {
         id: "e1",
         name: "Mohammed Gulam Moinuddin",
-        salary: { basic: "4200.00", transport: null, housing: null, other: "300.00" },
+        salary: { basic: "4200.00", transport: null, housing: null, mobile: null, food: null, other: "300.00" },
       },
     ],
     [
@@ -21,7 +21,7 @@ const refs: SalaryReferences = {
       {
         id: "e2",
         name: "Bahaaeldin Mostafa Amin Ali",
-        salary: { basic: null, transport: null, housing: null, other: null },
+        salary: { basic: null, transport: null, housing: null, mobile: null, food: null, other: null },
       },
     ],
   ]),
@@ -36,7 +36,7 @@ const row = (
   other = "",
 ): SalaryRow => ({
   rowNumber,
-  cells: { employeeNo, name: "", company: "", basic, transport, housing, other },
+  cells: { employeeNo, name: "", company: "", basic, transport, housing, mobile: "", food: "", other },
 });
 
 describe("salary sheet validation", () => {
@@ -53,6 +53,8 @@ describe("salary sheet validation", () => {
       basic: "6640.00",
       transport: "1500.00",
       housing: "1660.00",
+      mobile: null,
+      food: null,
       other: "200.00",
     });
   });

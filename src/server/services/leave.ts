@@ -42,6 +42,10 @@ export type LeaveListRow = {
   leaveTypeId: string;
   handoverToId: string | null;
   form: LeaveForm;
+  /** The dates of the leave this one extends, when it is an extension. */
+  extendsDates: { startDate: Date; endDate: Date } | null;
+  /** Whether a later leave extends this one (it then cannot be deleted). */
+  extended: boolean;
 };
 
 /**
@@ -87,6 +91,8 @@ export async function listLeaveRequests(
         handoverToId: true,
         form: true,
         leaveType: { select: { name: true } },
+        extendsLeave: { select: { startDate: true, endDate: true } },
+        _count: { select: { extensions: true } },
         employee: {
           select: { fullName: true, employeeNo: true, company: { select: { code: true } } },
         },
@@ -112,6 +118,8 @@ export async function listLeaveRequests(
       leaveTypeId: l.leaveTypeId,
       handoverToId: l.handoverToId,
       form: readLeaveForm(l.form),
+      extendsDates: l.extendsLeave,
+      extended: l._count.extensions > 0,
     })),
     total,
     query,
@@ -155,6 +163,22 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
     );
   }
 
+  // An extension carries on from the leave it extends: same employee, and it
+  // starts the day after that leave ends.
+  if (input.extendsLeaveId) {
+    const original = await prisma.leaveRequest.findFirst({
+      where: { id: input.extendsLeaveId, employeeId: input.employeeId },
+      select: { endDate: true },
+    });
+    if (!original) throw new NotFoundError("The leave being extended was not found.");
+    const dayAfter = new Date(original.endDate.getTime() + 24 * 60 * 60 * 1000);
+    if (input.startDate.getTime() !== dayAfter.getTime()) {
+      throw new ConflictError(
+        `An extension starts the day after the leave ends (${dayAfter.toISOString().slice(0, 10)}).`,
+      );
+    }
+  }
+
   const days = countLeaveDays(input.startDate, input.endDate);
 
   // Leave is recorded by HR once it is agreed, so it is approved as it is
@@ -169,6 +193,7 @@ export async function createLeaveRequest(ctx: ActorContext, input: LeaveRequestI
       reason: input.reason ?? null,
       handoverToId: input.handoverToId ?? null,
       form: (input.form ?? {}) as Prisma.InputJsonValue,
+      extendsLeaveId: input.extendsLeaveId ?? null,
       status: "APPROVED",
       decidedAt: new Date(),
       createdById: ctx.userId,
@@ -240,9 +265,13 @@ export async function deleteLeaveRequest(ctx: ActorContext, id: string) {
       startDate: true,
       endDate: true,
       employee: { select: { fullName: true, companyId: true } },
+      _count: { select: { extensions: true } },
     },
   });
   if (!request) throw new NotFoundError("Leave request not found.");
+  if (request._count.extensions > 0) {
+    throw new ConflictError("This leave has been extended. Delete the extension first.");
+  }
   await prisma.leaveRequest.delete({ where: { id } });
   return {
     id,
@@ -275,6 +304,11 @@ export async function leaveDefaults(ctx: ActorContext, employeeId: string): Prom
       mobile: true,
       personalEmail: true,
       workEmail: true,
+      homeAddressEn: true,
+      homePhone: true,
+      leavePlan: true,
+      ticketDestination: true,
+      ticketCover: true,
       emergencyContacts: {
         orderBy: { createdAt: "asc" },
         take: 1,
@@ -307,21 +341,22 @@ export async function leaveDefaults(ctx: ActorContext, employeeId: string): Prom
   const offer = e.jobOfferOrigin[0];
   const relative = e.emergencyContacts[0];
   const lastLeave = e.leaveRequests[0];
-  const twoYears = offer?.leavePlan === "42_AFTER_2Y" || contract?.termYears === 2;
+  const plan = e.leavePlan ?? offer?.leavePlan;
+  const twoYears = plan === "42_AFTER_2Y" || (!plan && contract?.termYears === 2);
   const returned = lastLeave ? new Date(lastLeave.endDate.getTime() + 24 * 60 * 60 * 1000) : null;
 
   return readLeaveForm({
     country: countryName(e.nationality),
-    destination: p?.ticketDestinationEn || offer?.ticketDestination || "",
-    homeAddress: p?.homeAddressEn || offer?.candidateAddress || "",
+    destination: e.ticketDestination || p?.ticketDestinationEn || offer?.ticketDestination || "",
+    homeAddress: e.homeAddressEn || p?.homeAddressEn || offer?.candidateAddress || "",
     cityCountry: "",
-    telHome: p?.homePhone || e.mobile || "",
+    telHome: e.homePhone || p?.homePhone || e.mobile || "",
     telRelative: relative ? `${relative.phone} (${relative.relation})` : "",
     email: e.personalEmail || e.workEmail || "",
-    leaveDueEvery: contract || offer ? (twoYears ? "2 years" : "1 year") : "",
+    leaveDueEvery: plan || contract ? (twoYears ? "2 years" : "1 year") : "",
     lastArrival: dmy(returned),
-    ticketsSelf: contract ? "1" : "",
-    ticketsWife: p?.ticketWife ? "1" : "",
+    ticketsSelf: contract || e.ticketCover ? "1" : "",
+    ticketsWife: p?.ticketWife || e.ticketCover === "SELF_FAMILY" ? "1" : "",
     ticketsChildren: p && p.ticketChildren > 0 ? String(p.ticketChildren) : "",
   });
 }
@@ -339,6 +374,7 @@ export async function getLeaveForPrint(ctx: ActorContext, id: string) {
       form: true,
       leaveType: { select: { key: true, name: true } },
       handoverTo: { select: { fullName: true } },
+      extendsLeave: { select: { startDate: true, endDate: true } },
       employee: {
         select: {
           fullName: true,

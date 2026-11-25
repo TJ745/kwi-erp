@@ -1,4 +1,5 @@
 import "server-only";
+import { PAY_SELECT } from "@/lib/salary";
 import type { ContractStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
@@ -154,6 +155,8 @@ function allowancesOf(input: ContractInput): Prisma.InputJsonValue | undefined {
     housing: input.housingAllowance ?? null,
     transport: input.transportAllowance ?? null,
     other: input.otherAllowance ?? null,
+    food: input.foodAllowance ?? null,
+    additional: input.additionalAllowance ?? null,
   };
   const hasAny = Object.values(entries).some((v) => v !== null);
   return hasAny ? entries : undefined;
@@ -370,7 +373,7 @@ export async function contractsForEdit(ctx: ActorContext, ids: string[]) {
 /** Reads a single allowance out of the Json column without trusting its shape. */
 export function allowanceValue(
   allowances: unknown,
-  key: "housing" | "transport" | "other",
+  key: "housing" | "transport" | "other" | "food" | "additional",
 ): string | null {
   if (allowances === null || typeof allowances !== "object") return null;
   const value = (allowances as Record<string, unknown>)[key];
@@ -387,9 +390,9 @@ const dmy = (d: Date | null | undefined) =>
     : "";
 
 /**
- * What a new contract starts from: the employee's particulars from their
- * record, and — when they were hired through an offer — the offer's salary,
- * term and ticket. Everything here is a suggestion the form can change.
+ * What a new contract starts from: the employee's record (particulars,
+ * addresses, salary and terms), and for anything the record leaves blank, the
+ * offer they were hired on. Everything here is a suggestion the form can change.
  */
 export async function contractDefaults(ctx: ActorContext, employeeId: string) {
   const employee = await prisma.employee.findFirst({
@@ -402,6 +405,15 @@ export async function contractDefaults(ctx: ActorContext, employeeId: string) {
       fullNameAr: true,
       nationality: true,
       dateOfBirth: true,
+      saudiAddressEn: true,
+      saudiAddressAr: true,
+      homeAddressEn: true,
+      homeAddressAr: true,
+      homePhone: true,
+      contractYears: true,
+      ticketDestination: true,
+      ticketCover: true,
+      ...PAY_SELECT,
       position: { select: { title: true } },
       iqama: { select: { iqamaNumber: true } },
       passport: { select: { passportNumber: true } },
@@ -440,16 +452,18 @@ export async function contractDefaults(ctx: ActorContext, employeeId: string) {
 
   return {
     positionTitle: employee.position?.title ?? "",
-    termYears: offer?.contractYears ?? 1,
-    salary:
-      canSeeSalary && offer
-        ? {
-            basicSalary: str(offer.basicSalary),
-            housingAllowance: str(offer.housingAllowance),
-            transportAllowance: str(offer.transportAllowance),
-            otherAllowance: str(offer.mobileAllowance),
-          }
-        : null,
+    termYears: employee.contractYears ?? offer?.contractYears ?? 1,
+    salary: canSeeSalary
+      ? {
+          basicSalary: str(employee.basicSalary ?? offer?.basicSalary),
+          housingAllowance: str(employee.housingAllowance ?? offer?.housingAllowance),
+          transportAllowance: str(employee.transportAllowance ?? offer?.transportAllowance),
+          // The contract's "Phone allowance" line is the mobile allowance.
+          otherAllowance: str(employee.mobileAllowance ?? offer?.mobileAllowance),
+          foodAllowance: str(employee.foodAllowance),
+          additionalAllowance: str(employee.otherAllowance),
+        }
+      : null,
     particulars: {
       nameEn: legalName,
       nameAr: employee.fullNameAr ?? "",
@@ -462,14 +476,14 @@ export async function contractDefaults(ctx: ActorContext, employeeId: string) {
         employee.passport?.passportNumber ??
         (offer?.candidateIdType === "PASSPORT" ? (offer.candidateIdNumber ?? "") : ""),
       dateOfBirth: dmy(employee.dateOfBirth),
-      homeAddressEn: offer?.candidateAddress ?? "",
-      homeAddressAr: "",
-      saudiAddressEn: "",
-      saudiAddressAr: "",
-      homePhone: "",
-      ticketDestinationEn: offer?.ticketDestination ?? "",
+      homeAddressEn: employee.homeAddressEn ?? offer?.candidateAddress ?? "",
+      homeAddressAr: employee.homeAddressAr ?? "",
+      saudiAddressEn: employee.saudiAddressEn ?? "",
+      saudiAddressAr: employee.saudiAddressAr ?? "",
+      homePhone: employee.homePhone ?? "",
+      ticketDestinationEn: employee.ticketDestination ?? offer?.ticketDestination ?? "",
       ticketDestinationAr: "",
-      ticketWife: offer?.ticketCover === "SELF_FAMILY",
+      ticketWife: (employee.ticketCover ?? offer?.ticketCover) === "SELF_FAMILY",
       ticketChildren: 0,
     },
   };

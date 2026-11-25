@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import {
   convertOfferSchema,
   hiringIdSchema,
@@ -15,6 +16,7 @@ import {
   createJobOffer,
   deleteJobDescription,
   deleteJobOffer,
+  offerDefaults,
   updateJobDescription,
   updateJobOffer,
 } from "@/server/services/hiring";
@@ -152,4 +154,11 @@ export const deleteJobOfferAction = defineAction({
     return { id: offer.id };
   },
   revalidate: () => OFFER_PATHS,
+});
+
+/** Read-only: a new offer's values from an employee's record. */
+export const offerDefaultsAction = defineAction({
+  permission: "hr.offers.manage",
+  schema: z.object({ employeeId: z.string().min(1) }).strict(),
+  handler: async ({ input, ctx }) => offerDefaults(ctx, input.employeeId),
 });

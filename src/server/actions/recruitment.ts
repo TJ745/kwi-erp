@@ -150,9 +150,9 @@ export const createJoiningLetterAction = defineAction({
     audit.record({
       entityId: l.id,
       companyId: l.companyId,
-      summary: `Created joining letter for ${l.employeeName}`,
+      summary: `Created joining letter for ${l.employeeName}${l.activated ? "; New hire → Active" : ""}`,
     });
-    return { id: l.id };
+    return { id: l.id, activated: l.activated };
   },
   revalidate: (input) => [...JOINING_PATHS, `/people/employees/${input.employeeId}`],
 });

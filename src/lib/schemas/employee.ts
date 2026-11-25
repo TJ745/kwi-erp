@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { describeIbanProblem, validateIban } from "@/lib/bank";
+import {
+  CONTRACT_YEARS,
+  COVERS,
+  FAMILY_STATUSES,
+  LEAVE_PLANS,
+  PROBATION_DAYS,
+} from "@/lib/job-offer";
 
 const optionalText = (max: number) =>
   z
@@ -8,6 +15,14 @@ const optionalText = (max: number) =>
     .max(max)
     .optional()
     .transform((v) => (v === "" ? undefined : v));
+
+/** One of a fixed set of values, or blank. */
+const optionalChoice = (values: readonly string[]) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? undefined : v))
+    .refine((v) => v === undefined || values.includes(v), "Choose one of the options");
 
 const optionalDate = z
   .string()
@@ -22,6 +37,7 @@ const requiredDate = z
   .refine((v) => !Number.isNaN(v.getTime()), "Enter a valid date");
 
 export const EMPLOYEE_STATUSES = [
+  "NEW_HIRE",
   "ACTIVE",
   "ON_LEAVE",
   "RESIGNED",
@@ -96,6 +112,25 @@ const employeeSchemaObject = z
       .optional()
       .or(z.literal("").transform(() => undefined)),
     notes: optionalText(2000),
+
+    // Addresses and terms: entered once, printed on the offer, contract and
+    // leave form. All optional.
+    saudiAddressEn: optionalText(300),
+    saudiAddressAr: optionalText(300),
+    homeAddressEn: optionalText(300),
+    homeAddressAr: optionalText(300),
+    homePhone: optionalText(40),
+    contractYears: optionalChoice(CONTRACT_YEARS.map(String)).transform((v) =>
+      v === undefined ? undefined : Number(v),
+    ),
+    probationDays: optionalChoice(PROBATION_DAYS.map(String)).transform((v) =>
+      v === undefined ? undefined : Number(v),
+    ),
+    familyStatus: optionalChoice(FAMILY_STATUSES),
+    leavePlan: optionalChoice(LEAVE_PLANS),
+    ticketDestination: optionalText(80),
+    ticketCover: optionalChoice(COVERS),
+    medicalCover: optionalChoice(COVERS),
   })
   .strict();
 

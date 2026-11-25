@@ -207,6 +207,7 @@ export default async function EmployeesPage({
 }
 
 const EMPLOYEE_STATUSES = [
+  "NEW_HIRE",
   "ACTIVE",
   "ON_LEAVE",
   "RESIGNED",

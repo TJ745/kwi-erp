@@ -29,13 +29,18 @@ export const IMPORT_COLUMNS = [
   { key: "department", header: "Department", required: false, example: "Finance", hint: "Exact department name — see the Reference sheet." },
   { key: "position", header: "Position", required: false, example: "Accountant", hint: "Exact position title — see the Reference sheet." },
   { key: "managerNo", header: "Manager employee ID", required: false, example: "KWI-000", hint: "The manager's Employee ID — an existing employee or another row in this file." },
-  { key: "status", header: "Status", required: false, example: "Active", hint: "Active, On leave, Resigned, Terminated, Exited or Inactive. Blank = Active." },
+  { key: "status", header: "Status", required: false, example: "Active", hint: "New hire, Active, On leave, Resigned, Terminated, Exited or Inactive. Blank = Active." },
   { key: "employmentType", header: "Employment type", required: false, example: "Full time", hint: "Full time, Part time, Contract, Temporary or Intern. Blank = Full time." },
   { key: "joiningDate", header: "Joining date", required: true, example: "2021-03-01", hint: "YYYY-MM-DD." },
   { key: "lastWorkingDate", header: "Last working date", required: false, example: "", hint: "YYYY-MM-DD. Required when status is Resigned, Terminated or Exited." },
   { key: "mobile", header: "Mobile", required: false, example: "0501234567" },
   { key: "workEmail", header: "Work email", required: false, example: "ahmed@example.com" },
   { key: "personalEmail", header: "Personal email", required: false, example: "" },
+  { key: "saudiAddressEn", header: "Address in KSA", required: false, example: "Al Olaya, Riyadh" },
+  { key: "saudiAddressAr", header: "Address in KSA (Arabic)", required: false, example: "" },
+  { key: "homeAddressEn", header: "Home country address", required: false, example: "" },
+  { key: "homeAddressAr", header: "Home country address (Arabic)", required: false, example: "" },
+  { key: "homePhone", header: "Home country phone", required: false, example: "" },
   { key: "notes", header: "Notes", required: false, example: "" },
 ] as const;
 
@@ -91,6 +96,7 @@ export const ENUM_LABELS = {
     WIDOWED: ["Widowed"],
   },
   status: {
+    NEW_HIRE: ["New hire", "New"],
     ACTIVE: ["Active"],
     ON_LEAVE: ["On leave"],
     RESIGNED: ["Resigned"],
@@ -325,6 +331,11 @@ export function validateImportRows(
       workEmail: c.workEmail,
       personalEmail: c.personalEmail,
       notes: c.notes,
+      saudiAddressEn: c.saudiAddressEn,
+      saudiAddressAr: c.saudiAddressAr,
+      homeAddressEn: c.homeAddressEn,
+      homeAddressAr: c.homeAddressAr,
+      homePhone: c.homePhone,
     };
     const parsed = employeeSchema.safeParse(candidate);
     if (!parsed.success) {

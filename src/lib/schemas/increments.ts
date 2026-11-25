@@ -73,8 +73,10 @@ export const employeeSalarySchema = z
   .object({
     employeeId: z.string().min(1),
     basic: optionalAmount,
-    transport: optionalAmount,
     housing: optionalAmount,
+    transport: optionalAmount,
+    mobile: optionalAmount,
+    food: optionalAmount,
     other: optionalAmount,
   })
   .strict();

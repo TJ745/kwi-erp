@@ -101,6 +101,8 @@ describe("increment schemas", () => {
       basic: "4200",
       transport: "",
       housing: "0",
+      mobile: "150",
+      food: "",
       other: "300",
     });
     expect(parsed).toEqual({
@@ -108,6 +110,8 @@ describe("increment schemas", () => {
       basic: "4200.00",
       transport: null,
       housing: "0.00",
+      mobile: "150.00",
+      food: null,
       other: "300.00",
     });
   });

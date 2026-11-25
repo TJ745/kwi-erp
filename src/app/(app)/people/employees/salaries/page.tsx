@@ -23,7 +23,7 @@ export default async function UpdateSalariesPage() {
       </Link>
       <PageHeader
         title="Update salaries"
-        description="Load or change everyone's salary at once from Excel: Basic, Transport, Housing and Mobile / Food. Increment lists take each employee's current salary from here."
+        description="Load or change everyone's salary at once from Excel: Basic salary, Housing, Transportation, Mobile, Food and Other allowances. Increment lists take each employee's current salary from here."
       />
       <SalaryWizard />
     </PageShell>

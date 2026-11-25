@@ -86,7 +86,13 @@ export function JoiningDialog({
         if (!result.fieldErrors) setFormError(result.error);
         return;
       }
-      toast.success(letter ? "Joining letter updated." : "Joining letter created.");
+      toast.success(
+        letter
+          ? "Joining letter updated."
+          : "activated" in result.data && result.data.activated
+            ? "Joining letter created. The employee is now Active."
+            : "Joining letter created.",
+      );
       setOpen(false);
       router.refresh();
     });

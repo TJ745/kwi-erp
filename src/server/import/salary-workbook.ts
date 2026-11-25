@@ -1,4 +1,5 @@
 import "server-only";
+import { PAY_PARTS, type PayPart } from "@/lib/salary";
 import ExcelJS from "exceljs";
 import {
   SALARY_COLUMNS,
@@ -14,15 +15,11 @@ import { cellText, ImportFileError } from "./employee-workbook";
  * their current salary, so the person only edits amounts.
  */
 export async function buildSalaryTemplate(
-  employees: {
+  employees: ({
     employeeNo: string;
     name: string;
     company: string;
-    basic: number | null;
-    transport: number | null;
-    housing: number | null;
-    other: number | null;
-  }[],
+  } & Record<PayPart, number | null>)[],
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
@@ -37,14 +34,14 @@ export async function buildSalaryTemplate(
 
   for (const e of employees) {
     // Written as plain string cells, which Excel never evaluates as formulas.
-    sheet.addRow([e.employeeNo, e.name, e.company, e.basic, e.transport, e.housing, e.other]);
+    sheet.addRow([e.employeeNo, e.name, e.company, ...PAY_PARTS.map((p) => e[p])]);
   }
 
-  const widths = [14, 36, 10, 14, 16, 16, 22];
+  const widths = [14, 36, 10, 14, 18, 22, 16, 15, 15];
   widths.forEach((w, i) => {
     sheet.getColumn(i + 1).width = w;
   });
-  for (let c = 4; c <= 7; c++) sheet.getColumn(c).numFmt = "#,##0.00";
+  for (let c = 4; c <= 3 + PAY_PARTS.length; c++) sheet.getColumn(c).numFmt = "#,##0.00";
   // Name and company are for reading; shade them so it is clear they are not
   // what the upload changes.
   for (let r = 2; r <= employees.length + 1; r++) {
@@ -76,7 +73,7 @@ export async function parseSalaryWorkbook(file: Buffer): Promise<SalaryRow[]> {
     const column = SALARY_COLUMNS.find((c) => c.header.toLowerCase() === text);
     if (column) index.set(column.key, col);
   });
-  const required: SalaryColumnKey[] = ["employeeNo", "basic", "transport", "housing", "other"];
+  const required: SalaryColumnKey[] = ["employeeNo", ...PAY_PARTS];
   const missing = required.filter((k) => !index.has(k));
   if (missing.length) {
     throw new ImportFileError(

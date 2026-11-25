@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { CalendarPlus, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,10 @@ const ADMIN_TEXT: { key: keyof LeaveForm; label: string }[] = [
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** The day after an ISO date, as an ISO date. */
+const dayAfter = (iso: string) =>
+  new Date(new Date(iso).getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 /**
  * Records an employee's leave, printed as the company's Leave Request form.
  * Leave entered here is approved as it is saved: HR records agreed leave.
@@ -64,13 +68,22 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function LeaveRequestButton({
   leaveTypes,
   employees,
-  leave,
+  leave: given,
+  extend,
 }: {
   leaveTypes: LeaveType[];
   employees: { id: string; label: string }[];
   /** Absent for a new leave. */
   leave?: LeaveValues;
+  /** Records a new leave that carries on from this one. */
+  extend?: LeaveValues;
 }) {
+  // An extension starts as a copy of the leave it extends, from the day after
+  // it ends, and is then recorded as a new leave.
+  const leave: LeaveValues | undefined = extend
+    ? { ...extend, startDate: dayAfter(extend.endDate), endDate: dayAfter(extend.endDate) }
+    : given;
+  const editing = Boolean(given);
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -123,6 +136,7 @@ export function LeaveRequestButton({
       startDate: s("startDate"),
       endDate: s("endDate"),
       handoverToId: s("handoverToId"),
+      ...(extend ? { extendsLeaveId: extend.id } : {}),
       form: {
         ...Object.fromEntries([...FORM_TEXT, ...ADMIN_TEXT].map((f) => [f.key, s(f.key)])),
         visaType: s("visaType"),
@@ -132,15 +146,15 @@ export function LeaveRequestButton({
       },
     };
     startTransition(async () => {
-      const result = leave
-        ? await updateLeaveRequestAction({ ...payload, id: leave.id })
+      const result = given
+        ? await updateLeaveRequestAction({ ...payload, id: given.id })
         : await createLeaveRequestAction(payload);
       if (!result.success) {
         setErrors(result.fieldErrors ?? {});
         setFormError(result.fieldErrors ? "Please check the highlighted fields." : result.error);
         return;
       }
-      toast.success(leave ? "Leave updated." : "Leave recorded.");
+      toast.success(editing ? "Leave updated." : extend ? "Leave extended." : "Leave recorded.");
       setOpen(false);
       router.refresh();
     });
@@ -150,7 +164,19 @@ export function LeaveRequestButton({
 
   return (
     <>
-      {leave ? (
+      {extend ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Extend leave"
+          title="Extend leave"
+          onClick={() => {
+            onOpenChange(true);
+          }}
+        >
+          <CalendarPlus className="size-4" />
+        </Button>
+      ) : leave ? (
         <Button
           size="icon"
           variant="ghost"
@@ -175,10 +201,13 @@ export function LeaveRequestButton({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{leave ? "Edit leave" : "New leave"}</DialogTitle>
+            <DialogTitle>
+              {extend ? "Extend leave" : editing ? "Edit leave" : "New leave"}
+            </DialogTitle>
             <DialogDescription>
-              Prints as the Leave Request form. Pick the employee: their details fill in from their
-              record and contract. The leave is approved as it is saved.
+              {extend
+                ? `Extends the leave of ${extend.startDate} to ${extend.endDate}. The extension starts the day after it ends; choose the new last day. It is recorded and printed as its own Leave Request.`
+                : "Prints as the Leave Request form. Pick the employee: their details fill in from their record and contract. The leave is approved as it is saved."}
             </DialogDescription>
           </DialogHeader>
 
@@ -221,6 +250,7 @@ export function LeaveRequestButton({
                     label="From"
                     required
                     defaultValue={start}
+                    {...(extend ? { hint: "The day after the leave ends." } : {})}
                     errors={errors.startDate}
                   />
                   <DateField
@@ -330,7 +360,7 @@ export function LeaveRequestButton({
                 Cancel
               </Button>
               <Button type="submit" disabled={pending || !ready || days === null}>
-                {pending ? "Saving…" : leave ? "Save" : "Record leave"}
+                {pending ? "Saving…" : editing ? "Save" : extend ? "Extend leave" : "Record leave"}
               </Button>
             </DialogFooter>
           </form>

@@ -38,6 +38,8 @@ model InterviewEvaluation {
   id            String   @id @default(cuid(2))
   companyId     String
   prrId         String?
+  /// The employee record the applicant was entered as, when there is one.
+  employeeId    String?
   applicantName String
   positionTitle String
   interviewDate DateTime
@@ -48,11 +50,13 @@ model InterviewEvaluation {
   updatedAt DateTime @updatedAt
 
   company Company           @relation(fields: [companyId], references: [id])
-  prr     PersonnelRequest? @relation(fields: [prrId], references: [id])
-  offers  JobOffer[]
+  prr      PersonnelRequest? @relation(fields: [prrId], references: [id])
+  employee Employee?         @relation(fields: [employeeId], references: [id])
+  offers   JobOffer[]
 
   @@index([companyId, interviewDate])
   @@index([prrId])
+  @@index([employeeId])
 }
 
 /// New Appointment Acknowledgment (FM:AP:034).

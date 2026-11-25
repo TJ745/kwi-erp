@@ -136,6 +136,8 @@ const offerObject = z
     notes: optionalText(2000),
     /** The interview the offer is made from. */
     interviewId: optionalId,
+    /** The employee record the candidate was entered as. */
+    employeeId: optionalId,
   })
   .strict();
 

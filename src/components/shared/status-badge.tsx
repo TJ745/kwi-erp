@@ -23,6 +23,7 @@ const STATUS_TONES: Record<string, { tone: Tone; label?: string }> = {
   DISABLED: { tone: "expired" },
 
   // Employee
+  NEW_HIRE: { tone: "info", label: "New hire" },
   ON_LEAVE: { tone: "info", label: "On leave" },
   RESIGNED: { tone: "neutral" },
   TERMINATED: { tone: "expired" },

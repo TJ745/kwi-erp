@@ -41,6 +41,8 @@ export type ContractFormValues = {
   housingAllowance: string | null;
   transportAllowance: string | null;
   otherAllowance: string | null;
+  foodAllowance: string | null;
+  additionalAllowance: string | null;
   notes: string | null;
   contractDate: string | null;
   positionTitle: string | null;
@@ -60,6 +62,8 @@ export type ContractDefaults = {
     housingAllowance: string;
     transportAllowance: string;
     otherAllowance: string;
+    foodAllowance: string;
+    additionalAllowance: string;
   } | null;
   particulars: ContractParticulars;
 };
@@ -182,6 +186,8 @@ export function ContractDialog({
             housingAllowance: readString(fd, "housingAllowance"),
             transportAllowance: readString(fd, "transportAllowance"),
             otherAllowance: readString(fd, "otherAllowance"),
+            foodAllowance: readString(fd, "foodAllowance"),
+            additionalAllowance: readString(fd, "additionalAllowance"),
           }
         : {}),
     };
@@ -338,6 +344,26 @@ export function ContractDialog({
                           contract?.otherAllowance ?? defaults?.salary?.otherAllowance ?? ""
                         }
                         errors={errors.otherAllowance}
+                      />
+                      <TextField
+                        name="foodAllowance"
+                        label="Food allowance"
+                        hint="Printed only when filled in."
+                        defaultValue={
+                          contract?.foodAllowance ?? defaults?.salary?.foodAllowance ?? ""
+                        }
+                        errors={errors.foodAllowance}
+                      />
+                      <TextField
+                        name="additionalAllowance"
+                        label="Other allowance"
+                        hint="Printed only when filled in."
+                        defaultValue={
+                          contract?.additionalAllowance ??
+                          defaults?.salary?.additionalAllowance ??
+                          ""
+                        }
+                        errors={errors.additionalAllowance}
                       />
                     </div>
                   </fieldset>

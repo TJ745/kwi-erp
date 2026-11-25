@@ -32,6 +32,7 @@ export function OfferRowActions({
   departments,
   descriptions,
   interviews,
+  employees,
   canManage,
   canConvert,
 }: {
@@ -41,6 +42,7 @@ export function OfferRowActions({
   departments: { id: string; name: string; companyId: string }[];
   descriptions: { id: string; title: string }[];
   interviews: InterviewPick[];
+  employees: { id: string; label: string }[];
   canManage: boolean;
   canConvert: boolean;
 }) {
@@ -52,7 +54,7 @@ export function OfferRowActions({
   const [formError, setFormError] = React.useState<string | null>(null);
 
   // Only an accepted, not-yet-converted offer can become a person.
-  const mayConvert = canConvert && offer.status === "ACCEPTED" && !offer.isConverted;
+  const mayConvert = canConvert && offer.status === "ACCEPTED" && !offer.isConverted && !offer.employeeId;
 
   // A guessed first/last split would put fiction in the permanent record, so
   // the candidate's single name field is only a starting point here.
@@ -157,6 +159,7 @@ export function OfferRowActions({
         positions={positions}
         descriptions={descriptions}
         interviews={interviews}
+        employees={employees}
         offer={offer}
         open={editOpen}
         onOpenChange={setEditOpen}

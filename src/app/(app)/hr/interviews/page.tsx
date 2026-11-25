@@ -10,7 +10,11 @@ import { DeleteRecordButton } from "@/components/shared/delete-record-button";
 import { FINAL_ACTION_LABELS, RECOMMENDATION_LABELS } from "@/lib/recruitment-forms";
 import { requirePagePermission } from "@/server/auth/page-guards";
 import { orgOptions } from "@/server/services/org";
-import { listInterviews, prrOptions } from "@/server/services/recruitment";
+import {
+  intervieweeOptions,
+  listInterviews,
+  prrOptions,
+} from "@/server/services/recruitment";
 import { deleteInterviewAction } from "@/server/actions/recruitment";
 import { InterviewDialog } from "./interview-dialog";
 
@@ -27,10 +31,11 @@ export default async function InterviewsPage({
   const { q } = await searchParams;
   const canManage = ctx.permissions.has("hr.offers.manage");
 
-  const [interviews, options, prrs] = await Promise.all([
+  const [interviews, options, prrs, employees] = await Promise.all([
     listInterviews(ctx, q),
     orgOptions(ctx),
     canManage ? prrOptions(ctx) : Promise.resolve([]),
+    canManage ? intervieweeOptions(ctx) : Promise.resolve([]),
   ]);
   const companies = options.companies.map((c) => ({ id: c.id, code: c.code }));
 
@@ -39,7 +44,7 @@ export default async function InterviewsPage({
       <PageHeader
         title="Interview Evaluations"
         description="Interview Evaluation Reports, each against a PRR. A job offer can then be made from an interview."
-        action={canManage ? <InterviewDialog companies={companies} prrs={prrs} /> : null}
+        action={canManage ? <InterviewDialog companies={companies} prrs={prrs} employees={employees} /> : null}
       />
       <SearchInput placeholder="Search applicant or position…" />
       {interviews.length === 0 ? (
@@ -109,10 +114,12 @@ export default async function InterviewsPage({
                             <InterviewDialog
                               companies={companies}
                               prrs={prrs}
+                              employees={employees}
                               interview={{
                                 id: i.id,
                                 companyId: i.companyId,
                                 prrId: i.prrId,
+                                employeeId: i.employeeId,
                                 applicantName: i.applicantName,
                                 positionTitle: i.positionTitle,
                                 interviewDate: day(i.interviewDate),

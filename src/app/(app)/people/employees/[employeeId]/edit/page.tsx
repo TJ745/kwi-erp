@@ -61,6 +61,18 @@ export default async function EditEmployeePage({
           workEmail: employee.workEmail,
           personalEmail: employee.personalEmail,
           notes: employee.notes,
+          saudiAddressEn: employee.saudiAddressEn,
+          saudiAddressAr: employee.saudiAddressAr,
+          homeAddressEn: employee.homeAddressEn,
+          homeAddressAr: employee.homeAddressAr,
+          homePhone: employee.homePhone,
+          contractYears: employee.contractYears,
+          probationDays: employee.probationDays,
+          familyStatus: employee.familyStatus,
+          leavePlan: employee.leavePlan,
+          ticketDestination: employee.ticketDestination,
+          ticketCover: employee.ticketCover,
+          medicalCover: employee.medicalCover,
         }}
       />
     </PageShell>

@@ -1,4 +1,5 @@
 import "server-only";
+import { NATIONALITIES } from "@/lib/employment-contract";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
@@ -283,6 +284,7 @@ export async function listInterviews(ctx: ActorContext, q?: string) {
       id: true,
       companyId: true,
       prrId: true,
+      employeeId: true,
       applicantName: true,
       positionTitle: true,
       interviewDate: true,
@@ -307,10 +309,12 @@ export async function interviewOptions(ctx: ActorContext) {
       positionTitle: true,
       companyId: true,
       interviewDate: true,
+      employeeId: true,
       prr: { select: { positionId: true } },
     },
   });
   return rows.map((r) => ({
+    employeeId: r.employeeId,
     id: r.id,
     applicantName: r.applicantName,
     positionTitle: r.positionTitle,
@@ -329,6 +333,53 @@ async function assertPrrInCompany(ctx: ActorContext, prrId: string | null, compa
   if (!prr) throw new NotFoundError("That PRR is not one of this company's.");
 }
 
+async function interviewee(ctx: ActorContext, employeeId: string | null | undefined) {
+  if (!employeeId) return null;
+  const e = await prisma.employee.findFirst({
+    where: { id: employeeId, deletedAt: null, ...companyScopeWhere(ctx) },
+    select: { id: true },
+  });
+  if (!e) throw new NotFoundError("Employee not found.");
+  return e.id;
+}
+
+/**
+ * Employees an interview can be for, with what the form fills in from their
+ * record. New hires first: they are the ones being interviewed.
+ */
+export async function intervieweeOptions(ctx: ActorContext) {
+  const rows = await prisma.employee.findMany({
+    where: { deletedAt: null, ...companyScopeWhere(ctx) },
+    orderBy: [{ status: "asc" }, { fullName: "asc" }],
+    take: 1000,
+    select: {
+      id: true,
+      fullName: true,
+      employeeNo: true,
+      status: true,
+      companyId: true,
+      nationality: true,
+      company: { select: { code: true } },
+      position: { select: { title: true } },
+      department: { select: { name: true } },
+      iqama: { select: { profession: true } },
+    },
+  });
+  return rows
+    .map((e) => ({
+      id: e.id,
+      label: `${e.fullName} (${e.employeeNo} · ${e.company.code})${e.status === "NEW_HIRE" ? " — new hire" : ""}`,
+      newHire: e.status === "NEW_HIRE",
+      name: e.fullName,
+      companyId: e.companyId,
+      nationality: NATIONALITIES[e.nationality]?.en ?? e.nationality,
+      professionInIqama: e.iqama?.profession ?? "",
+      position: e.position?.title ?? "",
+      department: e.department?.name ?? "",
+    }))
+    .sort((a, b) => Number(b.newHire) - Number(a.newHire));
+}
+
 export async function createInterview(ctx: ActorContext, input: InterviewInput) {
   requireCompanyAccess(ctx, input.companyId);
   await assertPrrInCompany(ctx, input.prrId, input.companyId);
@@ -336,6 +387,7 @@ export async function createInterview(ctx: ActorContext, input: InterviewInput) 
     data: {
       companyId: input.companyId,
       prrId: input.prrId,
+      employeeId: await interviewee(ctx, input.employeeId),
       applicantName: input.applicantName,
       positionTitle: input.positionTitle,
       interviewDate: input.interviewDate,
@@ -359,6 +411,7 @@ export async function updateInterview(ctx: ActorContext, input: InterviewInput &
     data: {
       companyId: input.companyId,
       prrId: input.prrId,
+      employeeId: await interviewee(ctx, input.employeeId),
       applicantName: input.applicantName,
       positionTitle: input.positionTitle,
       interviewDate: input.interviewDate,
@@ -462,11 +515,31 @@ export async function listJoiningLetters(
 
 export async function createJoiningLetter(ctx: ActorContext, input: JoiningLetterInput) {
   const employee = await employeeInScope(ctx, input.employeeId);
-  const letter = await prisma.joiningLetter.create({
-    data: { ...input, createdById: ctx.userId },
-    select: { id: true },
+  const current = await prisma.employee.findUniqueOrThrow({
+    where: { id: input.employeeId },
+    select: { status: true },
   });
-  return { ...letter, employeeName: employee.fullName, companyId: employee.companyId };
+  // Joining is when a new hire becomes staff: Active, from the joining date.
+  const activate = current.status === "NEW_HIRE";
+  const letter = await prisma.$transaction(async (tx) => {
+    const created = await tx.joiningLetter.create({
+      data: { ...input, createdById: ctx.userId },
+      select: { id: true },
+    });
+    if (activate) {
+      await tx.employee.update({
+        where: { id: input.employeeId },
+        data: { status: "ACTIVE", joiningDate: input.joiningDate },
+      });
+    }
+    return created;
+  });
+  return {
+    ...letter,
+    activated: activate,
+    employeeName: employee.fullName,
+    companyId: employee.companyId,
+  };
 }
 
 export async function updateJoiningLetter(

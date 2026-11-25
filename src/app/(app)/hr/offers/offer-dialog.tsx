@@ -30,7 +30,11 @@ import {
   TERM_OPTION_LABELS,
   type SalaryLineKey,
 } from "@/lib/job-offer";
-import { createJobOfferAction, updateJobOfferAction } from "@/server/actions/hiring";
+import {
+  createJobOfferAction,
+  offerDefaultsAction,
+  updateJobOfferAction,
+} from "@/server/actions/hiring";
 
 export type OfferValues = {
   id: string;
@@ -60,8 +64,13 @@ export type OfferValues = {
   sentAt: string | null;
   notes: string | null;
   interviewId: string | null;
+  /** The employee record the offer is made to, if any. */
+  employeeId: string | null;
   isConverted: boolean;
 } & Record<SalaryLineKey, string | null>;
+
+/** Offer values that can be filled in from an employee's record. */
+type Seed = Partial<Omit<OfferValues, "id" | "isConverted">>;
 
 const plain = (v: string | null) => (v === null ? "" : String(Number(v)));
 
@@ -73,6 +82,7 @@ export type InterviewPick = {
   companyId: string;
   positionId: string | null;
   interviewDate: string;
+  employeeId: string | null;
 };
 
 export function OfferDialog({
@@ -80,6 +90,7 @@ export function OfferDialog({
   positions,
   descriptions,
   interviews = [],
+  employees = [],
   offer,
   open: controlledOpen,
   onOpenChange,
@@ -89,6 +100,8 @@ export function OfferDialog({
   descriptions: { id: string; title: string }[];
   /** Interviews to make the offer from: picking one fills name, company, position. */
   interviews?: InterviewPick[] | undefined;
+  /** Employees to make the offer to: picking one fills the offer from their record. */
+  employees?: { id: string; label: string }[] | undefined;
   offer?: OfferValues | undefined;
   open?: boolean | undefined;
   onOpenChange?: ((open: boolean) => void) | undefined;
@@ -117,6 +130,34 @@ export function OfferDialog({
     mobileAllowance: plain(offer?.mobileAllowance ?? null),
   }));
   const total = offerTotal(salary);
+  const [employeeId, setEmployeeId] = React.useState(offer?.employeeId ?? "");
+  const [seed, setSeed] = React.useState<Seed | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  // A picked employee's record fills the form; otherwise the offer's own values.
+  const base: Seed | undefined = seed ? { ...offer, ...seed } : offer;
+
+  function pickEmployee(id: string) {
+    setEmployeeId(id);
+    setSeed(null);
+    if (!id) return;
+    setLoading(true);
+    void offerDefaultsAction({ employeeId: id }).then((result) => {
+      setLoading(false);
+      if (!result.success) {
+        setFormError(result.error);
+        return;
+      }
+      const d = result.data;
+      setSeed(d);
+      setSalary({
+        basicSalary: plain(d.basicSalary),
+        housingAllowance: plain(d.housingAllowance),
+        transportAllowance: plain(d.transportAllowance),
+        mobileAllowance: plain(d.mobileAllowance),
+      });
+    });
+  }
+
   const [interviewId, setInterviewId] = React.useState(offer?.interviewId ?? "");
   // A newly picked interview fills in; otherwise the offer's own values stay.
   const fromInterview =
@@ -157,6 +198,7 @@ export function OfferDialog({
       sentAt: readString(fd, "sentAt"),
       notes: readString(fd, "notes"),
       interviewId,
+      employeeId,
     };
 
     startTransition(async () => {
@@ -213,6 +255,23 @@ export function OfferDialog({
                 </div>
               ) : null}
 
+              {employees.length > 0 ? (
+                <SelectField
+                  name="employeePick"
+                  label="Employee"
+                  placeholder="Not in Employees"
+                  hint={
+                    loading
+                      ? "Loading the employee's details…"
+                      : "Picking the employee fills the offer from their record: name, ID, address, salary and terms."
+                  }
+                  options={employees.map((e) => ({ value: e.id, label: e.label }))}
+                  defaultValue={employeeId}
+                  onChange={pickEmployee}
+                  errors={errors.employeeId}
+                />
+              ) : null}
+
               {interviews.length > 0 ? (
                 <SelectField
                   name="interviewPick"
@@ -224,10 +283,19 @@ export function OfferDialog({
                     label: `${i.applicantName} — ${i.positionTitle} (${i.interviewDate})`,
                   }))}
                   defaultValue={interviewId}
-                  onChange={setInterviewId}
+                  onChange={(id) => {
+                    setInterviewId(id);
+                    // An interview of someone in Employees brings their record too.
+                    const picked = interviews.find((i) => i.id === id);
+                    if (picked?.employeeId && picked.employeeId !== employeeId) {
+                      pickEmployee(picked.employeeId);
+                    }
+                  }}
                   errors={errors.interviewId}
                 />
               ) : null}
+
+              <div key={`seed-${employeeId}-${seed ? "1" : "0"}`} className="space-y-5">
 
               <fieldset className="space-y-3">
                 <legend className="text-sm font-semibold">Candidate</legend>
@@ -236,7 +304,7 @@ export function OfferDialog({
                     name="salutation"
                     label="Title"
                     options={SALUTATIONS.map((s) => ({ value: s, label: s }))}
-                    defaultValue={offer?.salutation ?? "Mr."}
+                    defaultValue={base?.salutation ?? "Mr."}
                     errors={errors.salutation}
                   />
                   <TextField
@@ -244,7 +312,7 @@ export function OfferDialog({
                     name="candidateName"
                     label="Candidate name"
                     required
-                    defaultValue={fromInterview?.applicantName ?? offer?.candidateName ?? ""}
+                    defaultValue={fromInterview?.applicantName ?? base?.candidateName ?? ""}
                     errors={errors.candidateName}
                     className="sm:col-span-2"
                   />
@@ -253,14 +321,14 @@ export function OfferDialog({
                   <TextField
                     name="candidatePhone"
                     label="Mobile #"
-                    defaultValue={offer?.candidatePhone ?? ""}
+                    defaultValue={base?.candidatePhone ?? ""}
                     errors={errors.candidatePhone}
                   />
                   <TextField
                     name="candidateEmail"
                     label="Email"
                     type="email"
-                    defaultValue={offer?.candidateEmail ?? ""}
+                    defaultValue={base?.candidateEmail ?? ""}
                     errors={errors.candidateEmail}
                   />
                   <SelectField
@@ -268,20 +336,20 @@ export function OfferDialog({
                     label="ID document"
                     placeholder="None"
                     options={ID_TYPES.map((t) => ({ value: t, label: ID_TYPE_LABELS[t] }))}
-                    defaultValue={offer?.candidateIdType ?? ""}
+                    defaultValue={base?.candidateIdType ?? ""}
                     errors={errors.candidateIdType}
                   />
                   <TextField
                     name="candidateIdNumber"
                     label="Passport / Iqama number"
-                    defaultValue={offer?.candidateIdNumber ?? ""}
+                    defaultValue={base?.candidateIdNumber ?? ""}
                     errors={errors.candidateIdNumber}
                   />
                   <TextField
                     name="candidateAddress"
                     label="Address"
                     placeholder="Amman, Jordan"
-                    defaultValue={offer?.candidateAddress ?? ""}
+                    defaultValue={base?.candidateAddress ?? ""}
                     errors={errors.candidateAddress}
                     className="sm:col-span-2"
                   />
@@ -301,7 +369,7 @@ export function OfferDialog({
                       label: `${c.code} — ${c.name}`,
                     }))}
                     defaultValue={
-                      fromInterview?.companyId ?? offer?.companyId ?? companies[0]?.id ?? ""
+                      fromInterview?.companyId ?? base?.companyId ?? companies[0]?.id ?? ""
                     }
                     errors={errors.companyId}
                   />
@@ -311,13 +379,13 @@ export function OfferDialog({
                     label="Position"
                     placeholder="Not specified"
                     options={positions.map((p) => ({ value: p.id, label: p.title }))}
-                    defaultValue={fromInterview?.positionId ?? offer?.positionId ?? ""}
+                    defaultValue={fromInterview?.positionId ?? base?.positionId ?? ""}
                     errors={errors.positionId}
                   />
                   <DateField
                     name="offerDate"
                     label="Offer date"
-                    defaultValue={offer?.offerDate ?? today}
+                    defaultValue={base?.offerDate ?? today}
                     errors={errors.offerDate}
                   />
                   <TextField
@@ -326,13 +394,13 @@ export function OfferDialog({
                     hint={
                       offer ? undefined : "Leave blank to number it automatically, e.g. KWI/17/26."
                     }
-                    defaultValue={offer?.refNo ?? ""}
+                    defaultValue={base?.refNo ?? ""}
                     errors={errors.refNo}
                   />
                   <DateField
                     name="proposedJoiningDate"
                     label="Proposed joining date"
-                    defaultValue={offer?.proposedJoiningDate ?? ""}
+                    defaultValue={base?.proposedJoiningDate ?? ""}
                     errors={errors.proposedJoiningDate}
                   />
                   <SelectField
@@ -340,7 +408,7 @@ export function OfferDialog({
                     label="Job description"
                     placeholder="Not attached"
                     options={descriptions.map((d) => ({ value: d.id, label: d.title }))}
-                    defaultValue={offer?.jobDescriptionId ?? ""}
+                    defaultValue={base?.jobDescriptionId ?? ""}
                     errors={errors.jobDescriptionId}
                   />
                 </div>
@@ -351,7 +419,7 @@ export function OfferDialog({
                 <div className="grid gap-4 sm:grid-cols-4">
                   {SALARY_LINES.map((l) => (
                     <TextField
-                      key={l.key}
+                      key={`${l.key}-${employeeId}-${seed ? "1" : "0"}`}
                       name={l.key}
                       label={l.label}
                       defaultValue={salary[l.key]}
@@ -372,7 +440,7 @@ export function OfferDialog({
                   <TextField
                     name="currency"
                     label="Currency"
-                    defaultValue={offer?.currency ?? "SAR"}
+                    defaultValue={base?.currency ?? "SAR"}
                     errors={errors.currency}
                     className="w-28"
                   />
@@ -389,7 +457,7 @@ export function OfferDialog({
                       value: String(y),
                       label: TERM_OPTION_LABELS.contractYears[y],
                     }))}
-                    defaultValue={String(offer?.contractYears ?? 1)}
+                    defaultValue={String(base?.contractYears ?? 1)}
                     errors={errors.contractYears}
                   />
                   <SelectField
@@ -399,7 +467,7 @@ export function OfferDialog({
                       value: String(d),
                       label: TERM_OPTION_LABELS.probationDays[d],
                     }))}
-                    defaultValue={String(offer?.probationDays ?? 90)}
+                    defaultValue={String(base?.probationDays ?? 90)}
                     errors={errors.probationDays}
                   />
                   <SelectField
@@ -409,7 +477,7 @@ export function OfferDialog({
                       value: f,
                       label: TERM_OPTION_LABELS.familyStatus[f],
                     }))}
-                    defaultValue={offer?.familyStatus ?? "WITHOUT_FAMILY"}
+                    defaultValue={base?.familyStatus ?? "WITHOUT_FAMILY"}
                     errors={errors.familyStatus}
                   />
                   <SelectField
@@ -419,28 +487,28 @@ export function OfferDialog({
                       value: p,
                       label: TERM_OPTION_LABELS.leavePlan[p],
                     }))}
-                    defaultValue={offer?.leavePlan ?? "30_AFTER_1Y"}
+                    defaultValue={base?.leavePlan ?? "30_AFTER_1Y"}
                     errors={errors.leavePlan}
                   />
                   <SelectField
                     name="ticketCover"
                     label="Vacation ticket"
                     options={COVERS.map((c) => ({ value: c, label: TERM_OPTION_LABELS.cover[c] }))}
-                    defaultValue={offer?.ticketCover ?? "SELF"}
+                    defaultValue={base?.ticketCover ?? "SELF"}
                     errors={errors.ticketCover}
                   />
                   <TextField
                     name="ticketDestination"
                     label="Ticket to (city)"
                     placeholder="Amman"
-                    defaultValue={offer?.ticketDestination ?? ""}
+                    defaultValue={base?.ticketDestination ?? ""}
                     errors={errors.ticketDestination}
                   />
                   <SelectField
                     name="medicalCover"
                     label="Medical insurance"
                     options={COVERS.map((c) => ({ value: c, label: TERM_OPTION_LABELS.cover[c] }))}
-                    defaultValue={offer?.medicalCover ?? "SELF"}
+                    defaultValue={base?.medicalCover ?? "SELF"}
                     errors={errors.medicalCover}
                   />
                 </div>
@@ -476,7 +544,7 @@ export function OfferDialog({
                     label="Sent on"
                     required={status !== "DRAFT"}
                     {...(status === "DRAFT" ? { hint: "Optional while a draft." } : {})}
-                    defaultValue={offer?.sentAt ?? ""}
+                    defaultValue={base?.sentAt ?? ""}
                     errors={errors.sentAt}
                   />
                 </div>
@@ -485,10 +553,11 @@ export function OfferDialog({
                   label="Notes"
                   hint="Not printed."
                   rows={2}
-                  defaultValue={offer?.notes ?? ""}
+                  defaultValue={base?.notes ?? ""}
                   errors={errors.notes}
                 />
               </fieldset>
+              </div>
             </div>
 
             <DialogFooter>
@@ -501,7 +570,7 @@ export function OfferDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
+              <Button type="submit" disabled={pending || loading}>
                 {pending ? "Saving…" : offer ? "Save changes" : "Create offer"}
               </Button>
             </DialogFooter>

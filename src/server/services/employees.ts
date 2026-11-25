@@ -145,6 +145,18 @@ export async function getEmployee(ctx: ActorContext, id: string) {
       workEmail: true,
       personalEmail: true,
       notes: true,
+      saudiAddressEn: true,
+      saudiAddressAr: true,
+      homeAddressEn: true,
+      homeAddressAr: true,
+      homePhone: true,
+      contractYears: true,
+      probationDays: true,
+      familyStatus: true,
+      leavePlan: true,
+      ticketDestination: true,
+      ticketCover: true,
+      medicalCover: true,
       companyId: true,
       departmentId: true,
       positionId: true,
@@ -196,6 +208,24 @@ export async function assertEmployeeNoFree(employeeNo: string, exceptId?: string
   }
 }
 
+/** The address and terms fields, as stored. */
+function profileData(input: EmployeeInput) {
+  return {
+    saudiAddressEn: input.saudiAddressEn ?? null,
+    saudiAddressAr: input.saudiAddressAr ?? null,
+    homeAddressEn: input.homeAddressEn ?? null,
+    homeAddressAr: input.homeAddressAr ?? null,
+    homePhone: input.homePhone ?? null,
+    contractYears: input.contractYears ?? null,
+    probationDays: input.probationDays ?? null,
+    familyStatus: input.familyStatus ?? null,
+    leavePlan: input.leavePlan ?? null,
+    ticketDestination: input.ticketDestination ?? null,
+    ticketCover: input.ticketCover ?? null,
+    medicalCover: input.medicalCover ?? null,
+  };
+}
+
 export async function createEmployee(ctx: ActorContext, input: EmployeeInput) {
   requireCompanyAccess(ctx, input.companyId);
   await assertOrgReferencesValid(input);
@@ -235,6 +265,7 @@ export async function createEmployee(ctx: ActorContext, input: EmployeeInput) {
         workEmail: input.workEmail ?? null,
         personalEmail: input.personalEmail ?? null,
         notes: input.notes ?? null,
+        ...profileData(input),
       },
       select: { id: true, employeeNo: true, fullName: true, companyId: true },
     });
@@ -294,6 +325,7 @@ export async function updateEmployee(ctx: ActorContext, input: EmployeeInput & {
         workEmail: input.workEmail ?? null,
         personalEmail: input.personalEmail ?? null,
         notes: input.notes ?? null,
+        ...profileData(input),
       },
     });
 

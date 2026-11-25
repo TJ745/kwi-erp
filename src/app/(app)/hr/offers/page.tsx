@@ -12,6 +12,7 @@ import { listJobDescriptions, listJobOffers, offerCounts } from "@/server/servic
 import { orgOptions } from "@/server/services/org";
 import { interviewOptions } from "@/server/services/recruitment";
 import { OfferDialog } from "./offer-dialog";
+import { employeeOptions } from "@/server/services/hr-records";
 import { OfferRowActions } from "./offer-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
 import { DocumentsLink } from "@/components/shared/documents-link";
@@ -33,13 +34,18 @@ export default async function JobOffersPage({
   // The proposed salary is salary data like any other.
   const canSeeSalary = ctx.permissions.has("employees.salary.view");
 
-  const [offers, counts, descriptions, options, interviews] = await Promise.all([
+  const [offers, counts, descriptions, options, interviews, people] = await Promise.all([
     listJobOffers(ctx, { ...(status ? { status } : {}), ...(q ? { q } : {}) }),
     offerCounts(ctx),
     canManage ? listJobDescriptions(ctx) : Promise.resolve([]),
     orgOptions(ctx),
     canManage ? interviewOptions(ctx) : Promise.resolve([]),
+    canManage ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
+  const employees = people.map((e) => ({
+    id: e.id,
+    label: `${e.fullName} (${e.employeeNo} · ${e.company.code})${e.status === "NEW_HIRE" ? " — new hire" : ""}`,
+  }));
 
   return (
     <PageShell>
@@ -56,6 +62,7 @@ export default async function JobOffersPage({
                 positions={options.positions}
                 descriptions={descriptions.map((d) => ({ id: d.id, title: d.title }))}
                 interviews={interviews}
+                employees={employees}
               />
             ) : null}
           </div>
@@ -201,7 +208,8 @@ export default async function JobOffersPage({
                             sentAt: o.sentAt ? o.sentAt.toISOString().slice(0, 10) : null,
                             notes: o.notes,
                             interviewId: o.interviewId,
-                            isConverted: o.convertedEmployeeId !== null,
+                            employeeId: o.convertedEmployeeId,
+                            isConverted: o.status === "CONVERTED",
                           }}
                           companies={options.companies}
                           positions={options.positions}
@@ -211,6 +219,7 @@ export default async function JobOffersPage({
                             title: d.title,
                           }))}
                           interviews={interviews}
+                          employees={employees}
                           canManage={canManage}
                           canConvert={canConvert}
                         />

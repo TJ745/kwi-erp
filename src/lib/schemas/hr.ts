@@ -80,7 +80,11 @@ const contractSchemaObject = z
     basicSalary: optionalMoney,
     housingAllowance: optionalMoney,
     transportAllowance: optionalMoney,
+    /** The phone allowance (printed as such on the contract). */
     otherAllowance: optionalMoney,
+    foodAllowance: optionalMoney,
+    /** Any other allowance. */
+    additionalAllowance: optionalMoney,
     currency: z.string().trim().length(3).default("SAR"),
     status: z.enum(CONTRACT_STATUSES).default("ACTIVE"),
     notes: optionalText(1000),
@@ -161,6 +165,8 @@ const leaveRequestObject = z
       .transform((v) => (v === "" || v === "none" ? undefined : v)),
     /** The printed form's other fields. */
     form: leaveFormSchema.optional(),
+    /** The leave this one extends; only read when recording. */
+    extendsLeaveId: z.string().min(1).optional(),
   })
   .strict();
 

@@ -226,7 +226,10 @@ const employeeHeadcount: QueryFn = async (ctx, filters) => {
     where: {
       deletedAt: null,
       ...scopeWhere(ctx, filters),
-      ...(filters.status ? { status: filters.status as "ACTIVE" } : {}),
+      // New hires have not joined yet, so they are not headcount.
+      ...(filters.status
+        ? { status: filters.status as "ACTIVE" }
+        : { status: { not: "NEW_HIRE" as const } }),
     },
     _count: { _all: true },
   });

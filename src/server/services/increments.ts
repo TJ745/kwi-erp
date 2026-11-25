@@ -1,4 +1,5 @@
 import "server-only";
+import { PAY_FIELDS, PAY_PARTS, PAY_SELECT, payOf, sumAmounts, type Pay } from "@/lib/salary";
 import { prisma } from "@/server/db/client";
 import type { ActorContext } from "@/server/auth/context";
 import { companyScopeWhere } from "@/server/auth/guards";
@@ -276,10 +277,7 @@ export async function addEmployeesToList(
     orderBy: { employeeNo: "asc" },
     select: {
       id: true,
-      basicSalary: true,
-      transportAllowance: true,
-      housingAllowance: true,
-      otherAllowance: true,
+      ...PAY_SELECT,
     },
   });
   if (employees.length !== ids.length) {
@@ -295,7 +293,12 @@ export async function addEmployeesToList(
       const basic = e.basicSalary?.toString() ?? zero;
       const transport = e.transportAllowance?.toString() ?? zero;
       const housing = e.housingAllowance?.toString() ?? zero;
-      const other = e.otherAllowance?.toString() ?? zero;
+      // The list has one column for mobile, food and other allowances.
+      const other = sumAmounts([
+        e.mobileAllowance?.toString(),
+        e.foodAllowance?.toString(),
+        e.otherAllowance?.toString(),
+      ]);
       order += 1;
       return {
         listId: list.id,
@@ -408,20 +411,10 @@ export async function salaryFor(ctx: ActorContext, employeeId: string) {
   requireSalaryView(ctx);
   const e = await prisma.employee.findFirst({
     where: { id: employeeId, ...inScopeEmployee(ctx) },
-    select: {
-      basicSalary: true,
-      transportAllowance: true,
-      housingAllowance: true,
-      otherAllowance: true,
-    },
+    select: PAY_SELECT,
   });
   if (!e) throw new NotFoundError("Employee not found.");
-  return {
-    basic: e.basicSalary?.toString() ?? null,
-    transport: e.transportAllowance?.toString() ?? null,
-    housing: e.housingAllowance?.toString() ?? null,
-    other: e.otherAllowance?.toString() ?? null,
-  };
+  return payOf(e);
 }
 
 export async function updateEmployeeSalary(ctx: ActorContext, input: EmployeeSalaryInput) {
@@ -432,37 +425,19 @@ export async function updateEmployeeSalary(ctx: ActorContext, input: EmployeeSal
       employeeNo: true,
       fullName: true,
       companyId: true,
-      basicSalary: true,
-      transportAllowance: true,
-      housingAllowance: true,
-      otherAllowance: true,
+      ...PAY_SELECT,
     },
   });
   if (!employee) throw new NotFoundError("Employee not found.");
 
   await prisma.employee.update({
     where: { id: employee.id },
-    data: {
-      basicSalary: input.basic,
-      transportAllowance: input.transport,
-      housingAllowance: input.housing,
-      otherAllowance: input.other,
-    },
+    data: Object.fromEntries(PAY_PARTS.map((p) => [PAY_FIELDS[p], input[p]])),
   });
 
   return {
     employee,
-    before: {
-      basic: employee.basicSalary?.toString() ?? null,
-      transport: employee.transportAllowance?.toString() ?? null,
-      housing: employee.housingAllowance?.toString() ?? null,
-      other: employee.otherAllowance?.toString() ?? null,
-    },
-    after: {
-      basic: input.basic,
-      transport: input.transport,
-      housing: input.housing,
-      other: input.other,
-    },
+    before: payOf(employee),
+    after: Object.fromEntries(PAY_PARTS.map((p) => [p, input[p]])) as Pay,
   };
 }

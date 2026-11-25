@@ -76,6 +76,8 @@ export default async function ContractsPage({
             housingAllowance: allowanceValue(c.allowances, "housing"),
             transportAllowance: allowanceValue(c.allowances, "transport"),
             otherAllowance: allowanceValue(c.allowances, "other"),
+            foodAllowance: allowanceValue(c.allowances, "food"),
+            additionalAllowance: allowanceValue(c.allowances, "additional"),
             notes: c.notes,
             contractDate: c.contractDate ? day(c.contractDate) : null,
             positionTitle: c.positionTitle,

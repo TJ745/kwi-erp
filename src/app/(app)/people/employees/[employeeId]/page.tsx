@@ -38,6 +38,7 @@ import { IdentityDocuments } from "./identity-documents";
 import { IqamaRenewals } from "./iqama-renewals";
 import { SalaryCard } from "./salary-card";
 import { EmergencyContacts } from "./emergency-contacts";
+import { TERM_OPTION_LABELS } from "@/lib/job-offer";
 import { BankDetails } from "./bank-details";
 
 export const metadata: Metadata = { title: "Employee" };
@@ -287,6 +288,7 @@ export default async function EmployeeDetailPage({
                     ["Mobile", employee.mobile],
                     ["Work email", employee.workEmail],
                     ["Personal email", employee.personalEmail],
+                    ["Home country phone", employee.homePhone],
                     [
                       "System account",
                       employee.userAccount
@@ -295,6 +297,31 @@ export default async function EmployeeDetailPage({
                     ],
                   ]}
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Addresses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DetailList
+                  items={[
+                    ["Address in KSA", employee.saudiAddressEn],
+                    ["Address in KSA (Arabic)", employee.saudiAddressAr],
+                    ["Home country address", employee.homeAddressEn],
+                    ["Home country address (Arabic)", employee.homeAddressAr],
+                  ]}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Terms of employment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DetailList items={termsList(employee)} />
               </CardContent>
             </Card>
           </div>
@@ -1003,6 +1030,29 @@ export default async function EmployeeDetailPage({
       </Tabs>
     </PageShell>
   );
+}
+
+function termsList(e: {
+  contractYears: number | null;
+  probationDays: number | null;
+  familyStatus: string | null;
+  leavePlan: string | null;
+  ticketDestination: string | null;
+  ticketCover: string | null;
+  medicalCover: string | null;
+}): [string, string | null][] {
+  const L = TERM_OPTION_LABELS;
+  const pick = (labels: Record<string, string>, v: string | number | null) =>
+    v === null ? null : (labels[String(v)] ?? String(v));
+  return [
+    ["Contract duration", pick(L.contractYears, e.contractYears)],
+    ["Probation", pick(L.probationDays, e.probationDays)],
+    ["Family status", pick(L.familyStatus, e.familyStatus)],
+    ["Leave entitlement", pick(L.leavePlan, e.leavePlan)],
+    ["Ticket destination", e.ticketDestination],
+    ["Ticket cover", pick(L.cover, e.ticketCover)],
+    ["Medical cover", pick(L.cover, e.medicalCover)],
+  ];
 }
 
 function DetailList({ items }: { items: [string, string | null | undefined][] }) {

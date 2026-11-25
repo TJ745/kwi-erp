@@ -212,5 +212,10 @@ function toCreateData(row: ValidatedRow) {
     workEmail: i.workEmail ?? null,
     personalEmail: i.personalEmail ?? null,
     notes: i.notes ?? null,
+    saudiAddressEn: i.saudiAddressEn ?? null,
+    saudiAddressAr: i.saudiAddressAr ?? null,
+    homeAddressEn: i.homeAddressEn ?? null,
+    homeAddressAr: i.homeAddressAr ?? null,
+    homePhone: i.homePhone ?? null,
   };
 }

@@ -17,6 +17,14 @@ import { EntitySelect } from "@/components/forms/entity-select";
 import { readString } from "@/lib/form-data";
 import { EMPLOYEE_STATUSES } from "@/lib/schemas/employee";
 import {
+  CONTRACT_YEARS,
+  COVERS,
+  FAMILY_STATUSES,
+  LEAVE_PLANS,
+  PROBATION_DAYS,
+  TERM_OPTION_LABELS,
+} from "@/lib/job-offer";
+import {
   createEmployeeAction,
   managerOptionsAction,
   updateEmployeeAction,
@@ -53,7 +61,37 @@ export type EmployeeFormValues = {
   workEmail?: string | null;
   personalEmail?: string | null;
   notes?: string | null;
+  saudiAddressEn?: string | null;
+  saudiAddressAr?: string | null;
+  homeAddressEn?: string | null;
+  homeAddressAr?: string | null;
+  homePhone?: string | null;
+  contractYears?: number | null;
+  probationDays?: number | null;
+  familyStatus?: string | null;
+  leavePlan?: string | null;
+  ticketDestination?: string | null;
+  ticketCover?: string | null;
+  medicalCover?: string | null;
 };
+
+const PROFILE_TEXT = [
+  "saudiAddressEn",
+  "saudiAddressAr",
+  "homeAddressEn",
+  "homeAddressAr",
+  "homePhone",
+  "contractYears",
+  "probationDays",
+  "familyStatus",
+  "leavePlan",
+  "ticketDestination",
+  "ticketCover",
+  "medicalCover",
+] as const;
+
+const labelled = <T extends string | number>(values: readonly T[], labels: Record<T, string>) =>
+  values.map((v) => ({ value: String(v), label: labels[v] }));
 
 const toOptions = (items: { id: string; label: string }[]): SelectOption[] =>
   items.map((i) => ({ value: i.id, label: i.label }));
@@ -113,6 +151,7 @@ export function EmployeeForm({
       workEmail: readString(fd, "workEmail"),
       personalEmail: readString(fd, "personalEmail"),
       notes: readString(fd, "notes"),
+      ...Object.fromEntries(PROFILE_TEXT.map((k) => [k, readString(fd, k)])),
     };
 
     startTransition(async () => {
@@ -320,6 +359,7 @@ export function EmployeeForm({
               name="status"
               label="Status"
               defaultValue={values.status ?? "ACTIVE"}
+              hint="New hire: added before joining. Not counted as staff until Active."
               options={EMPLOYEE_STATUSES.map((s) => ({
                 value: s,
                 label: s
@@ -365,6 +405,101 @@ export function EmployeeForm({
               type="email"
               defaultValue={values.personalEmail ?? ""}
               errors={errors.personalEmail}
+            />
+          </FieldSet>
+
+          <FieldSet legend="Addresses">
+            <TextAreaField
+              name="saudiAddressEn"
+              label="Address in KSA (English)"
+              rows={2}
+              defaultValue={values.saudiAddressEn ?? ""}
+              errors={errors.saudiAddressEn}
+            />
+            <TextAreaField
+              name="saudiAddressAr"
+              label="Address in KSA (Arabic)"
+              rows={2}
+              defaultValue={values.saudiAddressAr ?? ""}
+              errors={errors.saudiAddressAr}
+            />
+            <TextAreaField
+              name="homeAddressEn"
+              label="Home country address (English)"
+              rows={2}
+              defaultValue={values.homeAddressEn ?? ""}
+              errors={errors.homeAddressEn}
+            />
+            <TextAreaField
+              name="homeAddressAr"
+              label="Home country address (Arabic)"
+              rows={2}
+              defaultValue={values.homeAddressAr ?? ""}
+              errors={errors.homeAddressAr}
+            />
+            <TextField
+              name="homePhone"
+              label="Home country phone"
+              defaultValue={values.homePhone ?? ""}
+              errors={errors.homePhone}
+            />
+          </FieldSet>
+
+          <FieldSet legend="Terms of employment">
+            <SelectField
+              name="contractYears"
+              label="Contract duration"
+              placeholder="—"
+              defaultValue={values.contractYears ? String(values.contractYears) : ""}
+              options={labelled(CONTRACT_YEARS, TERM_OPTION_LABELS.contractYears)}
+              errors={errors.contractYears}
+            />
+            <SelectField
+              name="probationDays"
+              label="Probation"
+              placeholder="—"
+              defaultValue={values.probationDays ? String(values.probationDays) : ""}
+              options={labelled(PROBATION_DAYS, TERM_OPTION_LABELS.probationDays)}
+              errors={errors.probationDays}
+            />
+            <SelectField
+              name="familyStatus"
+              label="Family status"
+              placeholder="—"
+              defaultValue={values.familyStatus ?? ""}
+              options={labelled(FAMILY_STATUSES, TERM_OPTION_LABELS.familyStatus)}
+              errors={errors.familyStatus}
+            />
+            <SelectField
+              name="leavePlan"
+              label="Leave entitlement"
+              placeholder="—"
+              defaultValue={values.leavePlan ?? ""}
+              options={labelled(LEAVE_PLANS, TERM_OPTION_LABELS.leavePlan)}
+              errors={errors.leavePlan}
+            />
+            <TextField
+              name="ticketDestination"
+              label="Ticket destination"
+              hint="Airport or city for the leave ticket."
+              defaultValue={values.ticketDestination ?? ""}
+              errors={errors.ticketDestination}
+            />
+            <SelectField
+              name="ticketCover"
+              label="Ticket cover"
+              placeholder="—"
+              defaultValue={values.ticketCover ?? ""}
+              options={labelled(COVERS, TERM_OPTION_LABELS.cover)}
+              errors={errors.ticketCover}
+            />
+            <SelectField
+              name="medicalCover"
+              label="Medical cover"
+              placeholder="—"
+              defaultValue={values.medicalCover ?? ""}
+              options={labelled(COVERS, TERM_OPTION_LABELS.cover)}
+              errors={errors.medicalCover}
             />
           </FieldSet>
 

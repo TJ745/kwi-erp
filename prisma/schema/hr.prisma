@@ -118,6 +118,8 @@ model LeaveRequest {
   handoverToId    String?
   /// The rest of the printed Leave Request form (src/lib/leave-form.ts).
   form            Json?
+  /// Set when this leave extends another: it starts the day after that one ends.
+  extendsLeaveId  String?
   createdById     String
 
   createdAt DateTime @default(now())
@@ -127,12 +129,15 @@ model LeaveRequest {
   leaveType  LeaveType @relation(fields: [leaveTypeId], references: [id])
   approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
   handoverTo Employee? @relation("LeaveHandover", fields: [handoverToId], references: [id])
+  extendsLeave LeaveRequest?  @relation("LeaveExtension", fields: [extendsLeaveId], references: [id], onDelete: Restrict)
+  extensions   LeaveRequest[] @relation("LeaveExtension")
 
   @@index([employeeId, status])
   @@index([status, startDate])
   @@index([leaveTypeId])
   @@index([approverId])
   @@index([handoverToId])
+  @@index([extendsLeaveId])
 }
 
 /// One timesheet file per company per month. The timesheet itself is kept in

@@ -46,6 +46,8 @@ export default async function ContractPrintPage({ params }: { params: Promise<{ 
     transport: allowanceValue(c.allowances, "transport") ?? "",
     housing: allowanceValue(c.allowances, "housing") ?? "",
     phone: allowanceValue(c.allowances, "other") ?? "",
+    food: allowanceValue(c.allowances, "food") ?? "",
+    other: allowanceValue(c.allowances, "additional") ?? "",
   };
   const total = Object.values(parts).reduce(
     (sum, v) => sum + (v ? Math.round(Number(v) * 100) : 0),
@@ -96,6 +98,8 @@ export default async function ContractPrintPage({ params }: { params: Promise<{ 
       transport: money(parts.transport),
       housing: money(parts.housing),
       phone: money(parts.phone),
+      food: money(parts.food),
+      other: money(parts.other),
       total: money((total / 100).toFixed(2)),
     },
     termYears: c.termYears,
@@ -217,7 +221,7 @@ export default async function ContractPrintPage({ params }: { params: Promise<{ 
                           </strong>
                         </p>
                         <SalaryTable
-                          rows={SALARY_TEXT.en.rows.map(([label, key]) => [label, v.salary[key]])}
+                          rows={salaryRows(SALARY_TEXT.en.rows, v.salary, parts)}
                           unit={SALARY_TEXT.en.unit}
                         />
                       </td>
@@ -228,7 +232,7 @@ export default async function ContractPrintPage({ params }: { params: Promise<{ 
                           </strong>
                         </p>
                         <SalaryTable
-                          rows={SALARY_TEXT.ar.rows.map(([label, key]) => [label, v.salary[key]])}
+                          rows={salaryRows(SALARY_TEXT.ar.rows, v.salary, parts)}
                           unit={SALARY_TEXT.ar.unit}
                         />
                       </td>
@@ -376,6 +380,18 @@ function Side({ label, lines }: { label?: string | undefined; lines: string[] })
     </>
   );
 }
+
+/** Article 2's lines; food and other allowances only when the contract has them. */
+function salaryRows(
+  rows: readonly (readonly [string, keyof ContractValues["salary"]])[],
+  salary: ContractValues["salary"],
+  parts: Record<string, string>,
+): (readonly [string, string])[] {
+  return rows
+    .filter(([, key]) => !OPTIONAL_SALARY_LINES.has(key) || Number(parts[key] || 0) !== 0)
+    .map(([label, key]) => [label, salary[key]] as const);
+}
+const OPTIONAL_SALARY_LINES = new Set<string>(["food", "other"]);
 
 function SalaryTable({ rows, unit }: { rows: (readonly [string, string])[]; unit: string }) {
   return (

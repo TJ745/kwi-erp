@@ -1,4 +1,5 @@
-import { parseAmount, SALARY_PARTS, type SalaryPart } from "@/lib/increments";
+import { parseAmount } from "@/lib/increments";
+import { PAY_PART_LABELS, PAY_PARTS, type Pay } from "@/lib/salary";
 
 /**
  * Bulk salary update from Excel. The template is pre-filled with every
@@ -13,10 +14,12 @@ export const SALARY_COLUMNS = [
   { key: "employeeNo", header: "Employee ID" },
   { key: "name", header: "Name" },
   { key: "company", header: "Company" },
-  { key: "basic", header: "Basic Salary" },
-  { key: "transport", header: "Transp. Allowance" },
-  { key: "housing", header: "Housing Allowance" },
-  { key: "other", header: "Mobile / Food Allowance" },
+  { key: "basic", header: PAY_PART_LABELS.basic },
+  { key: "housing", header: PAY_PART_LABELS.housing },
+  { key: "transport", header: PAY_PART_LABELS.transport },
+  { key: "mobile", header: PAY_PART_LABELS.mobile },
+  { key: "food", header: PAY_PART_LABELS.food },
+  { key: "other", header: PAY_PART_LABELS.other },
 ] as const;
 
 export type SalaryColumnKey = (typeof SALARY_COLUMNS)[number]["key"];
@@ -24,7 +27,7 @@ export type SalaryColumnKey = (typeof SALARY_COLUMNS)[number]["key"];
 export type SalaryRow = { rowNumber: number; cells: Record<SalaryColumnKey, string> };
 
 /** Amounts as stored ("4200.00"), or null for "not recorded". */
-export type SalaryValues = Record<SalaryPart, string | null>;
+export type SalaryValues = Pay;
 
 export type SalaryRowResult = {
   rowNumber: number;
@@ -90,7 +93,7 @@ export function validateSalaryRows(
     if (no && dupes.length) issues.push(`${no} is repeated on row ${dupes.map(String).join(", ")}`);
 
     const values = {} as SalaryValues;
-    for (const part of SALARY_PARTS) {
+    for (const part of PAY_PARTS) {
       const parsed = toStored(row.cells[part]);
       if ("error" in parsed) {
         const header = SALARY_COLUMNS.find((c) => c.key === part)?.header ?? part;
@@ -100,7 +103,7 @@ export function validateSalaryRows(
     }
 
     const changed =
-      employee !== undefined && SALARY_PARTS.some((p) => !same(values[p], employee.salary[p]));
+      employee !== undefined && PAY_PARTS.some((p) => !same(values[p], employee.salary[p]));
 
     results.push({
       rowNumber: row.rowNumber,

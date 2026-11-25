@@ -72,9 +72,15 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
       sortable: true,
       primary: true,
       cell: (row) => (
-        <span className="text-sm tabular-nums">
+        <div className="text-sm tabular-nums">
           {row.startDate.toISOString().slice(0, 10)} → {row.endDate.toISOString().slice(0, 10)}
-        </span>
+          {row.extendsDates ? (
+            <p className="text-muted-foreground text-xs">
+              Extension of {row.extendsDates.startDate.toISOString().slice(0, 10)} →{" "}
+              {row.extendsDates.endDate.toISOString().slice(0, 10)}
+            </p>
+          ) : null}
+        </div>
       ),
     },
     {
@@ -97,19 +103,10 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
           </Button>
           {canManage ? (
             <>
-              <LeaveRequestButton
-                leaveTypes={types}
-                employees={employees}
-                leave={{
-                  id: row.id,
-                  employeeId: row.employeeId,
-                  leaveTypeId: row.leaveTypeId,
-                  startDate: row.startDate.toISOString().slice(0, 10),
-                  endDate: row.endDate.toISOString().slice(0, 10),
-                  handoverToId: row.handoverToId,
-                  form: row.form,
-                }}
-              />
+              {row.extended ? null : (
+                <LeaveRequestButton leaveTypes={types} employees={employees} extend={values(row)} />
+              )}
+              <LeaveRequestButton leaveTypes={types} employees={employees} leave={values(row)} />
               <DeleteRecordButton
                 id={row.id}
                 label={`the leave of ${row.employeeName}`}
@@ -163,6 +160,18 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
       />
     </PageShell>
   );
+}
+
+function values(row: LeaveListRow) {
+  return {
+    id: row.id,
+    employeeId: row.employeeId,
+    leaveTypeId: row.leaveTypeId,
+    startDate: row.startDate.toISOString().slice(0, 10),
+    endDate: row.endDate.toISOString().slice(0, 10),
+    handoverToId: row.handoverToId,
+    form: row.form,
+  };
 }
 
 function CountCard({
