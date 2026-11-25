@@ -49,7 +49,7 @@ export default async function IncrementListPage({ params }: { params: Promise<{ 
         <div className="flex items-center gap-2">
           {canManage ? <AddEmployeesDialog listId={list.id} employees={pickable} /> : null}
           <Button asChild size="sm" variant="outline">
-            <Link href={`/hr/increments/${list.id}/print`}>
+            <Link href={`/hr/increments/${list.id}/print`} target="_blank" rel="noopener">
               <Printer />
               Print list
             </Link>

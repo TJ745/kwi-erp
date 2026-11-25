@@ -44,7 +44,15 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     label: "Overview",
     icon: "dashboard",
-    items: [{ label: "Dashboard", href: "/dashboard", permissions: ["dashboard.view"] }],
+    items: [
+      { label: "Dashboard", href: "/dashboard", permissions: ["dashboard.view"] },
+      {
+        label: "Daily Tasks",
+        href: "/tasks",
+        permissions: ["dashboard.view"],
+        keywords: ["todo", "to do", "work", "manager"],
+      },
+    ],
   },
   {
     label: "People",

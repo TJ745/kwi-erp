@@ -165,7 +165,11 @@ export async function employeesForList(ctx: ActorContext, listId: string) {
     select: { employeeId: true },
   });
   const rows = await prisma.employee.findMany({
-    where: { ...inScopeEmployee(ctx), id: { notIn: onList.map((e) => e.employeeId) } },
+    where: {
+      ...inScopeEmployee(ctx),
+      status: { in: ["ACTIVE", "ON_LEAVE"] },
+      id: { notIn: onList.map((e) => e.employeeId) },
+    },
     orderBy: [{ company: { code: "asc" } }, { employeeNo: "asc" }],
     select: {
       id: true,
@@ -187,7 +191,7 @@ export async function employeesForList(ctx: ActorContext, listId: string) {
 /** Everyone in scope who can be named as the evaluating manager. */
 export async function managerOptions(ctx: ActorContext) {
   const rows = await prisma.employee.findMany({
-    where: inScopeEmployee(ctx),
+    where: { ...inScopeEmployee(ctx), status: { in: ["ACTIVE", "ON_LEAVE"] } },
     orderBy: { fullName: "asc" },
     select: { id: true, employeeNo: true, fullName: true, position: { select: { title: true } } },
   });

@@ -236,7 +236,11 @@ export async function employeesToAdd(ctx: ActorContext, listId: string) {
     select: { employeeId: true },
   });
   const employees = await prisma.employee.findMany({
-    where: { ...inScopeEmployee(ctx), id: { notIn: onList.map((l) => l.employeeId) } },
+    where: {
+      ...inScopeEmployee(ctx),
+      status: { in: ["ACTIVE", "ON_LEAVE"] },
+      id: { notIn: onList.map((l) => l.employeeId) },
+    },
     orderBy: [{ company: { code: "asc" } }, { employeeNo: "asc" }],
     select: {
       id: true,

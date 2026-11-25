@@ -1,0 +1,27 @@
+enum DailyTaskStatus {
+  PENDING
+  COMPLETED
+}
+
+/// A task received (usually from a manager) and written down by the user, so
+/// they can show what came in and what was done. Each user keeps their own
+/// list. Completed tasks are never deleted.
+model DailyTask {
+  id           String          @id @default(cuid(2))
+  userId       String
+  taskDate     DateTime        @db.Date
+  description  String
+  receivedFrom String
+  remarks      String?
+  status       DailyTaskStatus @default(PENDING)
+  /// Set when the task is marked completed; cleared if it is reopened.
+  completedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@index([userId, taskDate])
+}

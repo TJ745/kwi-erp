@@ -73,7 +73,7 @@ export default async function TimesheetPrintPage({ params }: { params: Promise<{
       </div>
 
       <div
-        className="timesheet-print bg-white text-[8.5px] leading-tight text-black"
+        className="timesheet-print doc-paper bg-white text-[8.5px] leading-tight text-black"
         style={{
           fontFamily: "Calibri, Carlito, Arial, sans-serif",
           printColorAdjust: "exact",

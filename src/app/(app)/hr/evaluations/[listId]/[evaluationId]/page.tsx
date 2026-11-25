@@ -64,7 +64,7 @@ export default async function EvaluationPage({
         </div>
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link href={`/hr/evaluations/${listId}/${e.id}/print`}>
+            <Link href={`/hr/evaluations/${listId}/${e.id}/print`} target="_blank" rel="noopener">
               <Printer />
               Print
             </Link>

@@ -109,7 +109,7 @@ export default async function SubcontractAgreementPage({
         ) : null}
       </div>
 
-      <article className="letter-sheet bg-background rounded-lg border p-10 print:rounded-none print:border-0 print:bg-white print:p-0">
+      <article className="letter-sheet doc-paper rounded-lg border p-10 print:rounded-none print:border-0 print:bg-white print:p-0">
         <table className="letter-frame">
           <thead className="letter-head-group">
             <tr>

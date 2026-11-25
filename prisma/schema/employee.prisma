@@ -200,10 +200,10 @@ model IqamaRecord {
   id            String        @id @default(cuid(2))
   employeeId    String        @unique
   iqamaNumber   String        @unique
-  profession    String
+  profession    String?
   professionAr  String?
-  issueDate     DateTime
-  expiryDate    DateTime
+  issueDate     DateTime?
+  expiryDate    DateTime?
   sponsorName   String?
   renewalStatus RenewalStatus @default(NOT_STARTED)
   notes         String?
@@ -241,10 +241,10 @@ model PassportRecord {
   id             String   @id @default(cuid(2))
   employeeId     String   @unique
   passportNumber String
-  issueCountry   String
+  issueCountry   String?
   issuePlace     String?
-  issueDate      DateTime
-  expiryDate     DateTime
+  issueDate      DateTime?
+  expiryDate     DateTime?
   notes          String?
 
   createdAt DateTime @default(now())

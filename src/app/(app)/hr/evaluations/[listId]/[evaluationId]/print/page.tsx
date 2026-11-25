@@ -140,7 +140,7 @@ function StaffSheet({ e, data }: { e: Loaded; data: StaffData }) {
   const T = STAFF_TEXT;
 
   return (
-    <div className="eval-sheet bg-white text-[10px] leading-snug text-black">
+    <div className="eval-sheet doc-paper bg-white text-[10px] leading-snug text-black">
       {/* Page 1 */}
       <section className="eval-page">
         <Logo e={e} className="mx-auto mb-1 max-h-[16mm] object-contain" />

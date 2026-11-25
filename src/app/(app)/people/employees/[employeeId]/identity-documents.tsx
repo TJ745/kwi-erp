@@ -11,20 +11,20 @@ import { upsertIqamaAction, upsertPassportAction } from "@/server/actions/employ
 
 type IqamaValues = {
   iqamaNumber: string;
-  profession: string;
+  profession: string | null;
   professionAr: string | null;
-  issueDate: string;
-  expiryDate: string;
+  issueDate: string | null;
+  expiryDate: string | null;
   sponsorName: string | null;
   notes: string | null;
 };
 
 type PassportValues = {
   passportNumber: string;
-  issueCountry: string;
+  issueCountry: string | null;
   issuePlace: string | null;
-  issueDate: string;
-  expiryDate: string;
+  issueDate: string | null;
+  expiryDate: string | null;
   notes: string | null;
 };
 
@@ -147,7 +147,6 @@ function IqamaCard({
               <TextField
                 name="profession"
                 label="Profession"
-                required
                 defaultValue={values?.profession ?? ""}
                 errors={errors.profession}
               />
@@ -166,14 +165,12 @@ function IqamaCard({
               <DateField
                 name="issueDate"
                 label="Issue date"
-                required
                 defaultValue={values?.issueDate ?? ""}
                 errors={errors.issueDate}
               />
               <DateField
                 name="expiryDate"
                 label="Expiry date"
-                required
                 defaultValue={values?.expiryDate ?? ""}
                 errors={errors.expiryDate}
               />
@@ -291,7 +288,6 @@ function PassportCard({
               <TextField
                 name="issueCountry"
                 label="Issuing country"
-                required
                 hint="Two-letter code, e.g. PK."
                 defaultValue={values?.issueCountry ?? ""}
                 errors={errors.issueCountry}
@@ -306,14 +302,12 @@ function PassportCard({
               <DateField
                 name="issueDate"
                 label="Issue date"
-                required
                 defaultValue={values?.issueDate ?? ""}
                 errors={errors.issueDate}
               />
               <DateField
                 name="expiryDate"
                 label="Expiry date"
-                required
                 defaultValue={values?.expiryDate ?? ""}
                 errors={errors.expiryDate}
               />

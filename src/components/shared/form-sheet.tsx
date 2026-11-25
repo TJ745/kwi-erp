@@ -62,7 +62,7 @@ export function FormSheet({
         <PrintPageButton />
       </div>
 
-      <article className="letter-sheet bg-background rounded-lg border p-8 print:rounded-none print:border-0 print:bg-white print:p-0">
+      <article className="letter-sheet doc-paper rounded-lg border p-8 print:rounded-none print:border-0 print:bg-white print:p-0">
         <table className={cn("letter-frame", bordered && "form-bordered")}>
           <thead className="letter-head-group">
             <tr>

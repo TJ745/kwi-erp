@@ -81,7 +81,7 @@ export default async function IncrementListPrintPage({
         <PrintButton />
       </div>
 
-      <div className="bg-background overflow-x-auto rounded-lg border p-4 print:overflow-visible print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black">
+      <div className="doc-paper overflow-x-auto rounded-lg border p-4 print:overflow-visible print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black">
         <div className="mb-1 flex items-end justify-between text-[11px] font-bold uppercase">
           <span>{list.title}</span>
           <span>{dmy(list.listDate)}</span>

@@ -79,7 +79,7 @@ export default async function JoiningLettersPage({
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/joining-letters/${l.id}`}>
+                        <Link href={`/hr/joining-letters/${l.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>

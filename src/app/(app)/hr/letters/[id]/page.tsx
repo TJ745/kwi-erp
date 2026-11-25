@@ -83,7 +83,7 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
         letterhead reserve, so a dense grid fits the single sheet it has to fit
         (see isFormLetter). Letters keep the roomier default.
       */}
-      <article className="letter-sheet bg-background rounded-lg border p-10 print:rounded-none print:border-0 print:p-0">
+      <article className="letter-sheet doc-paper rounded-lg border p-10 print:rounded-none print:border-0 print:p-0">
         {/*
           A table, and not for layout fashion — it is the only construct
           browsers repeat across printed pages. `thead` and `tfoot` are drawn

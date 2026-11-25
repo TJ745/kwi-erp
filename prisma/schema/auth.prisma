@@ -38,6 +38,7 @@ model User {
   overrides     UserPermission[]    @relation("UserPermissionSubject")
   grantedPerms  UserPermission[]    @relation("UserPermissionGranter")
   vaultSessions VaultSession[]
+  dailyTasks    DailyTask[]
 
   @@index([status])
   @@index([roleId])

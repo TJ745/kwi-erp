@@ -21,7 +21,7 @@ type SyncInput = {
   source: ExpirySource;
   sourceId: string;
   label: string;
-  expiryDate: Date;
+  expiryDate: Date | null;
   companyId?: string | null;
   employeeId?: string | null;
   vehicleId?: string | null;
@@ -41,6 +41,11 @@ type Client = Pick<typeof prisma, "expiryIndex">;
  * record, so the two commit or roll back together.
  */
 export async function syncExpiry(input: SyncInput, tx: Client = prisma): Promise<void> {
+  // No expiry date, nothing to watch: drop any row left from an earlier date.
+  if (input.expiryDate === null) {
+    await tx.expiryIndex.deleteMany({ where: { source: input.source, sourceId: input.sourceId } });
+    return;
+  }
   const data = {
     companyId: input.companyId ?? null,
     employeeId: input.employeeId ?? null,
@@ -207,6 +212,7 @@ export async function reconcileExpiryIndex(): Promise<{
       return;
     }
     const changed =
+      input.expiryDate === null ||
       prev.expiryDate.getTime() !== input.expiryDate.getTime() ||
       prev.label !== input.label ||
       !prev.isActive;

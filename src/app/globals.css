@@ -345,6 +345,29 @@
   padding-top: 0.8rem;
 }
 
+/* A printable document is drawn as white paper with black ink on screen as
+   well as on paper, whatever the theme: on the sand or dark background it read
+   as see-through. Only the document — the window around it keeps the theme.
+   The colour tokens are reset inside it so text-muted, borders and the like
+   are ink colours rather than dark-mode ones. */
+.doc-paper {
+  --background: #fff;
+  --foreground: #000;
+  --card: #fff;
+  --card-foreground: #000;
+  --muted: #f2f2f2;
+  --muted-foreground: #444;
+  --border: #ccc;
+  color-scheme: light;
+  background-color: #fff;
+  color: #000;
+}
+@media screen {
+  .doc-paper {
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 8px 24px rgb(0 0 0 / 0.08);
+  }
+}
+
 /* Letterhead artwork.
    The height cap lives here rather than in the print block on purpose: capped
    only when printing, a tall header renders full-bleed on screen and then
@@ -356,6 +379,14 @@
   max-height: 30mm;
   object-fit: contain;
   object-position: center;
+}
+/* A wide banner (ICC's) would otherwise stretch across the whole page while a
+   square logo (KWI's) stays small: the width is capped so both read as a
+   letterhead of the same weight. */
+.letter-head img {
+  display: block;
+  max-width: 75mm;
+  margin-inline: auto;
 }
 
 /* The letter frame.
@@ -649,6 +680,33 @@
 
 /* Letters render to PDF through the browser print dialog (ADR-004). */
 @media print {
+  /* Paper is white and ink is black whatever the screen theme: in dark mode
+     the colour tokens are light-on-dark, and printed on white they came out
+     faint and see-through. The surfaces go white too, not sand. */
+  :root,
+  .dark {
+    color-scheme: light;
+    --background: #fff;
+    --foreground: #000;
+    --card: #fff;
+    --card-foreground: #000;
+    --popover: #fff;
+    --popover-foreground: #000;
+    --muted: #f2f2f2;
+    --muted-foreground: #444;
+    --secondary: #f2f2f2;
+    --secondary-foreground: #000;
+    --accent: #f2f2f2;
+    --accent-foreground: #000;
+    --border: #bbb;
+    --input: #bbb;
+  }
+  html,
+  body,
+  main {
+    background: #fff !important;
+    color: #000;
+  }
   .no-print {
     display: none !important;
   }

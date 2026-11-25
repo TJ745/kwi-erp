@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Building2 } from "lucide-react";
+import { cookies } from "next/headers";
 import { CommandMenu } from "@/components/shell/command-menu";
 import { Header } from "@/components/shell/header";
-import { SidebarNav } from "@/components/shell/sidebar";
+import { AppSidebar } from "@/components/shell/sidebar";
+import { NAV_CLOSED_COOKIE, SIDEBAR_COOKIE } from "@/lib/sidebar-state";
 import { visibleNavigation } from "@/lib/navigation";
 import { getActorContext } from "@/server/auth/context";
 import { logoutAction } from "@/server/actions/auth";
@@ -20,6 +20,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Navigation is filtered server-side, so a route the actor cannot use is
   // never even sent to the browser.
   const sections = visibleNavigation(ctx.permissions);
+  // The sidebar's collapsed state and folded sections, as last left.
+  const jar = await cookies();
 
   const companyLabel =
     ctx.companyScope === "ALL"
@@ -37,33 +39,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       Print is exempted: a clipped, fixed-height page prints one screenful.
     */
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
-      <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border hidden w-64 shrink-0 flex-col border-r lg:flex print:lg:hidden">
-        {/*
-          Brand block. The mark is a plain glyph and the second line is the
-          caller's company scope, not a hard-coded group name: the system
-          serves more than one company, and a sidebar that names one of them
-          is wrong for everyone else.
-        */}
-        <div className="border-sidebar-border flex h-16 shrink-0 items-center border-b px-4">
-          <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="bg-sidebar-primary text-sidebar-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-[10px]"
-            >
-              <Building2 className="size-4.5" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm leading-tight font-bold">Operations</span>
-              <span className="text-sidebar-muted block truncate text-[11px] leading-tight">
-                {companyLabel}
-              </span>
-            </span>
-          </Link>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <SidebarNav sections={sections} />
-        </div>
-      </aside>
+      <AppSidebar
+        sections={sections}
+        companyLabel={companyLabel}
+        initialCollapsed={jar.get(SIDEBAR_COOKIE)?.value === "collapsed"}
+        initialClosed={closedSections(jar.get(NAV_CLOSED_COOKIE)?.value)}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
         <Header
@@ -87,4 +68,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommandMenu sections={sections} />
     </div>
   );
+}
+
+/** Folded sidebar sections from their cookie; a mangled cookie folds nothing. */
+function closedSections(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    return decodeURIComponent(raw).split("|").filter(Boolean);
+  } catch {
+    return raw.split("|").filter(Boolean);
+  }
 }

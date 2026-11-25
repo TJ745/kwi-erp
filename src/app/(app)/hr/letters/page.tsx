@@ -85,6 +85,8 @@ export default async function LettersPage() {
                     ) : (
                       <Link
                         href={`/hr/letters/${letter.id}`}
+                        target="_blank"
+                        rel="noopener"
                         className="font-mono font-medium hover:underline"
                       >
                         {letter.letterNo}

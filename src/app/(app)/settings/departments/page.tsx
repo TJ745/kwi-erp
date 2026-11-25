@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import { BriefcaseBusiness, Network } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -22,7 +23,7 @@ export default async function DepartmentsPage() {
 
   const canManage = ctx.permissions.has("departments.manage");
 
-  const [departments, companies, positions, employees] = await Promise.all([
+  const [departments, companies, positions, everyone] = await Promise.all([
     listDepartments(ctx),
     listCompanies(ctx),
     canViewPositions ? listPositions(ctx) : Promise.resolve([]),
@@ -30,6 +31,7 @@ export default async function DepartmentsPage() {
     // the head picker is the only thing that needs it, and it is a list of people.
     canManage && ctx.permissions.has("employees.view") ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
+  const employees = forPicker(everyone, departments.map((d) => d.headEmployeeId));
 
   // Offered as "reports to" targets. Built here rather than in the dialog so
   // both the create and edit instances see the same list.

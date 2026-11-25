@@ -58,7 +58,7 @@ export function WarningRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`/hr/warnings/${warning.id}`}>
+            <Link href={`/hr/warnings/${warning.id}`} target="_blank" rel="noopener">
               <Printer className="size-4" />
               Print letter
             </Link>

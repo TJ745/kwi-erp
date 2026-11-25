@@ -68,7 +68,7 @@ export default async function OfferLetterPage({ params }: { params: Promise<{ id
         <PrintButton />
       </div>
 
-      <article className="letter-sheet offer-sheet rounded-lg border bg-white p-10 text-black print:rounded-none print:border-0 print:p-0">
+      <article className="letter-sheet offer-sheet doc-paper rounded-lg border bg-white p-10 text-black print:rounded-none print:border-0 print:p-0">
         <table className="letter-frame">
           <thead className="letter-head-group">
             <tr>

@@ -35,7 +35,7 @@ export default async function OrgChartPrintPage({
         <PrintPageButton />
       </div>
 
-      <div className="overflow-auto bg-white print:overflow-visible">
+      <div className="doc-paper overflow-auto rounded-lg border bg-white print:overflow-visible print:rounded-none print:border-0">
         <FitToPage>
           <div className="org-print space-y-4 p-2 text-black">
             <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">

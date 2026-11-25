@@ -116,7 +116,7 @@ export default async function EvaluationListPage({
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1" data-print-hide>
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/evaluations/${list.id}/${e.id}/print`}>
+                        <Link href={`/hr/evaluations/${list.id}/${e.id}/print`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>

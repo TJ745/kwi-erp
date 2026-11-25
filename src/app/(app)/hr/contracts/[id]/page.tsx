@@ -163,7 +163,7 @@ export default async function ContractPrintPage({ params }: { params: Promise<{ 
         ) : null}
       </div>
 
-      <article className="letter-sheet contract-sheet rounded-lg border bg-white p-8 text-black print:rounded-none print:border-0 print:p-0">
+      <article className="letter-sheet contract-sheet doc-paper rounded-lg border bg-white p-8 text-black print:rounded-none print:border-0 print:p-0">
         <table className="letter-frame">
           <thead className="letter-head-group">
             <tr>

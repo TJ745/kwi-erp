@@ -86,7 +86,7 @@ export default async function OccupancySheetPage({
       </div>
 
       <div
-        className="occupancy-sheet bg-white p-4 text-[10.5px] leading-tight text-black print:p-0"
+        className="occupancy-sheet doc-paper bg-white p-4 text-[10.5px] leading-tight text-black print:p-0"
         style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
       >
         {properties.length === 0 ? (

@@ -199,7 +199,7 @@ export default async function VehicleDetailPage({
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/vehicles/maintenance/${m.id}`}>
+                          <Link href={`/vehicles/maintenance/${m.id}`} target="_blank" rel="noopener">
                             <Printer />
                             {m.requestNo ?? "Print"}
                           </Link>
@@ -238,7 +238,7 @@ export default async function VehicleDetailPage({
                   </p>
                   {h.remarks ? <p className="mt-1 text-sm">{h.remarks}</p> : null}
                   <Button asChild size="sm" variant="outline" className="mt-2">
-                    <Link href={`/vehicles/handovers/${h.id}`}>
+                    <Link href={`/vehicles/handovers/${h.id}`} target="_blank" rel="noopener">
                       <Printer />
                       Print handover letter
                     </Link>

@@ -92,7 +92,7 @@ export default async function JobDescriptionsPage({
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1" data-print-hide>
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/job-descriptions/${d.id}`}>
+                        <Link href={`/hr/job-descriptions/${d.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>

@@ -121,7 +121,7 @@ export default async function TimesheetPage({
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/people/timesheet/${t.id}/print`}>
+                          <Link href={`/people/timesheet/${t.id}/print`} target="_blank" rel="noopener">
                             <Printer />
                             Print
                           </Link>

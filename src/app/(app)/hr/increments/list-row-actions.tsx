@@ -62,7 +62,7 @@ export function IncrementListRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link href={`/hr/increments/${list.id}/print`}>
+            <Link href={`/hr/increments/${list.id}/print`} target="_blank" rel="noopener">
               <Printer className="size-4" />
               Print list
             </Link>

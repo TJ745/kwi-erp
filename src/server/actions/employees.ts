@@ -116,7 +116,7 @@ export const upsertIqamaAction = defineAction({
       entityId: input.employeeId,
       // The number itself is deliberately not in the summary — it is a national
       // identifier, and the audit trail is widely readable.
-      summary: `Updated Iqama record (expires ${record.expiryDate.toISOString().slice(0, 10)})`,
+      summary: `Updated Iqama record${record.expiryDate ? ` (expires ${record.expiryDate.toISOString().slice(0, 10)})` : ""}`,
       after: { expiryDate: record.expiryDate, profession: record.profession },
     });
     return { ok: true as const };
@@ -132,7 +132,7 @@ export const upsertPassportAction = defineAction({
     const record = await upsertPassport(ctx, input);
     audit.record({
       entityId: input.employeeId,
-      summary: `Updated passport record (expires ${record.expiryDate.toISOString().slice(0, 10)})`,
+      summary: `Updated passport record${record.expiryDate ? ` (expires ${record.expiryDate.toISOString().slice(0, 10)})` : ""}`,
       after: { expiryDate: record.expiryDate, issueCountry: record.issueCountry },
     });
     return { ok: true as const };

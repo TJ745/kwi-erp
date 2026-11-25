@@ -215,15 +215,15 @@ export const iqamaSchema = z
       .min(5, "Iqama number is required")
       .max(20)
       .regex(/^[0-9]+$/, "Digits only"),
-    profession: z.string().trim().min(1, "Profession is required").max(150),
+    profession: optionalText(150),
     professionAr: optionalText(150),
-    issueDate: requiredDate,
-    expiryDate: requiredDate,
+    issueDate: optionalDate,
+    expiryDate: optionalDate,
     sponsorName: optionalText(150),
     notes: optionalText(1000),
   })
   .strict()
-  .refine((d) => d.expiryDate.getTime() >= d.issueDate.getTime(), {
+  .refine((d) => !d.issueDate || !d.expiryDate || d.expiryDate.getTime() >= d.issueDate.getTime(), {
     message: "Expiry cannot precede the issue date",
     path: ["expiryDate"],
   });
@@ -237,15 +237,16 @@ export const passportSchema = z
     issueCountry: z
       .string()
       .trim()
-      .length(2, "Use a 2-letter country code")
-      .transform((v) => v.toUpperCase()),
+      .optional()
+      .transform((v) => (v ? v.toUpperCase() : undefined))
+      .refine((v) => v === undefined || /^[A-Z]{2}$/.test(v), "Use a 2-letter country code"),
     issuePlace: optionalText(100),
-    issueDate: requiredDate,
-    expiryDate: requiredDate,
+    issueDate: optionalDate,
+    expiryDate: optionalDate,
     notes: optionalText(1000),
   })
   .strict()
-  .refine((d) => d.expiryDate.getTime() >= d.issueDate.getTime(), {
+  .refine((d) => !d.issueDate || !d.expiryDate || d.expiryDate.getTime() >= d.issueDate.getTime(), {
     message: "Expiry cannot precede the issue date",
     path: ["expiryDate"],
   });

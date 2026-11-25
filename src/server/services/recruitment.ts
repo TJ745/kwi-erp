@@ -1,4 +1,5 @@
 import "server-only";
+import { CURRENT_STAFF } from "@/lib/employee-status";
 import { NATIONALITIES } from "@/lib/employment-contract";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
@@ -349,7 +350,7 @@ async function interviewee(ctx: ActorContext, employeeId: string | null | undefi
  */
 export async function intervieweeOptions(ctx: ActorContext) {
   const rows = await prisma.employee.findMany({
-    where: { deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { deletedAt: null, status: { in: [...CURRENT_STAFF] }, ...companyScopeWhere(ctx) },
     orderBy: [{ status: "asc" }, { fullName: "asc" }],
     take: 1000,
     select: {
@@ -453,7 +454,7 @@ export async function getInterviewForPrint(ctx: ActorContext, id: string) {
 /** Employees to pick from, with what a joining letter fills in. */
 export async function joiningEmployeeOptions(ctx: ActorContext) {
   const rows = await prisma.employee.findMany({
-    where: { deletedAt: null, ...companyScopeWhere(ctx) },
+    where: { deletedAt: null, status: { in: [...CURRENT_STAFF] }, ...companyScopeWhere(ctx) },
     orderBy: { fullName: "asc" },
     take: 1000,
     select: {

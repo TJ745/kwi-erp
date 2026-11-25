@@ -116,7 +116,7 @@ export default async function HandoversPage({
                   </td>
                   <td className="px-3 py-2">
                     <Button asChild size="sm" variant="outline" data-print-hide>
-                      <Link href={`/vehicles/handovers/${h.id}`}>
+                      <Link href={`/vehicles/handovers/${h.id}`} target="_blank" rel="noopener">
                         <Printer />
                         Print
                       </Link>

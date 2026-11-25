@@ -23,7 +23,6 @@ export function PrintListButton() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const printing = searchParams.get("print") === "1";
-  const [pending, startTransition] = React.useTransition();
 
   const urlWith = React.useCallback(
     (print: boolean) => {
@@ -72,15 +71,14 @@ export function PrintListButton() {
     <Button
       size="sm"
       variant="outline"
-      disabled={pending || printing}
+      disabled={printing}
       onClick={() => {
-        startTransition(() => {
-          router.push(urlWith(true), { scroll: false });
-        });
+        // A new tab, like every other print: the list being worked on stays put.
+        window.open(urlWith(true), "_blank", "noopener");
       }}
     >
       <Printer />
-      {pending || printing ? "Preparing…" : "Print list"}
+      {printing ? "Preparing…" : "Print list"}
     </Button>
   );
 }

@@ -20,7 +20,15 @@ export default async function EditEmployeePage({
   const [employee, options] = await Promise.all([getEmployee(ctx, employeeId), orgOptions(ctx)]);
 
   // Exclude self so an employee cannot be set as their own manager.
-  const managers = await managerOptions(ctx, employee.companyId, employee.id);
+  const candidates = await managerOptions(ctx, employee.companyId, employee.id);
+  // The current manager must be on the list whatever their company or status:
+  // the field shows them by this list, and an unlabelled value was being
+  // posted as blank — which cleared "Reports to" on every save.
+  const current = employee.manager;
+  const managers =
+    current && !candidates.some((m) => m.id === current.id)
+      ? [...candidates, { ...current, companyCode: "" }]
+      : candidates;
 
   return (
     <PageShell>

@@ -91,7 +91,7 @@ export default async function MaintenancePage({
       align: "right",
       cell: (row) => (
         <Button asChild size="sm" variant="outline" data-print-hide>
-          <Link href={"/vehicles/maintenance/" + row.id}>
+          <Link href={"/vehicles/maintenance/" + row.id} target="_blank" rel="noopener">
             <Printer />
             {row.requestNo ?? "Print"}
           </Link>

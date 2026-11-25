@@ -41,7 +41,7 @@ export default async function AccommodationPage({
           <div className="flex flex-wrap items-center gap-2">
             <ReportLink reportId="accommodation-occupancy" ctx={ctx} />
             <Button asChild variant="outline">
-              <Link href="/admin/accommodation/occupancy">
+              <Link href="/admin/accommodation/occupancy" target="_blank" rel="noopener">
                 <Printer />
                 Occupancy sheet
               </Link>

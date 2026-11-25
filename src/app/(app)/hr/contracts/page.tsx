@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import Link from "next/link";
 import { FileSignature, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ export default async function ContractsPage({
   const canManage = ctx.permissions.has("hr.contracts.manage");
   const canSeeSalary = ctx.permissions.has("employees.salary.view");
 
-  const [data, counts, employees, jobDescriptions] = await Promise.all([
+  const [data, counts, everyone, jobDescriptions] = await Promise.all([
     listContracts(ctx, query, filters),
     contractCounts(ctx),
     canManage ? employeeOptions(ctx) : Promise.resolve([]),
@@ -51,6 +52,7 @@ export default async function ContractsPage({
         )
       : Promise.resolve([]),
   ]);
+  const employees = forPicker(everyone, data.rows.map((r) => r.employeeId));
 
   // The full form values of this page's rows, for Edit.
   const editable = canManage
@@ -171,7 +173,7 @@ export default async function ContractsPage({
             {/* The printed contract states the salary. */}
             {canSeeSalary ? (
               <Button asChild size="sm" variant="outline">
-                <Link href={`/hr/contracts/${row.id}`}>
+                <Link href={`/hr/contracts/${row.id}`} target="_blank" rel="noopener">
                   <Printer />
                   Print
                 </Link>

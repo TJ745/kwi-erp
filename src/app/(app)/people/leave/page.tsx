@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import Link from "next/link";
 import { CalendarDays, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
     leaveTypes(),
     canManage ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
-  const employees = people.map((e) => ({
+  const employees = forPicker(people, data.rows.map((r) => r.employeeId)).map((e) => ({
     id: e.id,
     label: `${e.fullName} (${e.employeeNo} · ${e.company.code})`,
   }));
@@ -96,7 +97,7 @@ export default async function LeavePage({ searchParams }: { searchParams: Promis
       cell: (row) => (
         <div className="flex items-center justify-end gap-1 whitespace-nowrap" data-print-hide>
           <Button asChild size="sm" variant="outline">
-            <Link href={`/people/leave/${row.id}`}>
+            <Link href={`/people/leave/${row.id}`} target="_blank" rel="noopener">
               <Printer />
               Print
             </Link>

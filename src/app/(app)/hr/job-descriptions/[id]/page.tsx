@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -50,13 +51,14 @@ export default async function JobDescriptionPrintPage({
   const { id } = await params;
   const { employee: employeeId } = await searchParams;
 
-  const [jd, employees] = await Promise.all([
+  const [jd, everyone] = await Promise.all([
     getJobDescription(ctx, id).catch((error: unknown) => {
       if (error instanceof AppError) notFound();
       throw error;
     }),
     employeeOptions(ctx),
   ]);
+  const employees = forPicker(everyone, [employeeId]);
   const employee = employeeId ? employees.find((e) => e.id === employeeId) : undefined;
   const duties = JD_LISTS.filter((l) => l.group === "duties");
   const profile = JD_LISTS.filter((l) => l.group === "profile");
@@ -86,7 +88,7 @@ export default async function JobDescriptionPrintPage({
         </div>
       </div>
 
-      <article className="jd-sheet rounded-lg border bg-white p-10 text-[14px] leading-snug text-black print:rounded-none print:border-0 print:p-0">
+      <article className="jd-sheet doc-paper rounded-lg border bg-white p-10 text-[14px] leading-snug text-black print:rounded-none print:border-0 print:p-0">
         {/* The thead repeats the heading on every printed page. The bottom
             rule is pinned to the foot of each page (see .jd-foot), just above
             the page number, as on the template. */}

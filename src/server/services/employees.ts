@@ -416,19 +416,19 @@ export async function upsertIqama(ctx: ActorContext, input: IqamaInput) {
       create: {
         employeeId: input.employeeId,
         iqamaNumber: input.iqamaNumber,
-        profession: input.profession,
+        profession: input.profession ?? null,
         professionAr: input.professionAr ?? null,
-        issueDate: input.issueDate,
-        expiryDate: input.expiryDate,
+        issueDate: input.issueDate ?? null,
+        expiryDate: input.expiryDate ?? null,
         sponsorName: input.sponsorName ?? null,
         notes: input.notes ?? null,
       },
       update: {
         iqamaNumber: input.iqamaNumber,
-        profession: input.profession,
+        profession: input.profession ?? null,
         professionAr: input.professionAr ?? null,
-        issueDate: input.issueDate,
-        expiryDate: input.expiryDate,
+        issueDate: input.issueDate ?? null,
+        expiryDate: input.expiryDate ?? null,
         sponsorName: input.sponsorName ?? null,
         notes: input.notes ?? null,
       },
@@ -460,18 +460,18 @@ export async function upsertPassport(ctx: ActorContext, input: PassportInput) {
       create: {
         employeeId: input.employeeId,
         passportNumber: input.passportNumber,
-        issueCountry: input.issueCountry,
+        issueCountry: input.issueCountry ?? null,
         issuePlace: input.issuePlace ?? null,
-        issueDate: input.issueDate,
-        expiryDate: input.expiryDate,
+        issueDate: input.issueDate ?? null,
+        expiryDate: input.expiryDate ?? null,
         notes: input.notes ?? null,
       },
       update: {
         passportNumber: input.passportNumber,
-        issueCountry: input.issueCountry,
+        issueCountry: input.issueCountry ?? null,
         issuePlace: input.issuePlace ?? null,
-        issueDate: input.issueDate,
-        expiryDate: input.expiryDate,
+        issueDate: input.issueDate ?? null,
+        expiryDate: input.expiryDate ?? null,
         notes: input.notes ?? null,
       },
     });
@@ -626,6 +626,10 @@ export async function startIqamaRenewal(
   if (!employee.iqama) {
     throw new ConflictError("Record the Iqama before starting a renewal.");
   }
+  const previousExpiry = employee.iqama.expiryDate;
+  if (!previousExpiry) {
+    throw new ConflictError("Enter the Iqama expiry date before starting a renewal.");
+  }
 
   const open = await prisma.iqamaRenewal.findFirst({
     where: {
@@ -640,7 +644,7 @@ export async function startIqamaRenewal(
     const renewal = await tx.iqamaRenewal.create({
       data: {
         iqamaRecordId: employee.iqama!.id,
-        previousExpiry: employee.iqama!.expiryDate,
+        previousExpiry,
         status: "IN_PROGRESS",
         notes: input.notes ?? null,
       },

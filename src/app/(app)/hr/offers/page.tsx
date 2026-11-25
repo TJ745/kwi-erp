@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import Link from "next/link";
 import { Printer, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,6 @@ import { OfferDialog } from "./offer-dialog";
 import { employeeOptions } from "@/server/services/hr-records";
 import { OfferRowActions } from "./offer-row-actions";
 import { ReportLink } from "@/components/shared/report-link";
-import { DocumentsLink } from "@/components/shared/documents-link";
 
 export const metadata: Metadata = { title: "Job Offers" };
 
@@ -28,8 +28,6 @@ export default async function JobOffersPage({
   const { status, q } = await searchParams;
 
   const canManage = ctx.permissions.has("hr.offers.manage");
-  // Documents are readable by more people than may edit an offer.
-  const canViewDocs = ctx.permissions.has("documents.view");
   const canConvert = ctx.permissions.has("employees.create");
   // The proposed salary is salary data like any other.
   const canSeeSalary = ctx.permissions.has("employees.salary.view");
@@ -42,7 +40,7 @@ export default async function JobOffersPage({
     canManage ? interviewOptions(ctx) : Promise.resolve([]),
     canManage ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
-  const employees = people.map((e) => ({
+  const employees = forPicker(people, offers.map((o) => o.convertedEmployeeId)).map((e) => ({
     id: e.id,
     label: `${e.fullName} (${e.employeeNo} · ${e.company.code})${e.status === "NEW_HIRE" ? " — new hire" : ""}`,
   }));
@@ -149,21 +147,12 @@ export default async function JobOffersPage({
                           salary permission too. */}
                       {canSeeSalary ? (
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/hr/offers/${o.id}`}>
+                          <Link href={`/hr/offers/${o.id}`} target="_blank" rel="noopener">
                             <Printer />
                             Print
                           </Link>
                         </Button>
                       ) : null}
-                      {canViewDocs ? (
-                        <DocumentsLink
-                          entityType="JOB_OFFER"
-                          entityId={o.id}
-                          label={o.candidateName}
-                        />
-                      ) : null}
-                      {/* Still gated: viewing documents does not imply the
-                          right to edit or convert an offer. */}
                       {canManage || canConvert ? (
                         <OfferRowActions
                           offer={{

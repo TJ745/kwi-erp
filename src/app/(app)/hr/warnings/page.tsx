@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forPicker } from "@/lib/employee-status";
 import Link from "next/link";
 import { AlertTriangle, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +31,14 @@ export default async function WarningsPage({
   const { level, employeeId } = await searchParams;
   const canManage = ctx.permissions.has("hr.warnings.manage");
 
-  const [warnings, employees] = await Promise.all([
+  const [warnings, everyone] = await Promise.all([
     listWarnings(ctx, {
       ...(level ? { level } : {}),
       ...(employeeId ? { employeeId } : {}),
     }),
     canManage ? employeeOptions(ctx) : Promise.resolve([]),
   ]);
+  const employees = forPicker(everyone, warnings.map((w) => w.employeeId));
 
   return (
     <PageShell>
@@ -93,7 +95,7 @@ export default async function WarningsPage({
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/warnings/${w.id}`}>
+                        <Link href={`/hr/warnings/${w.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>

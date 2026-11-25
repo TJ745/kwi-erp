@@ -34,6 +34,8 @@ export function ReportLink({
   return (
     <Link
       href={`/reports/${reportId}`}
+      target="_blank"
+      rel="noopener"
       className={buttonVariants({ variant: "outline", size: "sm" })}
     >
       <FileText />

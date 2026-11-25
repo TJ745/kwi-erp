@@ -41,7 +41,7 @@ export default async function OrgChartPage({
         description="Positions along their reporting lines, with the people in each. The structure comes from each position's “Reports to” in Settings → Departments."
         action={
           <Button asChild variant="outline">
-            <Link href={`/people/org-chart/print${query}`}>
+            <Link href={`/people/org-chart/print${query}`} target="_blank" rel="noopener">
               <Printer />
               Print
             </Link>

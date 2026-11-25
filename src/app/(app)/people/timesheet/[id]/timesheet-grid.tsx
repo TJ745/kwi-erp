@@ -258,6 +258,8 @@ export function TimesheetGrid({
           <Button asChild variant="outline" size="sm">
             <Link
               href={`/people/timesheet/${sheet.id}/print`}
+              target="_blank"
+              rel="noopener"
               onClick={(e) => {
                 if (dirty) {
                   e.preventDefault();

@@ -445,8 +445,8 @@ export default async function EmployeeDetailPage({
                     iqamaNumber: employee.iqama.iqamaNumber,
                     profession: employee.iqama.profession,
                     professionAr: employee.iqama.professionAr,
-                    issueDate: employee.iqama.issueDate.toISOString().slice(0, 10),
-                    expiryDate: employee.iqama.expiryDate.toISOString().slice(0, 10),
+                    issueDate: employee.iqama.issueDate?.toISOString().slice(0, 10) ?? null,
+                    expiryDate: employee.iqama.expiryDate?.toISOString().slice(0, 10) ?? null,
                     sponsorName: employee.iqama.sponsorName,
                     notes: employee.iqama.notes,
                   }
@@ -458,17 +458,17 @@ export default async function EmployeeDetailPage({
                     passportNumber: employee.passport.passportNumber,
                     issueCountry: employee.passport.issueCountry,
                     issuePlace: employee.passport.issuePlace,
-                    issueDate: employee.passport.issueDate.toISOString().slice(0, 10),
-                    expiryDate: employee.passport.expiryDate.toISOString().slice(0, 10),
+                    issueDate: employee.passport.issueDate?.toISOString().slice(0, 10) ?? null,
+                    expiryDate: employee.passport.expiryDate?.toISOString().slice(0, 10) ?? null,
                     notes: employee.passport.notes,
                   }
                 : null
             }
             iqamaExpiryBadge={
-              employee.iqama ? <ExpiryAlert date={employee.iqama.expiryDate} /> : null
+              employee.iqama?.expiryDate ? <ExpiryAlert date={employee.iqama.expiryDate} /> : null
             }
             passportExpiryBadge={
-              employee.passport ? <ExpiryAlert date={employee.passport.expiryDate} /> : null
+              employee.passport?.expiryDate ? <ExpiryAlert date={employee.passport.expiryDate} /> : null
             }
           />
 
@@ -572,7 +572,7 @@ export default async function EmployeeDetailPage({
                           {/* The printed contract states the salary. */}
                           {canSeeSalaryFigures ? (
                             <Button asChild size="sm" variant="outline">
-                              <Link href={`/hr/contracts/${c.id}`}>
+                              <Link href={`/hr/contracts/${c.id}`} target="_blank" rel="noopener">
                                 <Printer />
                                 Print
                               </Link>
@@ -618,7 +618,7 @@ export default async function EmployeeDetailPage({
                         <td className="px-4 py-2 tabular-nums">{l.days.toString()}</td>
                         <td className="px-4 py-2 text-right">
                           <Button asChild size="sm" variant="outline">
-                            <Link href={`/people/leave/${l.id}`}>
+                            <Link href={`/people/leave/${l.id}`} target="_blank" rel="noopener">
                               <Printer />
                               Print
                             </Link>
@@ -717,7 +717,7 @@ export default async function EmployeeDetailPage({
                     <td className="px-3 py-2 tabular-nums">{e.outcome ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/evaluations/${e.list.id}/${e.id}/print`}>
+                        <Link href={`/hr/evaluations/${e.list.id}/${e.id}/print`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>
@@ -775,7 +775,7 @@ export default async function EmployeeDetailPage({
                         </td>
                         <td className="px-3 py-2 text-right">
                           <Button asChild size="sm" variant="outline">
-                            <Link href={`/vehicles/handovers/${h.id}`}>
+                            <Link href={`/vehicles/handovers/${h.id}`} target="_blank" rel="noopener">
                               <Printer />
                               Print
                             </Link>
@@ -811,7 +811,7 @@ export default async function EmployeeDetailPage({
                     <td className="px-3 py-2 text-right">
                       {canSeeSalaryFigures ? (
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/hr/offers/${o.id}`}>
+                          <Link href={`/hr/offers/${o.id}`} target="_blank" rel="noopener">
                             <Printer />
                             Print
                           </Link>
@@ -832,7 +832,7 @@ export default async function EmployeeDetailPage({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/joining-letters/${j.id}`}>
+                        <Link href={`/hr/joining-letters/${j.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>
@@ -851,7 +851,7 @@ export default async function EmployeeDetailPage({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/clearance/${c.id}`}>
+                        <Link href={`/hr/clearance/${c.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>
@@ -870,7 +870,7 @@ export default async function EmployeeDetailPage({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/letters/${l.id}`}>
+                        <Link href={`/hr/letters/${l.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>
@@ -903,7 +903,7 @@ export default async function EmployeeDetailPage({
                     <td className="max-w-md px-3 py-2">{w.reason}</td>
                     <td className="px-3 py-2 text-right">
                       <Button asChild size="sm" variant="outline">
-                        <Link href={`/hr/warnings/${w.id}`}>
+                        <Link href={`/hr/warnings/${w.id}`} target="_blank" rel="noopener">
                           <Printer />
                           Print
                         </Link>

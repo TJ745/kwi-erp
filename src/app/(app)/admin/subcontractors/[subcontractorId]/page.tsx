@@ -151,7 +151,7 @@ export default async function SubcontractorPage({
                         <Button asChild size="sm" variant="outline">
                           <Link
                             href={`/admin/subcontractors/${subcontractor.id}/contracts/${c.id}`}
-                          >
+                           target="_blank" rel="noopener">
                             <Printer />
                             Print
                           </Link>
